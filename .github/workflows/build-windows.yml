@@ -1,12 +1,22 @@
 # Build do instalador Windows (NSIS) do app desktop KIARA.
-# Gatilhos: manual (Actions > Build Windows > Run workflow) e tags "v*" (ex.: v1.0.0).
+# Gatilhos: manual, push na main (publica a release "v1.0.<run_number>") e tags "v*".
 name: Build Windows
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+
+# Um build por ref; builds antigos da main são cancelados por um mais novo.
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
 
 # Permissões mínimas por padrão; o job de publicação pede "contents: write" separadamente.
 permissions:
@@ -87,6 +97,24 @@ jobs:
         working-directory: screen-share-app/desktop
         run: npm ci || npm install
 
+      # Versão semver única por build (1.0.<run_number>) em builds da main/manual; em tags v*
+      # a versão da tag é usada. O electron-updater compara essa versão com a instalada.
+      - name: desktop - definir versão do build
+        id: ver
+        working-directory: screen-share-app/desktop
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            VERSION="${REF_NAME#v}"
+          else
+            VERSION="1.0.${RUN_NUMBER}"
+          fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       # Gera desktop/build/server/server.cjs (servidor embutido).
       - name: desktop - empacotar servidor (bundle:server)
         working-directory: screen-share-app/desktop
@@ -126,29 +154,46 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Publica o instalador numa GitHub Release, apenas quando o gatilho é uma tag v*.
+      # Arquivos do auto-update (latest.yml + .blockmap + .exe) para o job de publicação.
+      - name: Enviar arquivos de atualização
+        uses: actions/upload-artifact@v7
+        with:
+          name: KIARA-update-files
+          path: |
+            screen-share-app/desktop/release/KIARA-Setup-*.exe
+            screen-share-app/desktop/release/KIARA-Setup-*.exe.blockmap
+            screen-share-app/desktop/release/latest.yml
+          if-no-files-found: error
+          retention-days: 7
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+
+  # Publica a release (latest.yml + .exe + .blockmap) com o GITHUB_TOKEN padrão, sem segredos extras.
+  # Main/manual: tag v1.0.<run_number>; tag v*: usa a própria tag.
   release:
     name: Publicar release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      # Baixa o artifact gerado pelo job anterior.
-      - name: Baixar instalador
+      - name: Baixar arquivos de atualização
         uses: actions/download-artifact@v8
         with:
-          name: KIARA-Setup-windows
+          name: KIARA-update-files
           path: dist
 
-      # Cria a release com o GITHUB_TOKEN padrão (sem segredos extras).
       - name: Criar GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+          SHA: ${{ github.sha }}
         run: |
-          gh release create "$TAG" dist/KIARA-Setup-*.exe \
+          TAG="v${VERSION}"
+          gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
+            --target "$SHA" \
             --title "KIARA $TAG" \
+            --latest \
             --generate-notes
