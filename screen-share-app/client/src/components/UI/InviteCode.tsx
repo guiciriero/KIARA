@@ -34,6 +34,20 @@ const InviteCode: React.FC<Props> = ({ code, url }) => {
 
   return (
     <div className={styles.container}>
+      <div className={styles.urlBlock}>
+        <span className={styles.label}>Link de Convite</span>
+        <div className={styles.urlRow}>
+          <span className={styles.url}>{url}</span>
+        </div>
+        <button
+          className={`${styles.primaryCopyBtn} ${copied === 'url' ? styles.copied : ''}`}
+          onClick={() => copy(url, 'url')}
+          disabled={!url}
+        >
+          {copied === 'url' ? '✓ Link copiado' : 'Copiar link para enviar'}
+        </button>
+      </div>
+
       <div className={styles.codeBlock}>
         <span className={styles.label}>Código da Sala</span>
         <div className={styles.codeRow}>
@@ -42,22 +56,9 @@ const InviteCode: React.FC<Props> = ({ code, url }) => {
             className={`${styles.copyBtn} ${copied === 'code' ? styles.copied : ''}`}
             onClick={() => copy(code, 'code')}
             title="Copiar código"
+            aria-label="Copiar código"
           >
             {copied === 'code' ? '✓' : '⎘'}
-          </button>
-        </div>
-      </div>
-
-      <div className={styles.urlBlock}>
-        <span className={styles.label}>Link de Convite</span>
-        <div className={styles.urlRow}>
-          <span className={styles.url}>{url}</span>
-          <button
-            className={`${styles.copyBtn} ${copied === 'url' ? styles.copied : ''}`}
-            onClick={() => copy(url, 'url')}
-            title="Copiar link"
-          >
-            {copied === 'url' ? '✓' : '⎘'}
           </button>
         </div>
       </div>

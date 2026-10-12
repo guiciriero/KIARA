@@ -1,0 +1,52 @@
+# Configuração do electron-builder (instalador Windows NSIS).
+# Caminhos relativos a desktop/.
+appId: com.screenshare.app
+productName: Screen Share
+
+directories:
+  output: release
+
+# Só o código do app entra no asar. Tudo o mais (node_modules de dev, build/,
+# scripts/, resources/) fica de fora; os recursos pesados vão via extraResources.
+files:
+  - "src/**/*"
+  - "package.json"
+
+asar: true
+
+# Contrato de recursos (process.resourcesPath quando empacotado).
+# Ficam FORA do asar: o .node e o cloudflared.exe precisam ser arquivos reais.
+extraResources:
+  - from: build/server/server.cjs
+    to: server/server.cjs
+  - from: ../client/dist
+    to: client
+  - from: resources/bin/cloudflared.exe
+    to: bin/cloudflared.exe
+  - from: ../native/build/Release/screen_capture.node
+    to: native/screen_capture.node
+
+electronLanguages:
+  - pt-BR
+  - en-US
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "ScreenShare-Setup-${version}.${ext}"
+  # SEM assinatura de código: nenhum campo de certificado (certificateFile,
+  # signtoolOptions, azureSignOptions...) é definido de propósito.
+  # Consequência: o Windows SmartScreen mostrará o aviso "Editor desconhecido".
+  # O usuário deve clicar em "Mais informações" > "Executar assim mesmo".
+
+nsis:
+  oneClick: true
+  perMachine: false                      # instala por usuário, sem pedir administrador
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  deleteAppDataOnUninstall: false
+
+# Sem auto-update: nenhum bloco "publish" é configurado.
+publish: null

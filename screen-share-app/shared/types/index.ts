@@ -89,8 +89,20 @@ export interface ScreenShareHostApi {
     /** Define a fonte usada pelo PRÓXIMO getDisplayMedia (uso único) */
     selectSource(id: string): Promise<void>;
   };
+  app: {
+    /**
+     * URL pública (https) desta instância do app, gerada pelo túnel embutido.
+     * null quando o túnel não está ativo (modo dev, ou falha ao criar o túnel).
+     */
+    getPublicUrl(): Promise<string | null>;
+    /**
+     * Abre no navegador padrão o link de transmissão de OUTRA pessoa.
+     * O processo principal valida: https + caminho /view/CÓDIGO (6 caracteres).
+     * Rejeita com mensagem legível em pt-BR se o link for inválido.
+     */
+    openViewerLink(url: string): Promise<void>;
+  };
 }
-
 
 
 // ─── Eventos WebSocket / Sinalização ─────────────────────────────────────────

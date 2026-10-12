@@ -126,12 +126,17 @@
 .codeInput input {
   flex: 1;
   font-size: 1rem;
-  letter-spacing: 3px;
-  text-align: center;
-  text-transform: uppercase;
+  min-width: 0;
 }
 
 .error { color: var(--color-danger); font-size: 0.82rem; }
+.info  { color: var(--color-success); font-size: 0.82rem; }
+
+.btnPrimary:focus-visible,
+.btnSecondary:focus-visible {
+  outline: 2px solid var(--color-accent-hover);
+  outline-offset: 2px;
+}
 
 .footer {
   text-align: center;

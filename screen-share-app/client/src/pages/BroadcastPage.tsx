@@ -52,6 +52,18 @@ const BroadcastPage: React.FC = () => {
     return { pids, volumes, muted };
   }, [audioHook.sources, audioHook.selected]);
 
+  // App instalado: avisa se o túnel público não está disponível (link só local)
+  const [tunnelDown, setTunnelDown] = useState(false);
+  useEffect(() => {
+    const hostApp = window.screenShareHost?.app;
+    if (!hostApp) return;
+    let cancelled = false;
+    hostApp.getPublicUrl()
+      .then((publicUrl) => { if (!cancelled && publicUrl === null) setTunnelDown(true); })
+      .catch(() => { /* sem aviso: não quebra a página */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // stream agora é reativo — vem de state.stream
   const { state, startSharing, stopSharing, togglePause } =
     useBroadcast(videoConfig, undefined, audioSelection, captureSourceId);
@@ -148,6 +160,11 @@ const BroadcastPage: React.FC = () => {
         {/* Código de convite — aparece só enquanto estiver compartilhando */}
         {state.isSharing && state.roomCode && (
           <div className={styles.roomInfo}>
+            {tunnelDown && (
+              <p className={styles.tunnelWarning} role="status">
+                Sem conexão com a internet segura: o link só funciona neste computador.
+              </p>
+            )}
             <InviteCode code={state.roomCode} url={state.inviteUrl ?? ''} />
             <div className={styles.viewers}>
               <span>👥</span>

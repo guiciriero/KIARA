@@ -1,15 +1,24 @@
 {
   "name": "@screen-share/desktop",
+  "productName": "Screen Share",
   "version": "1.0.0",
   "description": "Shell Electron do Screen Share (captura de áudio por aplicativo)",
+  "author": "Screen Share",
+  "license": "MIT",
   "private": true,
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "ELECTRON_START_URL=http://localhost:3000 electron .",
-    "build:native": "cd ../native && npm install && npm run build"
+    "build:native": "cd ../native && npm install && npm run build",
+    "bundle:server": "node scripts/bundle-server.mjs",
+    "prepare:resources": "node scripts/prepare-resources.mjs",
+    "dist:win": "npm run bundle:server && npm run prepare:resources && electron-builder --win nsis --x64",
+    "pack:dir": "electron-builder --dir"
   },
   "devDependencies": {
-    "electron": "^44.7.0"
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
   }
 }

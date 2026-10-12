@@ -28,9 +28,9 @@
 
 .code {
   font-family: var(--font-mono);
-  font-size: 1.4rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 6px;
+  letter-spacing: 4px;
   color: var(--color-accent-hover);
   flex: 1;
 }
@@ -56,3 +56,24 @@
 }
 .copyBtn:hover  { border-color: var(--color-accent); color: var(--color-accent); }
 .copyBtn.copied { background: rgba(76, 175, 125, 0.15); color: var(--color-success); border-color: var(--color-success); }
+
+.primaryCopyBtn {
+  margin-top: 8px;
+  width: 100%;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 700;
+  transition: all var(--transition);
+}
+.primaryCopyBtn:hover:not(:disabled) { background: var(--color-accent-hover); }
+.primaryCopyBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.primaryCopyBtn.copied { background: rgba(76, 175, 125, 0.15); color: var(--color-success); border: 1px solid var(--color-success); }
+
+.primaryCopyBtn:focus-visible,
+.copyBtn:focus-visible {
+  outline: 2px solid var(--color-accent-hover);
+  outline-offset: 2px;
+}

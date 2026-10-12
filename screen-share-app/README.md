@@ -288,6 +288,25 @@ npm start
 - macOS: módulo compila e lista aplicativos. A captura de áudio ao vivo ainda não foi validada.
 - Windows: o código foi escrito, mas **ainda não foi compilado nem testado**.
 
+### 📦 Instalador para Windows (para quem não usa terminal)
+
+**Gerar o instalador (pelo GitHub):**
+1. No GitHub, abra **Actions > Build Windows > Run workflow** e aguarde terminar.
+2. Na página da execução, baixe o artifact **ScreenShare-Setup-windows** (contém `ScreenShare-Setup-<versão>.exe`).
+3. Alternativa: crie uma tag `v1.0.0` (`git tag v1.0.0 && git push origin v1.0.0`); o instalador é publicado em **Releases**.
+
+**Instalar:** dê duplo clique no `.exe`. Não precisa de administrador. Como o instalador não é assinado, o Windows SmartScreen mostra o aviso "Editor desconhecido": clique em **Mais informações > Executar assim mesmo**.
+
+**Usar:**
+1. Abra o **Screen Share** (atalho na Área de Trabalho) e clique em **Compartilhar**.
+2. Copie o link gerado e cole no WhatsApp (ou onde quiser).
+3. Para assistir: cole o link no navegador **ou** use o campo de link dentro do app.
+
+**Privacidade:** a transmissão passa do seu computador direto para quem tem o link (túnel Cloudflare); nada fica gravado. Compartilhe o link só com quem você confia.
+
+**Limitações:** o app precisa ficar aberto no computador de quem transmite, e o endereço (link) muda a cada vez que o app é aberto.
+
+
 ---
 
 ## 🔒 Detalhes de Segurança

@@ -3,31 +3,19 @@
 /**
  * Processo principal do shell Electron do Screen Share.
  *
- * Responsabilidades:
- *  - Abrir a janela com segurança estrita (contextIsolation, sandbox, sem Node no renderer).
- *  - Carregar o addon nativo (captura de áudio POR APLICATIVO) no processo principal.
- *  - Expor IPC validado (audio:*, capture:*) consumido pelo preload.js.
- *  - Resolver getDisplayMedia() com a fonte escolhida em `capture:select`, sempre SEM áudio
- *    (o áudio vem do módulo nativo).
- *
  * Modos de execução:
- *  - DEV  (ELECTRON_START_URL definido): carrega a URL do Vite (apenas localhost/127.0.0.1).
- *  - PROD (sem ELECTRON_START_URL): serve ../client/dist pelo protocolo customizado `app://app/`.
+ *  - DEV  (ELECTRON_START_URL definido): carrega a URL do Vite; sem túnel/servidor embutido.
+ *  - PROD (sem ELECTRON_START_URL): sobe túnel Cloudflare + servidor embutido;
+ *    janela carrega http://127.0.0.1:PORT (mesma origem do Socket.IO).
  *
- * ATENÇÃO (CORS em produção): no modo PROD a origem do renderer é `app://app`. O servidor de
- * sinalização (server/, variável CLIENT_ORIGIN) precisa permitir essa origem no CORS/Socket.IO,
- * senão a conexão será bloqueada. Alternativa: usar o modo dev (origem http://localhost:3000).
+ * Instância única: app.requestSingleInstanceLock().
  *
- * Transporte de áudio: os chunks são enviados com webContents.send('audio:chunk', ...).
- * O Float32Array é clonado via structured clone. Escolhido em vez de MessageChannelMain por
- * simplicidade: ~100 chunks/s de ~8 KB (48 kHz estéreo float32) é um volume baixo; se o
- * overhead se mostrar relevante, migrar para MessageChannelMain (porta transferida ao
- * preload) é uma mudança localizada neste arquivo e no preload.
+ * Limpeza: antes de sair, para túnel, servidor e captura nativa (sem órfãos).
  */
 
 const path = require('path');
 const fs = require('fs');
-const { pathToFileURL } = require('url');
+const { execFile } = require('child_process');
 const {
   app,
   BrowserWindow,
@@ -38,60 +26,71 @@ const {
   net,
   desktopCapturer,
   systemPreferences,
+  dialog,
+  utilityProcess,
 } = require('electron');
+
+// ─── Instância única ──────────────────────────────────────────────────────────
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+  process.exit(0);
+}
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
+// ─── Módulos de runtime ───────────────────────────────────────────────────────
+
+const { startTunnel, findCloudflared } = require('./runtime/tunnel');
+const { findFreePort, startServer, resolveClientDist } = require('./runtime/server');
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const APP_SCHEME = 'app';
 const APP_HOST = 'app';
 const APP_ORIGIN = `${APP_SCHEME}://${APP_HOST}`;
-const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
-const NATIVE_PATH = path.resolve(
-  __dirname, '..', '..', 'native', 'build', 'Release', 'screen_capture.node'
-);
+
+// Caminho do addon nativo — empacotado vs dev.
+const NATIVE_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'native', 'screen_capture.node')
+  : path.resolve(__dirname, '..', '..', 'native', 'build', 'Release', 'screen_capture.node');
 
 const NATIVE_MISSING_MSG = 'Módulo nativo não compilado. Rode npm run build:native';
 const MAX_PIDS = 16;
 const MAX_ID_LENGTH = 256;
 const DEV_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-// CSP aplicada às respostas do protocolo app:// (modo produção).
-// connect-src amplo porque a URL do servidor de sinalização é configurável.
-const PROD_CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "media-src 'self' blob: mediastream:",
-  "font-src 'self' data:",
-  "connect-src 'self' http: https: ws: wss:",
-  "worker-src 'self' blob:",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "frame-ancestors 'none'",
-].join('; ');
+// CSP para produção — aplicada via onHeadersReceived nas respostas da origem confiável.
+// O servidor embutido serve o client na mesma origem, então connect-src pode ser restrito
+// à própria origem (http + ws).
+// ATENÇÃO: a CSP é construída dinamicamente em setTrustedOrigin() porque inclui a origem.
+function buildProdCsp(origin) {
+  // origin = "http://127.0.0.1:PORT"
+  const wsOrigin = origin.replace(/^http/, 'ws'); // ws://127.0.0.1:PORT
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "media-src 'self' blob: mediastream:",
+    "font-src 'self' data:",
+    `connect-src 'self' ${origin} ${wsOrigin}`,
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
 
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.ico': 'image/x-icon',
-  '.webp': 'image/webp',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.map': 'application/json',
-  '.wasm': 'application/wasm',
-};
-
-// O esquema precisa ser registrado ANTES do evento `ready`.
+// O esquema app:// ainda precisa ser registrado antes do ready (mesmo que em PROD
+// não seja mais usado para servir o client, mantemos para compatibilidade futura
+// e para que o renderer de dev funcione sem erros de "esquema desconhecido").
 protocol.registerSchemesAsPrivileged([
   {
     scheme: APP_SCHEME,
@@ -107,10 +106,6 @@ protocol.registerSchemesAsPrivileged([
 
 // ─── Modo (dev/prod) ─────────────────────────────────────────────────────────
 
-/**
- * Valida ELECTRON_START_URL: somente http(s) em localhost/127.0.0.1/[::1].
- * @returns {{ url: string|null, origin: string|null, error: string|null }}
- */
 function resolveDevUrl() {
   const raw = process.env.ELECTRON_START_URL;
   if (!raw) return { url: null, origin: null, error: null };
@@ -131,10 +126,18 @@ function resolveDevUrl() {
 
 const dev = resolveDevUrl();
 const IS_DEV = Boolean(process.env.ELECTRON_START_URL);
-/** Origem confiável do renderer (única permitida p/ navegação, IPC e permissões). */
-const TRUSTED_ORIGIN = IS_DEV ? dev.origin : APP_ORIGIN;
 
-/** Normaliza protocolo+host (URL.origin retorna "null" para esquemas não-especiais). */
+/**
+ * Origem confiável do renderer.
+ * Em DEV: origem do Vite (ex.: http://localhost:3000).
+ * Em PROD: http://127.0.0.1:PORT (definida em setTrustedOrigin após a porta ser conhecida).
+ */
+let TRUSTED_ORIGIN = IS_DEV ? dev.origin : null; // null até a porta ser descoberta
+
+function setTrustedOrigin(origin) {
+  TRUSTED_ORIGIN = origin;
+}
+
 function originOf(urlString) {
   try {
     const u = new URL(urlString);
@@ -170,8 +173,13 @@ function requireNative() {
 /** @type {BrowserWindow|null} */
 let mainWindow = null;
 let audioActive = false;
-/** Id escolhido em capture:select (uso único). */
 let pendingSourceId = null;
+
+// Estado do runtime embutido
+let tunnelStop = null;    // () => void
+let serverStop = null;    // () => void
+let publicUrl = null;     // string | null — URL https do túnel
+let embeddedPort = null;  // number — porta do servidor embutido
 
 function stopAudio() {
   if (!audioActive) return;
@@ -183,9 +191,15 @@ function stopAudio() {
   }
 }
 
+function stopRuntime() {
+  try { if (tunnelStop) tunnelStop(); } catch { /* ok */ }
+  try { if (serverStop) serverStop(); } catch { /* ok */ }
+  tunnelStop = null;
+  serverStop = null;
+}
+
 // ─── Validação ───────────────────────────────────────────────────────────────
 
-/** Confirma que a chamada IPC vem do frame principal da janela principal, na origem confiável. */
 function assertTrustedSender(event) {
   const win = mainWindow;
   const frame = event.senderFrame;
@@ -218,11 +232,6 @@ function validateSourceId(id) {
   return id;
 }
 
-/**
- * Envolve o handler IPC: valida remetente e devolve {ok,data}|{ok:false,error}.
- * O preload desembrulha e lança Error com a mensagem legível (evita o prefixo
- * "Error invoking remote method ..." do Electron).
- */
 function handle(channel, fn) {
   ipcMain.handle(channel, async (event, ...args) => {
     try {
@@ -248,6 +257,42 @@ function assertScreenAccess() {
   }
 }
 
+// ─── Validação de URL para openViewerLink ────────────────────────────────────
+
+const VIEW_CODE_RE = /^\/view\/[A-HJ-NP-Z2-9]{6}$/;
+const CLOUDFLARE_HOSTNAME_RE = /^[a-z0-9-]+\.trycloudflare\.com$/;
+
+function validateViewerUrl(urlString) {
+  let u;
+  try {
+    u = new URL(urlString);
+  } catch {
+    throw new Error('O link fornecido não é uma URL válida.');
+  }
+  if (u.protocol !== 'https:') {
+    throw new Error('O link deve usar HTTPS.');
+  }
+  if (u.username || u.password) {
+    throw new Error('O link não deve conter credenciais.');
+  }
+  if (u.port && u.port !== '443') {
+    throw new Error('Porta inesperada no link.');
+  }
+  const isTrycloudflare = CLOUDFLARE_HOSTNAME_RE.test(u.hostname);
+  const isPublicOrigin = publicUrl && u.origin === publicUrl;
+  if (!isTrycloudflare && !isPublicOrigin) {
+    throw new Error(
+      'O link deve ser do domínio trycloudflare.com ou da origem pública do app.'
+    );
+  }
+  if (!VIEW_CODE_RE.test(u.pathname)) {
+    throw new Error(
+      'O caminho do link é inválido. Esperado: /view/XXXXXX (6 caracteres).'
+    );
+  }
+  return u.href;
+}
+
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 
 function registerIpc() {
@@ -258,10 +303,7 @@ function registerIpc() {
     const valid = validatePids(pids);
     const target = mainWindow && mainWindow.webContents;
     if (!target) throw new Error('Janela principal indisponível.');
-
-    // Início repetido: reinicia a captura em vez de falhar com "já em andamento".
     stopAudio();
-
     n.startAudioCapture({ pids: valid }, (chunk) => {
       if (!audioActive || target.isDestroyed()) return;
       target.send('audio:chunk', {
@@ -275,9 +317,7 @@ function registerIpc() {
     audioActive = true;
   });
 
-  handle('audio:stop', () => {
-    stopAudio();
-  });
+  handle('audio:stop', () => { stopAudio(); });
 
   handle('capture:list', async () => {
     assertScreenAccess();
@@ -296,6 +336,14 @@ function registerIpc() {
   handle('capture:select', (id) => {
     pendingSourceId = validateSourceId(id);
   });
+
+  // ── IPC novos ────────────────────────────────────────────────────────────
+  handle('app:get-public-url', () => publicUrl);
+
+  handle('app:open-viewer-link', async (urlString) => {
+    const href = validateViewerUrl(urlString);
+    await shell.openExternal(href);
+  });
 }
 
 // ─── getDisplayMedia ─────────────────────────────────────────────────────────
@@ -303,10 +351,8 @@ function registerIpc() {
 function registerDisplayMediaHandler() {
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
-      // Consome a seleção (uso único), qualquer que seja o resultado.
       const wantedId = pendingSourceId;
       pendingSourceId = null;
-
       try {
         if (!isTrustedUrl(request.securityOrigin)) {
           console.warn('[desktop] getDisplayMedia negado: origem não confiável', request.securityOrigin);
@@ -314,28 +360,18 @@ function registerDisplayMediaHandler() {
           return;
         }
         assertScreenAccess();
-
         const sources = await desktopCapturer.getSources({
           types: ['screen', 'window'],
           thumbnailSize: { width: 0, height: 0 },
         });
-
         let chosen;
         if (wantedId) {
           chosen = sources.find((s) => s.id === wantedId);
-          if (!chosen) {
-            console.warn('[desktop] Fonte selecionada não existe mais:', wantedId);
-            callback({});
-            return;
-          }
+          if (!chosen) { callback({}); return; }
         } else {
           chosen = sources.find((s) => s.id.startsWith('screen:')) || sources[0];
         }
-        if (!chosen) {
-          callback({});
-          return;
-        }
-        // Sem `audio`: o áudio é capturado pelo módulo nativo, por aplicativo.
+        if (!chosen) { callback({}); return; }
         callback({ video: chosen });
       } catch (err) {
         console.warn('[desktop] Falha em getDisplayMedia:', err && err.message);
@@ -346,13 +382,11 @@ function registerDisplayMediaHandler() {
   );
 }
 
-// ─── Permissões e CSP ────────────────────────────────────────────────────────
+// ─── Permissões ───────────────────────────────────────────────────────────────
 
 function registerPermissions() {
   const ses = session.defaultSession;
-  // Somente captura de mídia, e apenas para a origem confiável.
   const allowed = new Set(['display-capture', 'media']);
-
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const url = (details && details.requestingUrl) || (webContents && webContents.getURL()) || '';
     callback(allowed.has(permission) && isTrustedUrl(url));
@@ -362,62 +396,23 @@ function registerPermissions() {
   });
 }
 
-// ─── Protocolo app:// (produção) ─────────────────────────────────────────────
+// ─── CSP via onHeadersReceived (produção) ────────────────────────────────────
 
-function textResponse(status, body) {
-  return new Response(body, {
-    status,
-    headers: { 'content-type': 'text/plain; charset=utf-8', 'content-security-policy': PROD_CSP },
+/**
+ * Injeta a CSP nas respostas HTTP da origem confiável (http://127.0.0.1:PORT).
+ * Equivale ao que antes era feito nos cabeçalhos das respostas do protocolo app://.
+ */
+function registerCspHeaders(trustedOrigin) {
+  const csp = buildProdCsp(trustedOrigin);
+  session.defaultSession.webRequest.onHeadersReceived({ urls: [`${trustedOrigin}/*`] }, (details, callback) => {
+    const headers = Object.assign({}, details.responseHeaders);
+    headers['content-security-policy'] = [csp];
+    headers['x-content-type-options'] = ['nosniff'];
+    callback({ responseHeaders: headers });
   });
 }
 
-async function serveApp(request) {
-  const url = new URL(request.url);
-  if (url.host !== APP_HOST) return textResponse(404, 'Não encontrado');
-
-  let pathname;
-  try {
-    pathname = decodeURIComponent(url.pathname);
-  } catch {
-    return textResponse(400, 'Requisição inválida');
-  }
-  if (pathname.includes('\0')) return textResponse(400, 'Requisição inválida');
-
-  // Proteção contra path traversal: resolve e exige que o alvo fique dentro de CLIENT_DIST.
-  const rel = pathname.replace(/^\/+/, '');
-  let filePath = path.resolve(CLIENT_DIST, rel);
-  const insideRoot = (p) => p === CLIENT_DIST || p.startsWith(CLIENT_DIST + path.sep);
-  if (!insideRoot(filePath)) return textResponse(403, 'Acesso negado');
-
-  let stat = null;
-  try {
-    stat = fs.statSync(filePath);
-  } catch { /* inexistente */ }
-
-  if (stat && stat.isDirectory()) {
-    filePath = path.join(filePath, 'index.html');
-    try { stat = fs.statSync(filePath); } catch { stat = null; }
-  }
-
-  if (!stat || !stat.isFile()) {
-    // Fallback SPA apenas para rotas (sem extensão); assets ausentes devolvem 404.
-    if (path.extname(rel) !== '') return textResponse(404, 'Não encontrado');
-    filePath = path.join(CLIENT_DIST, 'index.html');
-  }
-
-  try {
-    const res = await net.fetch(pathToFileURL(filePath).toString());
-    const headers = new Headers(res.headers);
-    headers.set('content-type', MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream');
-    headers.set('content-security-policy', PROD_CSP);
-    headers.set('x-content-type-options', 'nosniff');
-    return new Response(res.body, { status: res.status, headers });
-  } catch {
-    return textResponse(500, 'Erro ao ler arquivo');
-  }
-}
-
-// ─── Janela ──────────────────────────────────────────────────────────────────
+// ─── Janela de espera ─────────────────────────────────────────────────────────
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
@@ -435,12 +430,69 @@ main{max-width:560px;padding:24px}h1{font-size:20px;margin:0 0 12px}p{line-heigh
   return win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 }
 
+function loadSplashPage(win) {
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>Screen Share — Aguarde</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#111827;color:#e5e7eb;
+       display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+  main{text-align:center;max-width:400px;padding:24px}
+  h1{font-size:22px;margin:0 0 16px;font-weight:600}
+  p{color:#9ca3af;line-height:1.6}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;
+       margin:0 3px;animation:blink 1.2s infinite}
+  .dot:nth-child(2){animation-delay:.2s}
+  .dot:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+</style></head>
+<body><main>
+  <h1>Screen Share</h1>
+  <p>Preparando… (iniciando conexão segura)</p>
+  <p><span class="dot"></span><span class="dot"></span><span class="dot"></span></p>
+</main></body></html>`;
+  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+}
+
 function openExternalSafe(urlString) {
   try {
     const u = new URL(urlString);
     if (u.protocol === 'https:') shell.openExternal(u.href);
   } catch { /* URL inválida: ignora */ }
 }
+
+// ─── Protocolo app:// (mantido para dev e compatibilidade) ───────────────────
+// Em PROD o renderer não carrega app://, mas o handler ainda precisa estar registrado.
+// Serve também como fallback caso alguém navegue para app:// por engano.
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.map': 'application/json',
+  '.wasm': 'application/wasm',
+};
+
+function textResponse(status, body) {
+  return new Response(body, {
+    status,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+}
+
+// ─── Janela principal ─────────────────────────────────────────────────────────
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -466,7 +518,6 @@ function createWindow() {
 
   win.once('ready-to-show', () => win.show());
 
-  // window.open / target=_blank: nunca cria janela; só https externo abre no navegador.
   wc.setWindowOpenHandler(({ url }) => {
     openExternalSafe(url);
     return { action: 'deny' };
@@ -481,7 +532,6 @@ function createWindow() {
   wc.on('will-frame-navigate', guardNavigation);
   wc.on('will-attach-webview', (event) => event.preventDefault());
 
-  // Recarga/navegação do frame principal ou crash do renderer: encerra a captura nativa.
   wc.on('did-start-navigation', (details) => {
     if (details.isMainFrame && !details.isSameDocument) {
       stopAudio();
@@ -499,7 +549,115 @@ function createWindow() {
     if (mainWindow === win) mainWindow = null;
   });
 
+  return win;
+}
+
+// ─── Fluxo de inicialização em produção ──────────────────────────────────────
+
+async function startEmbeddedRuntime(win) {
+  // 1. Descobre porta livre
+  const port = await findFreePort();
+  embeddedPort = port;
+  const localOrigin = `http://127.0.0.1:${port}`;
+
+  // 2. Registra TRUSTED_ORIGIN + CSP antes de carregar o renderer
+  setTrustedOrigin(localOrigin);
+  registerCspHeaders(localOrigin);
+
+  // 3. Tenta subir o túnel (opcional — falha sem travar)
+  let tunnelUrl = null;
+  const cfBin = findCloudflared(app.isPackaged ? process.resourcesPath : undefined);
+
+  if (cfBin) {
+    try {
+      console.log(`[desktop] Iniciando túnel cloudflared (porta ${port})…`);
+      const tunnel = await startTunnel(port, cfBin);
+      tunnelUrl = tunnel.url;
+      publicUrl = tunnelUrl;
+      tunnelStop = tunnel.stop;
+      console.log(`[desktop] Túnel ativo: ${tunnelUrl}`);
+
+      // Avisa o usuário caso o cloudflared morra inesperadamente
+      tunnel.events.on('unexpected-exit', ({ code, signal }) => {
+        console.warn(`[desktop] cloudflared encerrou inesperadamente (code=${code}, signal=${signal})`);
+        publicUrl = null;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          dialog.showMessageBox(mainWindow, {
+            type: 'warning',
+            title: 'Conexão interrompida',
+            message: 'O túnel de acesso externo foi encerrado.',
+            detail:
+              'Outros usuários não poderão mais se conectar via internet.\n' +
+              'Você pode continuar usando o app localmente ou reiniciá-lo para tentar novamente.',
+            buttons: ['OK'],
+          }).catch(() => {});
+        }
+      });
+    } catch (err) {
+      console.warn(`[desktop] Túnel falhou (sem internet?): ${err.message}`);
+      // Continua sem túnel
+    }
+  } else {
+    console.warn('[desktop] cloudflared não encontrado — sem URL pública.');
+  }
+
+  // 4. Inicia o servidor embutido
+  const clientDistDir = resolveClientDist(app.isPackaged, app.isPackaged ? process.resourcesPath : undefined);
+  const logDir = path.join(app.getPath('userData'), 'logs');
+  fs.mkdirSync(logDir, { recursive: true });
+
+  console.log(`[desktop] Iniciando servidor embutido na porta ${port}…`);
+  const srv = await startServer({
+    port,
+    publicUrl: tunnelUrl,
+    clientDistDir,
+    logDir,
+    isPackaged: app.isPackaged,
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+    utilityProcess,
+  });
+  serverStop = srv.stop;
+  console.log(`[desktop] Servidor embutido pronto em ${localOrigin}`);
+
+  // 5. Carrega a janela principal
+  await win.loadURL(localOrigin);
+
+  // 6. Aviso amigável se não há túnel
+  if (!tunnelUrl) {
+    dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Sem acesso externo',
+      message: 'O app está funcionando apenas localmente.',
+      detail:
+        'Não foi possível criar a conexão segura com a internet (cloudflared não encontrado ou ' +
+        'sem acesso à rede).\nVocê pode transmitir e assistir apenas nesta máquina até que a ' +
+        'conexão seja restabelecida e o aplicativo seja reiniciado.',
+      buttons: ['OK'],
+    }).catch(() => {});
+  }
+}
+
+// ─── Ciclo de vida ───────────────────────────────────────────────────────────
+
+app.whenReady().then(async () => {
+  if (!native) {
+    console.warn(`[desktop] ${NATIVE_MISSING_MSG}${nativeLoadError ? ` (${nativeLoadError.message})` : ''}`);
+  }
+
+  // O protocolo app:// ainda precisa de um handler (Electron exige que exista).
+  // Em PROD não é usado para servir o cliente, mas evita "Erro ao processar requisição".
+  protocol.handle(APP_SCHEME, (request) => {
+    return textResponse(404, 'Não usado em modo produção');
+  });
+
+  registerPermissions();
+  registerDisplayMediaHandler();
+  registerIpc();
+
+  const win = createWindow();
+
   if (IS_DEV) {
+    // ── Modo desenvolvimento ───────────────────────────────────────────────
     if (dev.error) {
       loadErrorPage(win, 'Configuração inválida', escapeHtml(dev.error));
     } else {
@@ -512,46 +670,44 @@ function createWindow() {
         );
       });
     }
-  } else if (!fs.existsSync(path.join(CLIENT_DIST, 'index.html'))) {
-    loadErrorPage(
-      win,
-      'Client não compilado',
-      'Não foi encontrado <code>client/dist/index.html</code>. ' +
-      'Rode <code>cd client &amp;&amp; npm run build</code> ou use <code>npm run dev</code> ' +
-      'com o servidor Vite ativo.'
-    );
   } else {
-    win.loadURL(`${APP_ORIGIN}/`).catch((err) => {
-      loadErrorPage(win, 'Falha ao carregar o aplicativo', escapeHtml(err && err.message));
+    // ── Modo produção: mostra splash e inicia runtime ─────────────────────
+    loadSplashPage(win);
+
+    startEmbeddedRuntime(win).catch((err) => {
+      console.error('[desktop] Falha crítica ao iniciar runtime:', err);
+      loadErrorPage(
+        win,
+        'Falha ao iniciar o aplicativo',
+        escapeHtml(err && err.message)
+      );
     });
   }
 
-  return win;
-}
-
-// ─── Ciclo de vida ───────────────────────────────────────────────────────────
-
-app.whenReady().then(() => {
-  if (!native) {
-    console.warn(`[desktop] ${NATIVE_MISSING_MSG}${nativeLoadError ? ` (${nativeLoadError.message})` : ''}`);
-  }
-
-  protocol.handle(APP_SCHEME, serveApp);
-  registerPermissions();
-  registerDisplayMediaHandler();
-  registerIpc();
-  createWindow();
-
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      const w = createWindow();
+      if (IS_DEV) {
+        if (dev.url) w.loadURL(dev.url).catch(() => {});
+      } else if (embeddedPort) {
+        w.loadURL(`http://127.0.0.1:${embeddedPort}`).catch(() => {});
+      }
+    }
   });
 });
 
 app.on('window-all-closed', () => {
   stopAudio();
+  stopRuntime();
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
   stopAudio();
+  stopRuntime();
+});
+
+// Garantia extra de limpeza — evita processos órfãos
+process.on('exit', () => {
+  try { stopRuntime(); } catch { /* ok */ }
 });

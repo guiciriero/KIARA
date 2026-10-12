@@ -25,8 +25,12 @@ const originCheck = (
   callback(null, isOriginAllowed(origin, PORT));
 };
 
-// Site estático (client/dist) — funciona em src/ (ts-node-dev) e em dist/
-const CLIENT_DIST = path.resolve(__dirname, '../../client/dist');
+// Site estático (client/dist) — funciona em src/ (ts-node-dev) e em dist/.
+// CLIENT_DIST_DIR sobrescreve o caminho (usado pelo app desktop empacotado,
+// onde o servidor roda a partir de um bundle fora da árvore do projeto).
+const CLIENT_DIST = process.env.CLIENT_DIST_DIR
+  ? path.resolve(process.env.CLIENT_DIST_DIR)
+  : path.resolve(__dirname, '../../client/dist');
 const CLIENT_INDEX = path.join(CLIENT_DIST, 'index.html');
 const servingClient = fs.existsSync(CLIENT_DIST) && fs.existsSync(CLIENT_INDEX);
 
@@ -102,6 +106,9 @@ httpServer.listen(PORT, '127.0.0.1', () => {
       : `client/dist não encontrado (${CLIENT_DIST}); site não será servido`,
   );
 });
+
+// Quando iniciado como processo filho com canal IPC (app desktop), encerra junto com o pai
+process.on('disconnect', () => process.exit(0));
 
 // Tratamento gracioso de encerramento
 process.on('SIGTERM', () => {

@@ -1,0 +1,29 @@
+
+# Dependências
+node_modules/
+
+# Arquivos de build
+dist/
+build/
+*.tsbuildinfo
+
+# Módulo nativo compilado
+native/build/
+native/*.node
+
+# Variáveis de ambiente (NUNCA commitar)
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# macOS
+.DS_Store
+
+# Instalador do app desktop (gerado em build/CI)
+desktop/release/
+desktop/build/
+desktop/resources/bin/
+desktop/resources/native/

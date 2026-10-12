@@ -1,0 +1,147 @@
+# Build do instalador Windows (NSIS) do app desktop Screen Share.
+# Gatilhos: manual (Actions > Build Windows > Run workflow) e tags "v*" (ex.: v1.0.0).
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+# Permissões mínimas por padrão; o job de publicação pede "contents: write" separadamente.
+permissions:
+  contents: read
+
+env:
+  # Versão fixa do cloudflared (o hash SHA-256 é verificado contra o digest oficial da release).
+  CLOUDFLARED_VERSION: "2026.10.0"
+
+jobs:
+  build:
+    name: Compilar instalador
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        # O projeto fica na subpasta screen-share-app/ do repositório.
+        working-directory: screen-share-app
+        shell: bash
+    steps:
+      # Baixa o código do repositório.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Node 22 LTS + cache do npm (um lockfile por subprojeto).
+      - name: Instalar Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            screen-share-app/shared/types/package-lock.json
+            screen-share-app/server/package-lock.json
+            screen-share-app/client/package-lock.json
+            screen-share-app/native/package-lock.json
+            screen-share-app/desktop/package-lock.json
+
+      # Tipos compartilhados: usados pelo servidor e pelo cliente.
+      - name: shared/types - instalar e compilar
+        working-directory: screen-share-app/shared/types
+        run: |
+          npm ci || npm install
+          npm run build
+
+      # Servidor de sinalização (o desktop gera depois um bundle único com esbuild).
+      - name: server - instalar e compilar
+        working-directory: screen-share-app/server
+        run: |
+          npm ci || npm install
+          npm run build
+
+      # Site (client/dist) que o app serve na mesma origem.
+      - name: client - instalar e compilar
+        working-directory: screen-share-app/client
+        run: |
+          npm ci || npm install
+          npm run build
+
+      # Módulo nativo C++ (WASAPI/DXGI): só compila no Windows. Python e Visual Studio Build Tools
+      # já vêm no windows-latest.
+      # IMPORTANTE: o addon usa node-addon-api com NAPI_VERSION=8 (N-API é ABI-estável).
+      # Por isso pode ser compilado com o node-gyp padrão contra o Node 22 do runner e carregado
+      # pelo Electron SEM rebuild específico para Electron (o Electron implementa N-API >= 8).
+      - name: native - instalar e compilar addon
+        working-directory: screen-share-app/native
+        run: |
+          npm ci || npm install
+          npm run build
+
+      # Dependências do app desktop (electron, electron-builder, esbuild).
+      - name: desktop - instalar dependências
+        working-directory: screen-share-app/desktop
+        run: npm ci || npm install
+
+      # Gera desktop/build/server/server.cjs (servidor embutido).
+      - name: desktop - empacotar servidor (bundle:server)
+        working-directory: screen-share-app/desktop
+        run: npm run bundle:server
+
+      # Confere os artefatos e baixa o cloudflared.exe (com verificação de SHA-256).
+      - name: desktop - preparar recursos (prepare:resources)
+        working-directory: screen-share-app/desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run prepare:resources
+
+      # Gera o instalador NSIS (sem assinatura de código).
+      - name: desktop - gerar instalador (dist:win)
+        working-directory: screen-share-app/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run dist:win
+
+      # Falha o job se o instalador não foi gerado.
+      - name: Verificar instalador
+        working-directory: screen-share-app/desktop
+        run: |
+          ls -la release
+          if ! ls release/ScreenShare-Setup-*.exe >/dev/null 2>&1; then
+            echo "::error::Instalador release/ScreenShare-Setup-*.exe não foi gerado"
+            exit 1
+          fi
+
+      # Guarda o instalador como artifact (aba do workflow > Artifacts).
+      - name: Enviar instalador como artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ScreenShare-Setup-windows
+          path: screen-share-app/desktop/release/ScreenShare-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  # Publica o instalador numa GitHub Release, apenas quando o gatilho é uma tag v*.
+  release:
+    name: Publicar release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Baixa o artifact gerado pelo job anterior.
+      - name: Baixar instalador
+        uses: actions/download-artifact@v8
+        with:
+          name: ScreenShare-Setup-windows
+          path: dist
+
+      # Cria a release com o GITHUB_TOKEN padrão (sem segredos extras).
+      - name: Criar GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/ScreenShare-Setup-*.exe \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Screen Share $TAG" \
+            --generate-notes

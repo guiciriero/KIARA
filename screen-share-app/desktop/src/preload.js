@@ -72,6 +72,10 @@ const api = {
     listSources: () => invoke('capture:list'),
     selectSource: (id) => invoke('capture:select', id),
   },
+  app: {
+    getPublicUrl: () => invoke('app:get-public-url'),
+    openViewerLink: (url) => invoke('app:open-viewer-link', url),
+  },
 };
 
 if (platform) {

@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../services/SocketContext';
+import { parseViewerInput, MAX_INPUT_LENGTH } from '../utils/viewerLink';
 import styles from './HomePage.module.css';
 
 const HomePage: React.FC = () => {
@@ -13,15 +14,59 @@ const HomePage: React.FC = () => {
   const { connected } = useSocket();
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState('');
+  const [codeInfo, setCodeInfo] = useState('');
 
-  const handleJoin = () => {
-    const trimmed = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (trimmed.length !== 6) {
-      setCodeError('O código deve ter 6 caracteres.');
+  // Presente apenas no app instalado (preload do Electron)
+  const host = window.screenShareHost;
+  const isInstalledApp = host !== undefined;
+
+  const handleJoin = async () => {
+    setCodeError('');
+    setCodeInfo('');
+
+    const parsed = parseViewerInput(code);
+    if (parsed.kind === 'invalid') {
+      setCodeError(
+        isInstalledApp
+          ? 'Não entendi. Cole o link completo que a pessoa enviou para você.'
+          : 'Não entendi. Digite o código de 6 caracteres ou cole o link completo da transmissão.',
+      );
       return;
     }
-    setCodeError('');
-    navigate(`/view/${trimmed}`);
+
+    // ── App instalado: a sala existe no servidor de quem transmite ─────────
+    if (isInstalledApp) {
+      if (parsed.kind === 'code') {
+        setCodeError(
+          'Aqui no aplicativo, cole o link completo que a pessoa enviou. ' +
+          'O código sozinho só funciona no site de quem está transmitindo.',
+        );
+        return;
+      }
+      const hostApp = host.app as typeof host.app | undefined; // preload antigo pode não ter `app`
+      if (!hostApp) {
+        setCodeError('Esta versão do aplicativo não abre links. Atualize o aplicativo e tente de novo.');
+        return;
+      }
+      try {
+        await hostApp.openViewerLink(parsed.url);
+        setCodeInfo('Abrimos a transmissão no seu navegador.');
+      } catch {
+        setCodeError('Não foi possível abrir esse link. Confira se ele está completo e tente de novo.');
+      }
+      return;
+    }
+
+    // ── Navegador comum ─────────────────────────────────────────────────────
+    if (parsed.kind === 'code') {
+      navigate(`/view/${parsed.code}`);
+      return;
+    }
+    if (parsed.origin === window.location.origin) {
+      navigate(`/view/${parsed.code}`);
+    } else {
+      window.location.assign(parsed.url);
+    }
   };
 
   return (
@@ -67,25 +112,33 @@ const HomePage: React.FC = () => {
           <div className={styles.card}>
             <div className={styles.cardIcon}>👁️</div>
             <h2>Assistir Compartilhamento</h2>
-            <p>Digite o código de convite para ver a tela de outro usuário em tempo real.</p>
+            <p>
+              {isInstalledApp
+                ? 'Cole o link que a pessoa enviou para você (por exemplo, pelo WhatsApp).'
+                : 'Cole o link que a pessoa enviou ou digite o código de 6 caracteres.'}
+            </p>
             <div className={styles.codeInput}>
               <input
                 type="text"
-                placeholder="Código (ex.: AB3X7K)"
-                maxLength={6}
+                aria-label={isInstalledApp ? 'Link da transmissão' : 'Link ou código da transmissão'}
+                placeholder={isInstalledApp ? 'Cole o link aqui' : 'Cole o link ou digite o código'}
+                maxLength={MAX_INPUT_LENGTH}
                 value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => { setCode(e.target.value); setCodeError(''); setCodeInfo(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && void handleJoin()}
               />
               <button
                 className={styles.btnSecondary}
-                onClick={handleJoin}
-                disabled={!connected}
+                onClick={() => void handleJoin()}
+                disabled={!isInstalledApp && !connected}
               >
-                Entrar
+                {isInstalledApp ? 'Assistir' : 'Entrar'}
               </button>
             </div>
-            {codeError && <p className={styles.error}>{codeError}</p>}
+            {codeError && <p className={styles.error} role="alert">{codeError}</p>}
+            {codeInfo && <p className={styles.info} role="status">{codeInfo}</p>}
           </div>
         </div>
       </main>

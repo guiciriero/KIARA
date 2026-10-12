@@ -28,6 +28,10 @@ const prodFormat = combine(
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+// LOG_DIR define onde gravar os arquivos de log (o app desktop usa a pasta de dados
+// do usuário, pois o diretório de instalação pode ser somente leitura).
+const logDir = process.env.LOG_DIR ?? 'logs';
+
 export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL ?? 'info',
   format: isProduction ? prodFormat : devFormat,
@@ -36,8 +40,8 @@ export const logger = winston.createLogger({
     // Em produção, grava também em arquivo
     ...(isProduction
       ? [
-          new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-          new winston.transports.File({ filename: 'logs/combined.log' }),
+          new winston.transports.File({ filename: `${logDir}/error.log`, level: 'error' }),
+          new winston.transports.File({ filename: `${logDir}/combined.log` }),
         ]
       : []),
   ],
