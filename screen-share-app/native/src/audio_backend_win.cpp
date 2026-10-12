@@ -212,8 +212,8 @@ BOOL CALLBACK EnumWindowsTitleProc(HWND hwnd, LPARAM lParam) {
  * o sistema pode manter o handler vivo mesmo após o timeout da espera, por isso
  * o evento pertence ao próprio handler.
  */
-class ActivateHandler final : public IActivateAudioInterfaceCompletionHandler,
-                              public IAgileObject {
+class ActivateHandler : public IActivateAudioInterfaceCompletionHandler,
+                        public IAgileObject {
  public:
   ActivateHandler() { event_.Reset(CreateEventW(nullptr, TRUE, FALSE, nullptr)); }
   ActivateHandler(const ActivateHandler&) = delete;
@@ -283,15 +283,21 @@ std::string ActivateProcessLoopbackClient(uint32_t pid, ComPtr<IAudioClient>& ou
   pv.blob.cbSize = sizeof(params);
   pv.blob.pBlob = reinterpret_cast<BYTE*>(&params);   // Pilha: não usar PropVariantClear
 
-  ComPtr<ActivateHandler> handler;
-  handler.Attach(new (std::nothrow) ActivateHandler());
+  // Ponteiro cru com Release explícito: ComPtr não combina bem com classe de
+  // herança múltipla de interfaces COM (base IUnknown ambígua).
+  ActivateHandler* handler = new (std::nothrow) ActivateHandler();
   if (!handler) return "Memória insuficiente para iniciar a captura de áudio.";
+  struct HandlerRelease {
+    ActivateHandler* h;
+    ~HandlerRelease() { h->Release(); }
+  } handlerGuard{handler};
+
   if (!handler->Valid()) return "Falha ao criar evento de sincronização da ativação de áudio.";
 
   ComPtr<IActivateAudioInterfaceAsyncOperation> op;
   HRESULT hr = ActivateAudioInterfaceAsync(
       VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK, __uuidof(IAudioClient), &pv,
-      handler.Get(), &op);
+      static_cast<IActivateAudioInterfaceCompletionHandler*>(handler), &op);
   if (FAILED(hr))
     return "Falha ao solicitar a ativação da captura de áudio (código " + HrToString(hr) + ").";
 

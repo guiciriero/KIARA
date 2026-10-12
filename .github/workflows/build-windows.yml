@@ -65,16 +65,22 @@ jobs:
           npm ci || npm install
           npm run build
 
-      # Módulo nativo C++ (WASAPI/DXGI): só compila no Windows. Python e Visual Studio Build Tools
-      # já vêm no windows-latest.
+      # Módulo nativo C++ (WASAPI/DXGI): só compila no Windows. Python e Visual Studio já vêm
+      # no windows-latest.
       # IMPORTANTE: o addon usa node-addon-api com NAPI_VERSION=8 (N-API é ABI-estável).
       # Por isso pode ser compilado com o node-gyp padrão contra o Node 22 do runner e carregado
       # pelo Electron SEM rebuild específico para Electron (o Electron implementa N-API >= 8).
+      # O runner tem o Visual Studio 2026 ("18"), que o node-gyp embutido no npm (11.x) não
+      # reconhece. Por isso usamos o node-gyp 13.x local (devDependency) e instalamos com
+      # --ignore-scripts, para o npm não disparar o `node-gyp rebuild` automático com a versão
+      # antiga (o binding.gyp faz o npm rodar esse passo sozinho no install).
       - name: native - instalar e compilar addon
         working-directory: screen-share-app/native
         run: |
-          npm ci || npm install
-          npm run build
+          npm ci --ignore-scripts || npm install --ignore-scripts
+          npx node-gyp --version
+          npx node-gyp rebuild
+          ls -la build/Release/screen_capture.node
 
       # Dependências do app desktop (electron, electron-builder, esbuild).
       - name: desktop - instalar dependências
