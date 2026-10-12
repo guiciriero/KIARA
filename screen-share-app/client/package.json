@@ -5,9 +5,12 @@
   "description": "Interface web e estúdio de compartilhamento de tela e áudio KIARA",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "eslint src --ext .ts,.tsx"
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -16,10 +19,16 @@
     "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "typescript": "^5.4.5",
-    "vite": "^5.3.1"
+    "typescript-eslint": "^8.71.2",
+    "vite": "^7.3.7",
+    "vitest": "^4.1.11"
   }
 }
