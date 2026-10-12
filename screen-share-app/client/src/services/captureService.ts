@@ -41,7 +41,7 @@ export async function startScreenCapture(
     video: {
       width:     { ideal: videoConfig.width,     max: 3840 },
       height:    { ideal: videoConfig.height,    max: 2160 },
-      frameRate: { ideal: targetFps, min: Math.min(30, targetFps), max: 60 },
+      frameRate: { ideal: targetFps,             max: 60 },
     },
     audio: host
       ? false
@@ -101,7 +101,7 @@ export async function captureSingleVideoTrack(
     video: {
       width:     { ideal: videoConfig.width,     max: 3840 },
       height:    { ideal: videoConfig.height,    max: 2160 },
-      frameRate: { ideal: targetFps, min: Math.min(30, targetFps), max: 60 },
+      frameRate: { ideal: targetFps,             max: 60 },
     },
     audio: false,
   };
