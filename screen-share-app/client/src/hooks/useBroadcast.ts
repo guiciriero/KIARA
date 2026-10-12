@@ -1,24 +1,21 @@
 /**
- * useBroadcast.ts
+ * Hook do apresentador: captura → sala → WebRTC → estatísticas → encerramento.
  *
- * Hook principal do modo apresentador.
- * Gerencia o ciclo de vida completo da transmissão:
- * captura da tela → criação da sala → conexão WebRTC → estatísticas → encerramento.
- *
- * Correções aplicadas:
- *   - Removidos imports não utilizados (parseRTCStats, classifyQuality)
- *   - Race condition corrigida: roomId obtido diretamente do evento, não do state
- *   - Stream exposto via state (reativo) em vez de ref (não reativo)
- *   - Coleta de estatísticas implementada de fato via broadcaster.onStats()
- *   - Encerramento do stream de captura separado do encerramento WebRTC
+ * O áudio passa sempre por um BroadcastAudio, cuja faixa de saída é criada no início e
+ * nunca trocada. Mudar a seleção de fontes durante a live só altera o grafo de áudio
+ * atrás dessa faixa — não há replaceTrack nem renegociação.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCBroadcaster } from '../services/webrtcService';
-import { startScreenCapture, captureSingleVideoTrack, combineStreams, stopStream } from '../services/captureService';
-import { AppAudioMixer } from '../services/appAudioMixer';
-import type { VideoConfig, AudioConfig, StreamStats, ConnectionState } from '@shared/index';
+import { captureDisplay, stopStream } from '../services/captureService';
+import { BroadcastAudio } from '../services/broadcastAudio';
+import type { AudioSelectionItem } from '../services/broadcastAudio';
+import { isCancellation, toMediaError } from '../services/mediaError';
+import type { VideoConfig, StreamStats, ConnectionState } from '@shared/index';
+
+export type { AudioSelectionItem };
 
 export interface BroadcastState {
   isSharing: boolean;
@@ -29,94 +26,128 @@ export interface BroadcastState {
   viewerCount: number;
   connectionState: ConnectionState;
   stats: StreamStats | null;
-  /** Stream local da captura (para preview no elemento <video>) */
+  /** Cópia só de vídeo da captura, para o preview local */
   stream: MediaStream | null;
   error: string | null;
+  /** Fontes de áudio realmente roteadas (verdade do mixer, não da interface) */
+  activeAudioIds: string[];
+  /** Incrementa a cada falha de sincronização, para a interface reconciliar a seleção */
+  audioFailures: number;
 }
 
-const DEFAULT_VIDEO_CONFIG: VideoConfig = {
-  width: 1920, height: 1080, frameRate: 60,
-  codec: 'H264', bitrate: 5000, quality: 'high',
+interface RoomData { roomId: string; code: string; inviteUrl: string }
+
+const ROOM_TIMEOUT_MS = 8000;
+
+const INITIAL_STATE: BroadcastState = {
+  isSharing: false, isPaused: false,
+  roomId: null, roomCode: null, inviteUrl: null,
+  viewerCount: 0, connectionState: 'disconnected',
+  stats: null, stream: null, error: null,
+  activeAudioIds: [], audioFailures: 0,
 };
 
-const DEFAULT_AUDIO_CONFIG: AudioConfig = {
-  sampleRate: 48000, bitrate: 128, codec: 'opus', sources: [],
-};
+type AppSocket = NonNullable<ReturnType<typeof useSocket>['socket']>;
 
-/**
- * Seleção de áudio por aplicativo (somente app desktop).
- * Os PIDs valem no momento em que a transmissão INICIA: alterar a seleção de
- * apps durante a transmissão não adiciona/remove fontes (fora do escopo).
- * Já volume e mute são refletidos ao vivo no mixer.
- */
-export interface AudioSelection {
-  pids: number[];
-  volumes: Record<number, number>;
-  muted: Record<number, boolean>;
+function requestRoom(socket: AppSocket): Promise<RoomData> {
+  return new Promise((resolve, reject) => {
+    const done = () => {
+      clearTimeout(timer);
+      socket.off('room:created', onCreated);
+      socket.off('room:error', onError);
+    };
+    const onCreated = (data: RoomData) => { done(); resolve(data); };
+    const onError = (e: { message: string }) => { done(); reject(new Error(e.message)); };
+    const timer = setTimeout(() => {
+      done();
+      reject(new Error('O servidor demorou muito para responder. Tente novamente.'));
+    }, ROOM_TIMEOUT_MS);
+
+    socket.on('room:created', onCreated);
+    socket.on('room:error', onError);
+    socket.emit('room:create');
+  });
 }
 
-const EMPTY_AUDIO_SELECTION: AudioSelection = { pids: [], volumes: {}, muted: {} };
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Ocorreu um erro inesperado. Tente novamente.';
+}
 
 export function useBroadcast(
-  videoConfig: VideoConfig = DEFAULT_VIDEO_CONFIG,
-  _audioConfig: AudioConfig = DEFAULT_AUDIO_CONFIG,
-  audioSelection: AudioSelection = EMPTY_AUDIO_SELECTION,
+  videoConfig: VideoConfig,
+  audioSelection: AudioSelectionItem[],
   /** (desktop) ID da tela/janela escolhida na interface */
-  captureSourceId: string | null = null,
+  captureSourceId: string | null,
 ) {
   const { socket } = useSocket();
   const broadcasterRef = useRef<WebRTCBroadcaster | null>(null);
-  const streamRef      = useRef<MediaStream | null>(null);
-  /** Stream bruto retornado pelo getDisplayMedia (garante parar o vídeo mesmo em erro) */
+  const audioRef = useRef<BroadcastAudio | null>(null);
+  /** Stream enviado ao WebRTC (vídeo + faixa estável do mixer) */
+  const streamRef = useRef<MediaStream | null>(null);
+  /** Stream bruto do getDisplayMedia; guarda as faixas de áudio do sistema no modo web */
   const captureStreamRef = useRef<MediaStream | null>(null);
-  const mixerRef         = useRef<AppAudioMixer | null>(null);
-  const audioStartedRef  = useRef(false);
-  const stopSharingRef   = useRef<() => void>(() => undefined);
-  /** Sempre com a seleção mais recente (usada em callbacks assíncronos) */
-  const audioSelectionRef = useRef(audioSelection);
-  audioSelectionRef.current = audioSelection;
+  const selectionRef = useRef(audioSelection);
+  selectionRef.current = audioSelection;
 
-  const [state, setState] = useState<BroadcastState>({
-    isSharing: false, isPaused: false,
-    roomId: null, roomCode: null, inviteUrl: null,
-    viewerCount: 0, connectionState: 'disconnected',
-    stats: null, stream: null, error: null,
-  });
+  const [state, setState] = useState<BroadcastState>(INITIAL_STATE);
 
-  // Libera recursos ao desmontar o componente
-  useEffect(() => {
-    return () => cleanupAllRef.current();
+  const release = useCallback(() => {
+    broadcasterRef.current?.destroy();
+    broadcasterRef.current = null;
+
+    void audioRef.current?.destroy();
+    audioRef.current = null;
+
+    stopStream(streamRef.current);
+    streamRef.current = null;
+    stopStream(captureStreamRef.current);
+    captureStreamRef.current = null;
   }, []);
 
-  // Reflete volume/mute no mixer ao vivo durante a transmissão
+  useEffect(() => release, [release]);
+
+  // Aplica ao vivo a seleção de fontes, volume e mute
   useEffect(() => {
-    const mixer = mixerRef.current;
-    if (!mixer) return;
-    for (const pid of audioSelection.pids) {
-      mixer.setVolume(pid, audioSelection.volumes[pid] ?? 1);
-      mixer.setMuted(pid, audioSelection.muted[pid] ?? false);
-    }
+    const audio = audioRef.current;
+    if (!audio) return;
+    let cancelled = false;
+
+    audio.sync(audioSelection).then(
+      () => {
+        if (!cancelled) setState((s) => ({ ...s, activeAudioIds: audio.activeIds }));
+      },
+      (err) => {
+        if (cancelled) return;
+        setState((s) => ({
+          ...s,
+          error: errorMessage(err),
+          activeAudioIds: audio.activeIds,
+          audioFailures: s.audioFailures + 1,
+        }));
+      },
+    );
+    return () => { cancelled = true; };
   }, [audioSelection]);
 
-  // Escuta eventos do servidor relacionados à sala
   useEffect(() => {
     if (!socket) return;
-
-    socket.on('room:viewer-joined', (data: { viewerCount: number }) => {
+    const onCount = (data: { viewerCount: number }) => {
       setState((s) => ({ ...s, viewerCount: data.viewerCount }));
-    });
-
-    socket.on('room:viewer-left', (data: { viewerCount: number }) => {
-      setState((s) => ({ ...s, viewerCount: data.viewerCount }));
-    });
-
+    };
+    socket.on('room:viewer-joined', onCount);
+    socket.on('room:viewer-left', onCount);
     return () => {
-      socket.off('room:viewer-joined');
-      socket.off('room:viewer-left');
+      socket.off('room:viewer-joined', onCount);
+      socket.off('room:viewer-left', onCount);
     };
   }, [socket]);
 
-  /** Inicia a captura da tela e o compartilhamento para a sala */
+  const stopSharing = useCallback(() => {
+    socket?.emit('room:leave');
+    release();
+    setState(INITIAL_STATE);
+  }, [socket, release]);
+
   const startSharing = useCallback(async () => {
     if (!socket) {
       setState((s) => ({
@@ -129,180 +160,101 @@ export function useBroadcast(
     setState((s) => ({ ...s, connectionState: 'connecting', error: null }));
 
     try {
-      // 1. Captura a tela — o navegador abrirá o seletor nativo
       const host = window.screenShareHost;
-      const { stream: captureStream, videoTrack, audioTracks } =
-        await startScreenCapture(videoConfig, captureSourceId);
-      captureStreamRef.current = captureStream;
+      const capture = await captureDisplay(videoConfig, { withAudio: true, captureSourceId });
+      captureStreamRef.current = capture.stream;
 
-      let combined: MediaStream;
-      const selection = audioSelectionRef.current;
-      if (host) {
-        // Desktop: o áudio vem do processo nativo (por PID) e é mixado no renderer.
-        // Sem nenhum app selecionado, transmite SEM áudio.
-        if (selection.pids.length > 0) {
-          const mixer = await AppAudioMixer.create();
-          mixerRef.current = mixer;
-          for (const pid of selection.pids) {
-            mixer.addSource(pid);
-            mixer.setVolume(pid, selection.volumes[pid] ?? 1);
-            mixer.setMuted(pid, selection.muted[pid] ?? false);
-          }
-          // Marca antes: se start() falhar parcialmente, o cleanup ainda chama stop()
-          audioStartedRef.current = true;
-          await host.audio.start(selection.pids, (chunk) => mixer.push(chunk));
-          combined = new MediaStream([videoTrack, mixer.track]);
-        } else {
-          combined = new MediaStream([videoTrack]);
-        }
-      } else {
-        // Web: áudio do sistema inteiro vindo do getDisplayMedia
-        combined = combineStreams(videoTrack, audioTracks);
+      const audio = await BroadcastAudio.create(host);
+      audioRef.current = audio;
+      if (!host) audio.attachSystemAudio(capture.audioTracks);
+
+      // Falha de áudio não impede a live: o vídeo segue e o erro é exibido
+      let audioError: string | null = null;
+      let audioFailed = false;
+      try {
+        await audio.sync(selectionRef.current);
+      } catch (err) {
+        audioError = errorMessage(err);
+        audioFailed = true;
       }
+
+      const combined = new MediaStream([capture.videoTrack, audio.track]);
       streamRef.current = combined;
-
-      // Atualiza o stream no state para o preview ser reativo
-      setState((s) => ({ ...s, stream: combined }));
-
-      // 2. Pede ao servidor para criar uma sala e aguarda a confirmação
-      socket.emit('room:create');
-
-      // Aguarda o evento 'room:created' (ou erro) com timeout de 8 segundos
-      const roomData = await new Promise<{ roomId: string; code: string; inviteUrl: string }>(
-        (resolve, reject) => {
-          const timeout = setTimeout(
-            () => reject(new Error('O servidor demorou muito para responder. Tente novamente.')),
-            8000,
-          );
-          socket.once('room:created', (data) => { clearTimeout(timeout); resolve(data); });
-          socket.once('room:error',   (e)    => { clearTimeout(timeout); reject(new Error(e.message)); });
-        },
-      );
-
-      // 3. Atualiza o state com os dados da sala recebidos diretamente do evento
-      // (evita race condition com state.roomId que ainda seria null nesse momento)
       setState((s) => ({
         ...s,
-        roomId: roomData.roomId,
-        roomCode: roomData.code,
-        inviteUrl: roomData.inviteUrl,
+        stream: new MediaStream(combined.getVideoTracks()),
+        activeAudioIds: audio.activeIds,
+        audioFailures: audioFailed ? s.audioFailures + 1 : s.audioFailures,
+        error: audioError,
+      }));
+
+      const room = await requestRoom(socket);
+      setState((s) => ({
+        ...s,
+        roomId: room.roomId,
+        roomCode: room.code,
+        inviteUrl: room.inviteUrl,
         connectionState: 'connected',
         isSharing: true,
         isPaused: false,
       }));
 
-      // 4. Cria o broadcaster e envia o stream
-      const broadcaster = new WebRTCBroadcaster(socket);
+      const broadcaster = new WebRTCBroadcaster(socket, videoConfig);
       broadcaster.setLocalStream(combined);
-
-      // Registra callback de estatísticas — atualiza o overlay em tempo real
       broadcaster.onStats((stats) => {
         setState((s) => ({ ...s, stats }));
-        // Propaga as stats para os espectadores via servidor
         socket.emit('stream:stats', stats);
       });
-
       broadcasterRef.current = broadcaster;
 
-      // Se o usuário clicar em "Parar" no seletor nativo do browser
-      videoTrack.onended = () => stopSharingRef.current();
-
+      // O usuário clicou em "Parar compartilhamento" no seletor nativo
+      capture.videoTrack.onended = stopSharing;
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Ocorreu um erro inesperado. Tente novamente.';
-      setState((s) => ({ ...s, error: message, connectionState: 'disconnected', stream: null }));
-      cleanupAllRef.current();
+      release();
+      setState((s) => ({
+        ...s,
+        error: toMediaError(err).message,
+        connectionState: 'disconnected',
+        stream: null,
+      }));
     }
-  }, [socket, videoConfig, captureSourceId]);
+  }, [socket, videoConfig, captureSourceId, release, stopSharing]);
 
-  /** Congela ou retoma o vídeo sem encerrar a transmissão */
   const togglePause = useCallback(() => {
-    const videoTrack = streamRef.current?.getVideoTracks()[0];
-    if (!videoTrack) return;
-    videoTrack.enabled = !videoTrack.enabled;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
     setState((s) => ({ ...s, isPaused: !s.isPaused }));
   }, []);
 
-  /**
-   * Troca a quente a tela ou janela compartilhada sem derrubar a sala
-   * nem desconectar os espectadores.
-   */
+  /** Troca a tela ou janela sem derrubar a sala nem o áudio */
   const changeCaptureSource = useCallback(async (newSourceId?: string | null) => {
-    if (!broadcasterRef.current || !streamRef.current) return;
+    const broadcaster = broadcasterRef.current;
+    if (!broadcaster) return;
 
     try {
-      const newVideoTrack = await captureSingleVideoTrack(videoConfig, newSourceId ?? captureSourceId);
-
-      // Substitui a faixa no WebRTC com seamless switch
-      await broadcasterRef.current.replaceVideoTrack(newVideoTrack);
-
-      // Atualiza o stream local mantendo o áudio intacto
-      const oldTracks = streamRef.current.getVideoTracks();
-      oldTracks.forEach((t) => {
-        streamRef.current?.removeTrack(t);
-        t.stop();
+      const { videoTrack } = await captureDisplay(videoConfig, {
+        withAudio: false,
+        captureSourceId: newSourceId ?? captureSourceId,
       });
-      streamRef.current.addTrack(newVideoTrack);
+      // O broadcaster troca a faixa no stream compartilhado e para a antiga
+      await broadcaster.replaceVideoTrack(videoTrack);
+      videoTrack.onended = stopSharing;
 
-      // Atualiza state para o preview local
-      const updatedStream = new MediaStream(streamRef.current.getTracks());
-      streamRef.current = updatedStream;
-      setState((s) => ({ ...s, stream: updatedStream }));
-
-      // Se o usuário parar via diálogo nativo do sistema
-      newVideoTrack.onended = () => stopSharingRef.current();
-    } catch (err) {
-      // Se o usuário apenas cancelou a seleção, ignora sem quebrar o stream ativo
-      if (err instanceof Error && (err.name === 'NotAllowedError' || err.name === 'AbortError')) {
-        return;
+      const current = streamRef.current;
+      if (current) {
+        setState((s) => ({ ...s, stream: new MediaStream(current.getVideoTracks()) }));
       }
-      console.error('[KIARA] Falha ao trocar fonte de captura:', err);
+    } catch (err) {
+      // Cancelar o seletor mantém a transmissão atual intacta
+      if (isCancellation(err)) return;
+      setState((s) => ({ ...s, error: toMediaError(err).message }));
     }
-  }, [videoConfig, captureSourceId]);
+  }, [videoConfig, captureSourceId, stopSharing]);
 
-  /** Atualiza parâmetros de vídeo a quente (bitrate, fps) */
-  const updateVideoConfig = useCallback(async (newConfig: Partial<VideoConfig>) => {
-    if (broadcasterRef.current) {
-      await broadcasterRef.current.updateVideoConfig(newConfig);
-    }
+  const updateVideoConfig = useCallback(async (partial: Partial<VideoConfig>) => {
+    await broadcasterRef.current?.updateVideoConfig(partial);
   }, []);
-
-  /** Encerra completamente a transmissão e libera todos os recursos */
-  const stopSharing = useCallback(() => {
-    socket?.emit('room:leave');
-    cleanupAllRef.current();
-    setState({
-      isSharing: false, isPaused: false,
-      roomId: null, roomCode: null, inviteUrl: null,
-      viewerCount: 0, connectionState: 'disconnected',
-      stats: null, stream: null, error: null,
-    });
-  }, [socket]);
-
-  stopSharingRef.current = stopSharing;
-
-  // useRef para a função de limpeza evita avisos de dependência nos useCallbacks
-  const cleanupAllRef = useRef(() => {
-    broadcasterRef.current?.destroy();
-    broadcasterRef.current = null;
-
-    // Para a captura nativa de áudio e libera o mixer (se existirem)
-    if (audioStartedRef.current) {
-      audioStartedRef.current = false;
-      window.screenShareHost?.audio.stop().catch(() => undefined);
-    }
-    if (mixerRef.current) {
-      void mixerRef.current.destroy();
-      mixerRef.current = null;
-    }
-
-    stopStream(streamRef.current);
-    streamRef.current = null;
-    stopStream(captureStreamRef.current);
-    captureStreamRef.current = null;
-  });
 
   return { state, startSharing, stopSharing, togglePause, changeCaptureSource, updateVideoConfig };
 }

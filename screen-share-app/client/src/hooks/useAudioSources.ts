@@ -1,21 +1,20 @@
 /**
- * useAudioSources.ts
- * Hook para listar e controlar fontes de áudio por aplicativo.
+ * Lista e controla as fontes de áudio selecionáveis.
  *
- * - Modo desktop (Electron): `window.screenShareHost` está presente e a lista vem de
- *   `host.audio.listSources()`. A lista é atualizada periodicamente enquanto NÃO há
- *   transmissão, preservando volume e mute dos itens já existentes.
- *   O volume/mute é aplicado no renderer (GainNode do AppAudioMixer), não no nativo.
- * - Modo web: só existe a fonte única "áudio do sistema" (via getDisplayMedia).
+ * - Desktop (Electron): a lista vem de `host.audio.listSources()` e é atualizada a cada
+ *   5 s enquanto não há transmissão (durante a live, só pelo botão ↻), preservando
+ *   volume e mute dos itens existentes.
+ * - Web: só existe a fonte "áudio do sistema" (getDisplayMedia), já marcada por padrão.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AudioSource } from '@shared/index';
+import { WEB_SYSTEM_AUDIO_ID } from '../services/broadcastAudio';
 
 /** Intervalo da atualização automática da lista no modo desktop */
 const AUTO_REFRESH_MS = 5000;
 
-/** Plataforma do navegador, derivada de navigator.platform (sem inventar valores) */
+/** Plataforma do navegador, derivada de navigator.platform */
 function detectBrowserPlatform(): AudioSource['platform'] {
   const p = typeof navigator !== 'undefined' ? navigator.platform : '';
   if (/mac/i.test(p)) return 'macos';
@@ -44,6 +43,7 @@ export function useAudioSources() {
   const isDesktop = typeof window !== 'undefined' && window.screenShareHost !== undefined;
 
   const refreshingRef = useRef(false);
+  const webDefaultAppliedRef = useRef(false);
 
   /**
    * Busca a lista de aplicativos com áudio disponível para captura.
@@ -69,7 +69,7 @@ export function useAudioSources() {
         // No navegador: apenas o áudio do sistema inteiro (getDisplayMedia).
         // Áudio por aplicativo exige o app desktop.
         const webSource: AudioSource = {
-          id: 'web:system-audio',
+          id: WEB_SYSTEM_AUDIO_ID,
           processId: 0,
           processName: 'system-audio',
           displayName: 'Áudio do Sistema (todos os apps)',
@@ -78,6 +78,11 @@ export function useAudioSources() {
           platform: detectBrowserPlatform(),
         };
         setSources((prev) => mergeSources(prev, [webSource]));
+        // Antes de existir o botão de seleção na web, o áudio sempre ia junto: mantém o padrão
+        if (!webDefaultAppliedRef.current) {
+          webDefaultAppliedRef.current = true;
+          setSelected(new Set([WEB_SYSTEM_AUDIO_ID]));
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível listar as fontes de áudio.');
@@ -111,7 +116,15 @@ export function useAudioSources() {
     });
   }, []);
 
-  /** Ajusta volume de uma fonte (0.0 - 1.0). O useBroadcast reflete no mixer ao vivo. */
+  /** Alinha a seleção da interface ao que o mixer realmente roteia (após falha de sincronização) */
+  const replaceSelection = useCallback((ids: string[]) => {
+    setSelected((prev) => {
+      const same = prev.size === ids.length && ids.every((id) => prev.has(id));
+      return same ? prev : new Set(ids);
+    });
+  }, []);
+
+  /** Ajusta volume de uma fonte (0.0 - 1.0), refletido ao vivo no mixer. */
   const setVolume = useCallback((id: string, volume: number) => {
     setSources((prev) =>
       prev.map((s) => (s.id === id ? { ...s, volume } : s)),
@@ -132,6 +145,7 @@ export function useAudioSources() {
     error,
     isDesktop,
     toggleSource,
+    replaceSelection,
     setVolume,
     toggleMute,
     refreshSources,

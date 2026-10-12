@@ -36,18 +36,12 @@ const BroadcastPage: React.FC = () => {
   const { setPaused: setAudioPollingPaused } = audioHook;
   const [captureSourceId, setCaptureSourceId] = useState<string | null>(null);
 
-  const audioSelection = useMemo(() => {
-    const pids: number[] = [];
-    const volumes: Record<number, number> = {};
-    const muted: Record<number, boolean> = {};
-    for (const src of audioHook.sources) {
-      if (!audioHook.selected.has(src.id)) continue;
-      pids.push(src.processId);
-      volumes[src.processId] = src.volume;
-      muted[src.processId] = src.isMuted;
-    }
-    return { pids, volumes, muted };
-  }, [audioHook.sources, audioHook.selected]);
+  const audioSelection = useMemo(
+    () => audioHook.sources
+      .filter((src) => audioHook.selected.has(src.id))
+      .map((src) => ({ id: src.id, pid: src.processId, volume: src.volume, muted: src.isMuted })),
+    [audioHook.sources, audioHook.selected],
+  );
 
   const [tunnelDown, setTunnelDown] = useState(false);
   useEffect(() => {
@@ -69,7 +63,7 @@ const BroadcastPage: React.FC = () => {
     togglePause,
     changeCaptureSource,
     updateVideoConfig,
-  } = useBroadcast(videoConfig, undefined, audioSelection, captureSourceId);
+  } = useBroadcast(videoConfig, audioSelection, captureSourceId);
 
   const handleVideoConfigChange = (newConfig: VideoConfigType) => {
     setVideoConfig(newConfig);
@@ -94,6 +88,15 @@ const BroadcastPage: React.FC = () => {
   useEffect(() => {
     setAudioPollingPaused(state.isSharing);
   }, [state.isSharing, setAudioPollingPaused]);
+
+  // Se o mixer recusou uma troca de fonte, a interface volta ao que está de fato no ar
+  const { replaceSelection } = audioHook;
+  const { activeAudioIds, audioFailures } = state;
+  const activeIdsRef = useRef(activeAudioIds);
+  activeIdsRef.current = activeAudioIds;
+  useEffect(() => {
+    if (audioFailures > 0) replaceSelection(activeIdsRef.current);
+  }, [audioFailures, replaceSelection]);
 
   useEffect(() => {
     if (previewRef.current && state.stream) {
