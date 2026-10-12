@@ -169,11 +169,6 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </main>
-
-      {/* ── Footer Minimalista ──────────────────────────────────────────── */}
-      <footer className={styles.footer}>
-        <span>KIARA · WebRTC P2P</span>
-      </footer>
     </div>
   );
 };

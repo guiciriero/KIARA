@@ -187,14 +187,6 @@
   line-height: 1.4;
 }
 
-.footer {
-  text-align: center;
-  padding: 20px 0;
-  font-size: 0.75rem;
-  color: var(--kiara-text-muted);
-  border-top: 1px solid var(--kiara-border);
-}
-
 /* ── Responsividade ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .container {
