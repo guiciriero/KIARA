@@ -1,7 +1,7 @@
 {
-  "name": "@screen-share/server",
+  "name": "@kiara/server",
   "version": "1.0.0",
-  "description": "Servidor de sinalização WebRTC para compartilhamento de tela",
+  "description": "Servidor de sinalização WebRTC e salas KIARA",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",

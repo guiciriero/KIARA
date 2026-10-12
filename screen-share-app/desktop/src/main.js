@@ -30,6 +30,13 @@ const {
   utilityProcess,
 } = require('electron');
 
+// ─── Aceleração por Hardware e Otimizações de Vídeo (KIARA 60 FPS) ───────────
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('enable-accelerated-video-decode');
+app.commandLine.appendSwitch('enable-accelerated-mjpeg-decode');
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization');
+
 // ─── Instância única ──────────────────────────────────────────────────────────
 
 const gotLock = app.requestSingleInstanceLock();

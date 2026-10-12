@@ -1,33 +1,29 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
+  gap: 6px;
+  padding: 3px 8px;
   border-radius: var(--radius-full);
-  background: var(--kiara-surface);
+  background: #0a0a0a;
   border: 1px solid var(--kiara-border);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: var(--kiara-text-muted);
-  letter-spacing: 0.02em;
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  color: var(--kiara-text-secondary);
   user-select: none;
 }
 
 .compact {
-  padding: 4px 10px;
-  font-size: 0.75rem;
-  gap: 6px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  gap: 5px;
 }
 
 .dot {
-  width: 7px;
-  height: 7px;
+  width: 5px;
+  height: 5px;
   border-radius: var(--radius-full);
   background: var(--kiara-text-muted);
   flex-shrink: 0;
-  transition: all var(--transition-fast);
 }
 
 .label {
@@ -36,34 +32,28 @@
 
 /* ── Estados Dinâmicos ────────────────────────────────────────── */
 .badge[data-state="connected"] {
-  background: var(--kiara-live-subtle);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #34d399;
+  border-color: #222222;
+  color: #ededed;
 }
 
 .badge[data-state="connected"] .dot {
   background: var(--kiara-live);
-  box-shadow: 0 0 8px var(--kiara-live);
-  animation: kiaraPulse 2.4s ease-in-out infinite;
 }
 
 .badge[data-state="connecting"],
 .badge[data-state="reconnecting"] {
-  background: var(--kiara-warning-subtle);
-  border-color: rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
+  border-color: #222222;
+  color: var(--kiara-warning);
 }
 
 .badge[data-state="connecting"] .dot,
 .badge[data-state="reconnecting"] .dot {
   background: var(--kiara-warning);
-  animation: kiaraPulse 1.2s ease-in-out infinite;
 }
 
 .badge[data-state="failed"] {
-  background: var(--kiara-danger-subtle);
-  border-color: rgba(244, 63, 94, 0.35);
-  color: #fb7185;
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--kiara-danger);
 }
 
 .badge[data-state="failed"] .dot {
@@ -71,7 +61,6 @@
 }
 
 .badge[data-state="disconnected"] {
-  background: var(--kiara-surface);
   border-color: var(--kiara-border);
   color: var(--kiara-text-muted);
 }

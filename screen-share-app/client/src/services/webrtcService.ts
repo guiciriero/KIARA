@@ -2,21 +2,15 @@
  * webrtcService.ts
  *
  * Gerencia as conexões WebRTC entre o apresentador e cada espectador.
- *
- * Correções aplicadas:
- *   - Removido campo `roomId` que não era utilizado
- *   - Coleta de estatísticas agora usa `parseRTCStats` com peerId correto
- *   - `clearPeerSample` chamado ao encerrar cada peer
- *   - Mensagens de log em português
+ * Otimizado para fluidez a 60 FPS com priorização de framerate (maintain-framerate),
+ * troca dinâmica de tela/janela em tempo real (replaceTrack) e ajuste de qualidade ao vivo.
  */
 
 import type { Socket } from 'socket.io-client';
-import type { RTCIceCandidatePayload } from '@shared/index';
+import type { RTCIceCandidatePayload, VideoConfig } from '@shared/index';
 import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
 import type { StreamStats } from '@shared/index';
 
-// Servidores STUN/TURN — os públicos do Google garantem conectividade básica.
-// Para redes corporativas com NAT restritivo, configure um servidor TURN no .env.
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
@@ -37,11 +31,13 @@ export class WebRTCBroadcaster {
   private peers: PeerMap = new Map();
   private localStream: MediaStream | null = null;
   private socket: Socket;
+  private videoConfig?: VideoConfig;
   private statsCallback?: (stats: StreamStats) => void;
   private statsIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
 
-  constructor(socket: Socket) {
+  constructor(socket: Socket, videoConfig?: VideoConfig) {
     this.socket = socket;
+    this.videoConfig = videoConfig;
     this.setupSocketListeners();
   }
 
@@ -51,10 +47,99 @@ export class WebRTCBroadcaster {
    */
   setLocalStream(stream: MediaStream): void {
     this.localStream = stream;
+    // Garante que todas as faixas de vídeo usem contentHint='motion' para 60 FPS
+    for (const track of stream.getVideoTracks()) {
+      if ('contentHint' in track) {
+        track.contentHint = 'motion';
+      }
+    }
     // Atualiza as faixas em conexões que já existiam
     for (const [, pc] of this.peers) {
       this.replaceTracksInPeer(pc, stream);
     }
+  }
+
+  /**
+   * Substitui a faixa de vídeo em tempo real para todos os espectadores conectados
+   * sem precisar renegociar SDP e sem derrubar a sala.
+   */
+  async replaceVideoTrack(newTrack: MediaStreamTrack): Promise<void> {
+    if ('contentHint' in newTrack) {
+      newTrack.contentHint = 'motion';
+    }
+
+    // 1. Atualiza o MediaStream local
+    if (this.localStream) {
+      const oldTracks = this.localStream.getVideoTracks();
+      for (const old of oldTracks) {
+        this.localStream.removeTrack(old);
+        old.stop();
+      }
+      this.localStream.addTrack(newTrack);
+    } else {
+      this.localStream = new MediaStream([newTrack]);
+    }
+
+    // 2. Substitui a faixa em todos os RTCPeerConnections ativos
+    const promises: Promise<void>[] = [];
+    for (const [, pc] of this.peers) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender) {
+        promises.push(
+          sender.replaceTrack(newTrack).then(() => {
+            return this.applySenderParameters(sender, this.videoConfig);
+          }).catch((err) => {
+            console.warn('[KIARA] Erro ao substituir track no sender:', err);
+          }),
+        );
+      } else {
+        pc.addTrack(newTrack, this.localStream);
+      }
+    }
+
+    await Promise.allSettled(promises);
+  }
+
+  /**
+   * Configura parâmetros de fluidez (maintain-framerate e limites de bitrate/fps) no sender.
+   */
+  private async applySenderParameters(sender: RTCRtpSender, config?: VideoConfig): Promise<void> {
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+      // Prioriza a manutenção da taxa de quadros (60 fps) mesmo se houver variação de rede
+      params.degradationPreference = 'maintain-framerate';
+      const fps = config?.frameRate || 60;
+      const bitrateKbps = config?.bitrate || 5000;
+
+      params.encodings[0].maxFramerate = fps;
+      params.encodings[0].maxBitrate = bitrateKbps * 1000;
+      params.encodings[0].priority = 'high';
+      params.encodings[0].networkPriority = 'high';
+
+      await sender.setParameters(params);
+    } catch {
+      // Ignora silenciosamente se o browser não permitir ajuste imediato de parâmetros
+    }
+  }
+
+  /**
+   * Atualiza as configurações de vídeo a quente (bitrate, fps) para todos os senders ativos.
+   */
+  async updateVideoConfig(partial: Partial<VideoConfig>): Promise<void> {
+    if (this.videoConfig) {
+      this.videoConfig = { ...this.videoConfig, ...partial };
+    }
+    const promises: Promise<void>[] = [];
+    for (const [, pc] of this.peers) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender) {
+        promises.push(this.applySenderParameters(sender, this.videoConfig));
+      }
+    }
+    await Promise.allSettled(promises);
   }
 
   /** Registra callback para receber estatísticas agregadas a cada 2 segundos */
@@ -100,8 +185,33 @@ export class WebRTCBroadcaster {
     // Adiciona todas as faixas do stream local
     if (this.localStream) {
       for (const track of this.localStream.getTracks()) {
-        pc.addTrack(track, this.localStream);
+        const sender = pc.addTrack(track, this.localStream);
+        if (track.kind === 'video') {
+          void this.applySenderParameters(sender, this.videoConfig);
+        }
       }
+    }
+
+    // Configura codec preferences se disponível no navegador
+    try {
+      const transceivers = pc.getTransceivers();
+      const videoTransceiver = transceivers.find((t) => t.sender.track?.kind === 'video');
+      if (videoTransceiver && 'setCodecPreferences' in videoTransceiver && RTCRtpSender.getCapabilities) {
+        const capabilities = RTCRtpSender.getCapabilities('video');
+        if (capabilities?.codecs) {
+          const selectedCodecName = (this.videoConfig?.codec || 'H264').toLowerCase();
+          const preferredCodecs = capabilities.codecs.slice().sort((a, b) => {
+            const aMatch = a.mimeType.toLowerCase().includes(selectedCodecName);
+            const bMatch = b.mimeType.toLowerCase().includes(selectedCodecName);
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return 0;
+          });
+          videoTransceiver.setCodecPreferences(preferredCodecs);
+        }
+      }
+    } catch {
+      // Ignora fallback se setCodecPreferences não for suportado
     }
 
     // Envia candidatos ICE ao espectador via servidor de sinalização
@@ -127,19 +237,23 @@ export class WebRTCBroadcaster {
     // Coleta estatísticas a cada 2 segundos e chama o callback registrado
     if (this.statsCallback) {
       const interval = setInterval(async () => {
-        const report = await pc.getStats();
-        const partial = parseRTCStats(report, viewerId);
-        const quality = classifyQuality(partial.latencyMs ?? 0, partial.packetsLost ?? 0);
-        const stats: StreamStats = {
-          fps:               partial.fps ?? 0,
-          videoBitrate:      partial.videoBitrate ?? 0,
-          audioBitrate:      partial.audioBitrate ?? 0,
-          latencyMs:         partial.latencyMs ?? 0,
-          packetsLost:       partial.packetsLost ?? 0,
-          connectionQuality: quality,
-          timestamp:         Date.now(),
-        };
-        this.statsCallback!(stats);
+        try {
+          const report = await pc.getStats();
+          const partial = parseRTCStats(report, viewerId);
+          const quality = classifyQuality(partial.latencyMs ?? 0, partial.packetsLost ?? 0);
+          const stats: StreamStats = {
+            fps:               partial.fps ?? 0,
+            videoBitrate:      partial.videoBitrate ?? 0,
+            audioBitrate:      partial.audioBitrate ?? 0,
+            latencyMs:         partial.latencyMs ?? 0,
+            packetsLost:       partial.packetsLost ?? 0,
+            connectionQuality: quality,
+            timestamp:         Date.now(),
+          };
+          this.statsCallback!(stats);
+        } catch {
+          // Peer pode ter sido fechado durante o getStats
+        }
       }, 2000);
       this.statsIntervals.set(viewerId, interval);
     }
@@ -166,11 +280,15 @@ export class WebRTCBroadcaster {
     for (const track of stream.getTracks()) {
       const sender = senders.find((s) => s.track?.kind === track.kind);
       if (sender) {
-        sender.replaceTrack(track).catch(() => {
-          // Falha silenciosa — faixa pode ter sido encerrada antes da troca
-        });
+        sender.replaceTrack(track).catch(() => {});
+        if (track.kind === 'video') {
+          void this.applySenderParameters(sender, this.videoConfig);
+        }
       } else {
-        pc.addTrack(track, stream);
+        const newSender = pc.addTrack(track, stream);
+        if (track.kind === 'video') {
+          void this.applySenderParameters(newSender, this.videoConfig);
+        }
       }
     }
   }

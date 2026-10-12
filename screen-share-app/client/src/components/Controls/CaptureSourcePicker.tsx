@@ -6,15 +6,17 @@ import styles from './CaptureSourcePicker.module.css';
 interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
-  disabled: boolean;
+  disabled?: boolean;
+  isSharing?: boolean;
 }
 
 const isSafeImageDataUrl = (url: string): boolean => url.startsWith('data:image/');
 
-const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }) => {
+const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled = false, isSharing = false }) => {
   const [sources, setSources] = useState<CaptureSourceInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const host = window.screenShareHost;
@@ -34,18 +36,33 @@ const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }
 
   if (!window.screenShareHost) return null;
 
+  const handleSelect = async (id: string) => {
+    if (disabled || switchingId) return;
+    if (isSharing && id !== selectedId) {
+      setSwitchingId(id);
+      try {
+        await Promise.resolve(onSelect(id));
+      } finally {
+        setSwitchingId(null);
+      }
+    } else {
+      onSelect(id);
+    }
+  };
+
   return (
-    <div className={`${styles.container} ${disabled ? styles.disabled : ''}`}>
+    <div className={styles.container}>
       <div className={styles.header}>
         <div className={styles.titleGroup}>
           <IconScreen size={16} className={styles.icon} />
           <span className={styles.title}>Tela ou Janela</span>
+          {isSharing && <span className={styles.liveHint}>Troca ao vivo ativa</span>}
         </div>
         <button
           type="button"
           className={styles.refreshBtn}
           onClick={() => { void load(); }}
-          disabled={disabled || loading}
+          disabled={loading}
           title="Atualizar telas e janelas disponíveis"
           aria-label="Atualizar fontes de captura"
         >
@@ -69,15 +86,17 @@ const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }
         {sources.map((src) => {
           const isSelected = src.id === selectedId;
           const isScreen = src.type === 'screen';
+          const isSwitching = switchingId === src.id;
+
           return (
             <li key={src.id}>
               <button
                 type="button"
-                className={`${styles.card} ${isSelected ? styles.selected : ''}`}
-                onClick={() => onSelect(src.id)}
+                className={`${styles.card} ${isSelected ? styles.selected : ''} ${isSwitching ? styles.switching : ''}`}
+                onClick={() => { void handleSelect(src.id); }}
                 disabled={disabled}
                 aria-pressed={isSelected}
-                title={src.name}
+                title={isSharing && !isSelected ? `Trocar transmissão para: ${src.name}` : src.name}
               >
                 <div className={styles.thumb}>
                   {isSafeImageDataUrl(src.thumbnailDataUrl) ? (
@@ -90,6 +109,14 @@ const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }
                   <div className={styles.badgeType}>
                     {isScreen ? 'Monitor' : 'Janela'}
                   </div>
+                  {isSelected && isSharing && (
+                    <div className={styles.badgeLive}>NO AR</div>
+                  )}
+                  {isSwitching && (
+                    <div className={styles.switchingOverlay}>
+                      <div className={styles.miniSpinner} />
+                    </div>
+                  )}
                 </div>
                 <div className={styles.infoRow}>
                   {isScreen ? <IconScreen size={13} className={styles.typeIcon} /> : <IconWindow size={13} className={styles.typeIcon} />}

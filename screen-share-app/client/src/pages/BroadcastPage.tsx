@@ -26,9 +26,9 @@ const BroadcastPage: React.FC = () => {
   const [videoConfig, setVideoConfig] = useState<VideoConfigType>({
     width: 1920,
     height: 1080,
-    frameRate: 30,
+    frameRate: 60,
     codec: 'H264',
-    bitrate: 4000,
+    bitrate: 5000,
     quality: 'high',
   });
 
@@ -62,8 +62,34 @@ const BroadcastPage: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const { state, startSharing, stopSharing, togglePause } =
-    useBroadcast(videoConfig, undefined, audioSelection, captureSourceId);
+  const {
+    state,
+    startSharing,
+    stopSharing,
+    togglePause,
+    changeCaptureSource,
+    updateVideoConfig,
+  } = useBroadcast(videoConfig, undefined, audioSelection, captureSourceId);
+
+  const handleVideoConfigChange = (newConfig: VideoConfigType) => {
+    setVideoConfig(newConfig);
+    if (state.isSharing) {
+      void updateVideoConfig(newConfig);
+    }
+  };
+
+  const handleSelectSource = async (sourceId: string) => {
+    setCaptureSourceId(sourceId);
+    if (state.isSharing) {
+      await changeCaptureSource(sourceId);
+    }
+  };
+
+  const handleWebChangeScreen = async () => {
+    if (state.isSharing) {
+      await changeCaptureSource(null);
+    }
+  };
 
   useEffect(() => {
     setAudioPollingPaused(state.isSharing);
@@ -132,16 +158,16 @@ const BroadcastPage: React.FC = () => {
           {/* Configurações de Qualidade */}
           <VideoConfigPanel
             config={videoConfig}
-            onChange={setVideoConfig}
-            disabled={state.isSharing}
+            onChange={handleVideoConfigChange}
+            isSharing={state.isSharing}
           />
 
           {/* Seletor de Tela/Janela (Desktop Electron) */}
           {audioHook.isDesktop && (
             <CaptureSourcePicker
               selectedId={captureSourceId}
-              onSelect={setCaptureSourceId}
-              disabled={state.isSharing}
+              onSelect={handleSelectSource}
+              isSharing={state.isSharing}
             />
           )}
 
@@ -175,12 +201,25 @@ const BroadcastPage: React.FC = () => {
                 <div className={styles.previewOverlayTop}>
                   <div className={styles.liveIndicator}>
                     <span className={styles.liveDot} />
-                    <span>AO VIVO</span>
+                    <span>AO VIVO (60 FPS)</span>
                   </div>
                   {state.isPaused && (
                     <div className={styles.pausedIndicator}>
                       <span>EM PAUSA</span>
                     </div>
+                  )}
+
+                  {/* Botão de Troca Rápida de Tela / Janela no Web Mode ou Desktop */}
+                  {!audioHook.isDesktop && (
+                    <button
+                      type="button"
+                      className={styles.switchScreenBtn}
+                      onClick={() => { void handleWebChangeScreen(); }}
+                      title="Alternar para outra tela ou janela sem parar a transmissão"
+                    >
+                      <IconScreen size={14} />
+                      <span>Trocar Tela / Janela</span>
+                    </button>
                   )}
                 </div>
 

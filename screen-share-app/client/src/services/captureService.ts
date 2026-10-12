@@ -35,12 +35,13 @@ export async function startScreenCapture(
   captureSourceId?: string | null,
 ): Promise<CaptureResult> {
   const host = window.screenShareHost;
+  const targetFps = videoConfig.frameRate || 60;
 
   const constraints: DisplayMediaStreamOptions = {
     video: {
       width:     { ideal: videoConfig.width,     max: 3840 },
       height:    { ideal: videoConfig.height,    max: 2160 },
-      frameRate: { ideal: videoConfig.frameRate, max: 60   },
+      frameRate: { ideal: targetFps, min: Math.min(30, targetFps), max: 60 },
     },
     audio: host
       ? false
@@ -65,6 +66,11 @@ export async function startScreenCapture(
       throw new Error('Nenhuma faixa de vídeo foi encontrada. Verifique se você selecionou uma janela ou tela válida.');
     }
 
+    // Configura o contentHint para 'motion' para priorizar fluidez a 60 FPS
+    if ('contentHint' in videoTrack) {
+      videoTrack.contentHint = 'motion';
+    }
+
     return { stream, videoTrack, audioTracks };
   } catch (err) {
     if (err instanceof DOMException && err.name === 'NotAllowedError') {
@@ -75,6 +81,50 @@ export async function startScreenCapture(
     }
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error('Você cancelou a seleção de tela. Clique em "Iniciar" novamente para tentar de novo.');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Captura apenas uma nova faixa de vídeo da tela ou janela (usada para troca em tempo real).
+ * Não captura nem interrompe as faixas de áudio existentes.
+ */
+export async function captureSingleVideoTrack(
+  videoConfig: VideoConfig,
+  captureSourceId?: string | null,
+): Promise<MediaStreamTrack> {
+  const host = window.screenShareHost;
+  const targetFps = videoConfig.frameRate || 60;
+
+  const constraints: DisplayMediaStreamOptions = {
+    video: {
+      width:     { ideal: videoConfig.width,     max: 3840 },
+      height:    { ideal: videoConfig.height,    max: 2160 },
+      frameRate: { ideal: targetFps, min: Math.min(30, targetFps), max: 60 },
+    },
+    audio: false,
+  };
+
+  try {
+    if (host && captureSourceId) {
+      await host.capture.selectSource(captureSourceId);
+    }
+    const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+    const videoTrack = stream.getVideoTracks()[0];
+
+    if (!videoTrack) {
+      throw new Error('Nenhuma faixa de vídeo foi capturada.');
+    }
+
+    if ('contentHint' in videoTrack) {
+      videoTrack.contentHint = 'motion';
+    }
+
+    return videoTrack;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'NotAllowedError') {
+      throw new Error('Seleção de tela cancelada.');
     }
     throw err;
   }

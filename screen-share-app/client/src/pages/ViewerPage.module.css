@@ -2,7 +2,7 @@
   position: relative;
   width: 100vw;
   height: 100vh;
-  background: #000;
+  background: #000000;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -15,68 +15,70 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 64px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  background: linear-gradient(180deg, rgba(8, 9, 13, 0.9) 0%, rgba(8, 9, 13, 0.4) 60%, transparent 100%);
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   z-index: 30;
   transition: opacity var(--transition-base), transform var(--transition-base);
 }
 
 .topBar.hidden {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-8px);
   pointer-events: none;
 }
 
 .topBarLeft {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .roomPill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
+  gap: 5px;
+  background: #111111;
+  border: 1px solid #222222;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
 }
 
 .roomLabel {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   color: var(--kiara-text-muted);
 }
 
 .roomCode {
   font-family: var(--font-mono);
-  font-size: 0.88rem;
-  color: #fff;
-  letter-spacing: 0.1em;
+  font-size: 0.8rem;
+  color: #ffffff;
+  letter-spacing: 0.08em;
 }
 
 .topBarCenter {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .viewersBadge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 4px 10px;
+  gap: 4px;
+  background: #111111;
+  border: 1px solid #222222;
+  padding: 3px 8px;
   border-radius: var(--radius-full);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--kiara-text-secondary);
 }
 
@@ -86,19 +88,19 @@
 }
 
 .leaveBtn {
-  background: rgba(244, 63, 94, 0.15);
-  border: 1px solid rgba(244, 63, 94, 0.35);
-  color: #fb7185;
-  padding: 6px 14px;
-  font-size: 0.8rem;
-  font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--kiara-border);
+  color: var(--kiara-text-secondary);
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
   border-radius: var(--radius-sm);
 }
 
 .leaveBtn:hover {
-  background: rgba(244, 63, 94, 0.3);
-  color: #fff;
-  border-color: var(--kiara-danger);
+  background: #1a1a1a;
+  color: #ffffff;
+  border-color: #333333;
 }
 
 /* ── Viewport do Vídeo ──────────────────────────────────────────── */
@@ -108,7 +110,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: #000000;
   overflow: hidden;
 }
 
@@ -116,42 +118,41 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #000;
+  background: #000000;
 }
 
 /* ── Loading Overlay ────────────────────────────────────────────── */
 .loadingOverlay {
   position: absolute;
   inset: 0;
-  background: rgba(8, 9, 13, 0.92);
+  background: #000000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 10px;
   z-index: 10;
   text-align: center;
   padding: 20px;
 }
 
 .spinner {
-  width: 44px;
-  height: 44px;
-  border: 3px solid var(--kiara-border);
-  border-top-color: var(--kiara-accent);
+  width: 28px;
+  height: 28px;
+  border: 2px solid #222222;
+  border-top-color: #ffffff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-  box-shadow: 0 0 20px var(--kiara-accent-glow);
 }
 
 .loadingOverlay h3 {
-  font-size: 1.15rem;
-  font-weight: 600;
-  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #ffffff;
 }
 
 .loadingOverlay p {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--kiara-text-muted);
 }
 
@@ -164,56 +165,51 @@
   justify-content: center;
   z-index: 20;
   background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
 }
 
 .unmuteButton {
-  background: rgba(18, 20, 28, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 32px var(--kiara-accent-glow);
-  padding: 16px 28px;
-  border-radius: var(--radius-xl);
+  background: #0a0a0a;
+  border: 1px solid #2d2d2d;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
-  gap: 16px;
-  color: #fff;
-  transition: all var(--transition-base);
-  animation: kiaraPulse 3s ease-in-out infinite;
+  gap: 12px;
+  color: #ffffff;
+  transition: all var(--transition-fast);
 }
 
 .unmuteButton:hover {
-  transform: scale(1.04);
-  border-color: var(--kiara-accent);
-  background: rgba(30, 34, 48, 0.98);
+  background: #141414;
+  border-color: #ffffff;
 }
 
 .unmuteIconBox {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: var(--kiara-accent);
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  box-shadow: 0 0 16px var(--kiara-accent-glow);
+  color: #000000;
 }
 
 .unmuteText {
   display: flex;
   flex-direction: column;
   text-align: left;
-  gap: 2px;
+  gap: 1px;
 }
 
 .unmuteText strong {
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ffffff;
 }
 
 .unmuteText span {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--kiara-text-secondary);
 }
 
@@ -223,63 +219,64 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 68px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  background: linear-gradient(0deg, rgba(8, 9, 13, 0.95) 0%, rgba(8, 9, 13, 0.5) 60%, transparent 100%);
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   z-index: 30;
   transition: opacity var(--transition-base), transform var(--transition-base);
 }
 
 .bottomBar.hidden {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(8px);
   pointer-events: none;
 }
 
 .bottomBarLeft {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
 
 .liveIndicator {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(16, 185, 129, 0.2);
-  border: 1px solid rgba(16, 185, 129, 0.5);
-  color: #34d399;
-  padding: 4px 10px;
+  gap: 5px;
+  background: #111111;
+  border: 1px solid #222222;
+  color: #ededed;
+  padding: 2px 7px;
   border-radius: var(--radius-full);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  box-shadow: 0 0 12px var(--kiara-live-glow);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .liveDot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--kiara-live);
-  animation: kiaraPulse 1.8s ease-in-out infinite;
 }
 
 .volumeControl {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .volumeSlider {
-  width: 80px;
+  width: 64px;
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  height: 3px;
+  background: #222222;
   border-radius: var(--radius-full);
   outline: none;
   border: none;
@@ -289,112 +286,105 @@
 
 .volumeSlider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #fff;
+  background: #ffffff;
   cursor: pointer;
 }
 
 .bottomBarRight {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .iconBtn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--kiara-text-secondary);
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-sm);
   padding: 0;
 }
 
 .iconBtn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.25);
+  background: #141414;
+  color: #ffffff;
 }
 
 .iconBtn.activeBtn {
-  background: var(--kiara-accent);
-  color: #fff;
-  border-color: var(--kiara-accent);
-  box-shadow: 0 0 12px var(--kiara-accent-glow);
+  background: #ffffff;
+  color: #000000;
 }
 
-/* ── Centered Message (Erros / Fim de Transmissão) ─────────────── */
+/* ── Centered Message ───────────────────────────────────────────── */
 .centeredPage {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--kiara-bg);
+  background: #000000;
 }
 
 .messageCard {
   background: var(--kiara-surface);
   border: 1px solid var(--kiara-border);
-  border-radius: var(--radius-xl);
-  padding: 40px 32px;
-  max-width: 440px;
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  max-width: 380px;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 16px;
-  box-shadow: var(--shadow-lg);
+  gap: 12px;
 }
 
 .messageIconWrap {
-  width: 72px;
-  height: 72px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: var(--kiara-surface-raised);
   border: 1px solid var(--kiara-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--kiara-accent-hover);
-  box-shadow: 0 0 24px var(--kiara-accent-glow);
+  color: var(--kiara-text);
 }
 
 .errorIconWrap {
   color: var(--kiara-danger);
-  border-color: rgba(244, 63, 94, 0.3);
-  box-shadow: 0 0 24px var(--kiara-danger-subtle);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .messageCard h2 {
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.02em;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
 }
 
 .messageCard p {
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   color: var(--kiara-text-secondary);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .btnPrimary {
-  margin-top: 8px;
-  background: var(--kiara-accent);
-  color: #fff;
-  padding: 12px 24px;
+  margin-top: 6px;
+  background: #ffffff;
+  color: #000000;
+  padding: 9px 18px;
   border-radius: var(--radius-md);
-  font-size: 0.92rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  box-shadow: 0 4px 14px var(--kiara-accent-glow);
   width: 100%;
+  transition: opacity var(--transition-fast);
 }
 
 .btnPrimary:hover {
-  background: var(--kiara-accent-hover);
-  box-shadow: 0 6px 20px var(--kiara-accent-glow);
+  opacity: 0.9;
 }

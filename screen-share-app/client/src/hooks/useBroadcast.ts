@@ -16,7 +16,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCBroadcaster } from '../services/webrtcService';
-import { startScreenCapture, combineStreams, stopStream } from '../services/captureService';
+import { startScreenCapture, captureSingleVideoTrack, combineStreams, stopStream } from '../services/captureService';
 import { AppAudioMixer } from '../services/appAudioMixer';
 import type { VideoConfig, AudioConfig, StreamStats, ConnectionState } from '@shared/index';
 
@@ -35,8 +35,8 @@ export interface BroadcastState {
 }
 
 const DEFAULT_VIDEO_CONFIG: VideoConfig = {
-  width: 1920, height: 1080, frameRate: 30,
-  codec: 'H264', bitrate: 4000, quality: 'high',
+  width: 1920, height: 1080, frameRate: 60,
+  codec: 'H264', bitrate: 5000, quality: 'high',
 };
 
 const DEFAULT_AUDIO_CONFIG: AudioConfig = {
@@ -225,6 +225,50 @@ export function useBroadcast(
     setState((s) => ({ ...s, isPaused: !s.isPaused }));
   }, []);
 
+  /**
+   * Troca a quente a tela ou janela compartilhada sem derrubar a sala
+   * nem desconectar os espectadores.
+   */
+  const changeCaptureSource = useCallback(async (newSourceId?: string | null) => {
+    if (!broadcasterRef.current || !streamRef.current) return;
+
+    try {
+      const newVideoTrack = await captureSingleVideoTrack(videoConfig, newSourceId ?? captureSourceId);
+
+      // Substitui a faixa no WebRTC com seamless switch
+      await broadcasterRef.current.replaceVideoTrack(newVideoTrack);
+
+      // Atualiza o stream local mantendo o áudio intacto
+      const oldTracks = streamRef.current.getVideoTracks();
+      oldTracks.forEach((t) => {
+        streamRef.current?.removeTrack(t);
+        t.stop();
+      });
+      streamRef.current.addTrack(newVideoTrack);
+
+      // Atualiza state para o preview local
+      const updatedStream = new MediaStream(streamRef.current.getTracks());
+      streamRef.current = updatedStream;
+      setState((s) => ({ ...s, stream: updatedStream }));
+
+      // Se o usuário parar via diálogo nativo do sistema
+      newVideoTrack.onended = () => stopSharingRef.current();
+    } catch (err) {
+      // Se o usuário apenas cancelou a seleção, ignora sem quebrar o stream ativo
+      if (err instanceof Error && (err.name === 'NotAllowedError' || err.name === 'AbortError')) {
+        return;
+      }
+      console.error('[KIARA] Falha ao trocar fonte de captura:', err);
+    }
+  }, [videoConfig, captureSourceId]);
+
+  /** Atualiza parâmetros de vídeo a quente (bitrate, fps) */
+  const updateVideoConfig = useCallback(async (newConfig: Partial<VideoConfig>) => {
+    if (broadcasterRef.current) {
+      await broadcasterRef.current.updateVideoConfig(newConfig);
+    }
+  }, []);
+
   /** Encerra completamente a transmissão e libera todos os recursos */
   const stopSharing = useCallback(() => {
     socket?.emit('room:leave');
@@ -260,5 +304,5 @@ export function useBroadcast(
     captureStreamRef.current = null;
   });
 
-  return { state, startSharing, stopSharing, togglePause };
+  return { state, startSharing, stopSharing, togglePause, changeCaptureSource, updateVideoConfig };
 }

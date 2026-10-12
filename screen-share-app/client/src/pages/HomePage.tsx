@@ -7,9 +7,6 @@ import {
   IconBroadcast,
   IconEye,
   IconArrowRight,
-  IconShield,
-  IconZap,
-  IconSparkles,
 } from '../components/UI/Icons';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import styles from './HomePage.module.css';
@@ -77,56 +74,38 @@ const HomePage: React.FC = () => {
       {/* ── Top Bar / Header ────────────────────────────────────────────── */}
       <header className={styles.header}>
         <div className={styles.logoWrap}>
-          <KiaraLogo size={32} withText />
-          <span className={styles.versionBadge}>v1.0</span>
+          <KiaraLogo size={22} withText />
         </div>
         <div className={styles.headerRight}>
           <ConnectionBadge state={connected ? 'connected' : 'connecting'} compact />
         </div>
       </header>
 
-      {/* ── Hero Principal ──────────────────────────────────────────────── */}
+      {/* ── Conteúdo Central Minimalista ─────────────────────────────────── */}
       <main className={styles.main}>
         <div className={styles.heroText}>
-          <div className={styles.pillLabel}>
-            <IconSparkles size={13} className={styles.pillIcon} />
-            <span>Compartilhamento P2P de Alta Fidelidade</span>
-          </div>
           <h1 className={styles.title}>
-            Transmita sua tela com fluidez absoluta e zero complicação
+            Compartilhamento de tela direto, sem atrito.
           </h1>
           <p className={styles.subtitle}>
-            Conexão direta WebRTC ponto a ponto, áudio por aplicativo individual,
-            qualidade de até 4K a 60 FPS e criptografia ponta a ponta.
+            P2P WebRTC · 60 FPS nativo · Áudio por aplicativo
           </p>
         </div>
 
-        {/* ── Grid de Seleção de Modo (Host vs Viewer) ────────────────────── */}
+        {/* ── Grid Minimalista ────────────────────────────────────────────── */}
         <div className={styles.cardsGrid}>
-          {/* Card: Host (Apresentador) */}
+          {/* Card: Host */}
           <div className={styles.card}>
             <div className={styles.cardTop}>
-              <div className={styles.cardIconBox}>
-                <IconBroadcast size={24} />
+              <div className={styles.cardTitleRow}>
+                <IconBroadcast size={16} />
+                <h2>Apresentar</h2>
               </div>
-              <span className={styles.cardTag}>Apresentador</span>
             </div>
             
-            <div className={styles.cardContent}>
-              <h2>Compartilhar Tela</h2>
-              <p>
-                Escolha monitores ou janelas específicas, selecione canais de áudio de aplicativos
-                individuais e gere um link seguro em segundos.
-              </p>
-            </div>
-
-            <div className={styles.cardFeatures}>
-              <span>4K / 60 FPS</span>
-              <span>•</span>
-              <span>Áudio por App</span>
-              <span>•</span>
-              <span>Multi-viewers</span>
-            </div>
+            <p className={styles.cardDesc}>
+              Compartilhe sua tela inteira ou janelas com áudio cristalino e link instantâneo.
+            </p>
 
             <button
               type="button"
@@ -134,35 +113,32 @@ const HomePage: React.FC = () => {
               onClick={() => navigate('/broadcast')}
               disabled={!connected}
             >
-              <span>{connected ? 'Iniciar como Host' : 'Conectando ao servidor…'}</span>
-              <IconArrowRight size={16} />
+              <span>{connected ? 'Iniciar Transmissão' : 'Conectando…'}</span>
+              <IconArrowRight size={15} />
             </button>
           </div>
 
-          {/* Card: Viewer (Espectador) */}
+          {/* Card: Viewer */}
           <div className={styles.card}>
             <div className={styles.cardTop}>
-              <div className={styles.cardIconBox}>
-                <IconEye size={24} />
+              <div className={styles.cardTitleRow}>
+                <IconEye size={16} />
+                <h2>Assistir</h2>
               </div>
-              <span className={styles.cardTag}>Espectador</span>
             </div>
 
-            <div className={styles.cardContent}>
-              <h2>Assistir Transmissão</h2>
-              <p>
-                {isInstalledApp
-                  ? 'Cole o link completo que você recebeu para assistir em alta fidelidade no seu navegador.'
-                  : 'Digite o código de 6 caracteres ou cole o link da transmissão para entrar na sala.'}
-              </p>
-            </div>
+            <p className={styles.cardDesc}>
+              {isInstalledApp
+                ? 'Cole o link completo da transmissão para abrir.'
+                : 'Insira o código de 6 caracteres ou o link da sala.'}
+            </p>
 
             <div className={styles.inputContainer}>
               <div className={styles.inputWrapper}>
                 <input
                   type="text"
                   aria-label={isInstalledApp ? 'Link da transmissão' : 'Código ou link da transmissão'}
-                  placeholder={isInstalledApp ? 'https://… ou cole o link' : 'Código (ex: 7KJ89X) ou link'}
+                  placeholder={isInstalledApp ? 'Cole o link' : 'Código ou link'}
                   maxLength={MAX_INPUT_LENGTH}
                   value={code}
                   autoComplete="off"
@@ -181,7 +157,7 @@ const HomePage: React.FC = () => {
                   onClick={() => void handleJoin()}
                   disabled={!isInstalledApp && !connected}
                 >
-                  <span>{isInstalledApp ? 'Assistir' : 'Entrar'}</span>
+                  <span>Entrar</span>
                 </button>
               </div>
 
@@ -190,27 +166,11 @@ const HomePage: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* ── Destaques de Segurança e Arquitetura ───────────────────────── */}
-        <div className={styles.featuresBanner}>
-          <div className={styles.featureItem}>
-            <IconZap size={16} className={styles.featureIcon} />
-            <span>Baixíssima Latência P2P</span>
-          </div>
-          <div className={styles.featureItem}>
-            <IconShield size={16} className={styles.featureIcon} />
-            <span>Criptografia DTLS 1.2 + SRTP</span>
-          </div>
-          <div className={styles.featureItem}>
-            <IconSparkles size={16} className={styles.featureIcon} />
-            <span>Sem Necessidade de Cadastro</span>
-          </div>
-        </div>
       </main>
 
-      {/* ── Footer ────────────────────────────────────────────────────── */}
+      {/* ── Footer Minimalista ──────────────────────────────────────────── */}
       <footer className={styles.footer}>
-        <span>KIARA · Compartilhamento de tela em tempo real com áudio isolado por processo</span>
+        <span>KIARA · WebRTC P2P</span>
       </footer>
     </div>
   );

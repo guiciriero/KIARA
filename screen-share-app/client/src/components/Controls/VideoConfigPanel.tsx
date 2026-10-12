@@ -6,7 +6,8 @@ import styles from './VideoConfigPanel.module.css';
 interface Props {
   config: VideoConfig;
   onChange: (config: VideoConfig) => void;
-  disabled: boolean;
+  disabled?: boolean;
+  isSharing?: boolean;
 }
 
 const RESOLUTIONS = [
@@ -16,18 +17,18 @@ const RESOLUTIONS = [
   { id: '4k',    label: '4K',    sub: 'UHD', width: 3840, height: 2160 },
 ];
 
-const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled }) => {
+const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false, isSharing = false }) => {
   const update = (partial: Partial<VideoConfig>) =>
     onChange({ ...config, ...partial });
 
   return (
-    <div className={`${styles.container} ${disabled ? styles.disabled : ''}`}>
+    <div className={styles.container}>
       <div className={styles.header}>
         <div className={styles.titleGroup}>
           <IconSettings size={16} className={styles.icon} />
           <span className={styles.title}>Qualidade de Vídeo</span>
         </div>
-        {disabled && <span className={styles.lockedBadge}>Bloqueado ao Vivo</span>}
+        {isSharing && <span className={styles.liveBadge}>Ao Vivo (Adaptativo)</span>}
       </div>
 
       {/* Seleção de Resolução em Chips/Pills Modernos */}
@@ -105,7 +106,7 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled }) => {
         <div className={styles.selectWrapper}>
           <select
             value={config.codec}
-            disabled={disabled}
+            disabled={disabled || isSharing}
             onChange={(e) => update({ codec: e.target.value as VideoCodec })}
             className={styles.select}
           >

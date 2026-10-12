@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--kiara-bg);
+  background: #000000;
   overflow: hidden;
 }
 
@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 24px;
+  padding: 10px 20px;
   background: var(--kiara-surface);
   border-bottom: 1px solid var(--kiara-border);
   z-index: 10;
@@ -19,61 +19,58 @@
 .topBarLeft {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .backBtn {
-  background: var(--kiara-surface-raised);
+  background: transparent;
   border: 1px solid var(--kiara-border);
   color: var(--kiara-text-secondary);
-  padding: 6px 12px;
-  font-size: 0.8rem;
+  padding: 5px 10px;
+  font-size: 0.78rem;
   border-radius: var(--radius-sm);
 }
 
 .backBtn:hover {
   background: var(--kiara-surface-hover);
-  color: #fff;
+  color: #ffffff;
   border-color: var(--kiara-border-active);
 }
 
 .divider {
   width: 1px;
-  height: 18px;
+  height: 14px;
   background: var(--kiara-border);
 }
 
 .studioBadge {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--kiara-text-muted);
-  background: var(--kiara-surface-raised);
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
 }
 
 .topBarRight {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .viewersCountPill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: var(--kiara-surface-raised);
   border: 1px solid var(--kiara-border);
-  padding: 5px 12px;
+  padding: 4px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   color: var(--kiara-text-secondary);
 }
 
 .viewersCountPill strong {
-  color: #fff;
+  color: #ffffff;
 }
 
 .bodyLayout {
@@ -84,21 +81,21 @@
 
 /* ── Painel Lateral ─────────────────────────────────────────────── */
 .sidebar {
-  width: 360px;
-  min-width: 320px;
+  width: 320px;
+  min-width: 300px;
   background: var(--kiara-surface);
   border-right: 1px solid var(--kiara-border);
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+  gap: 12px;
+  padding: 16px;
   overflow-y: auto;
 }
 
 .sidebarSection {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .errorBox {
@@ -106,17 +103,18 @@
   align-items: flex-start;
   gap: 8px;
   background: var(--kiara-danger-subtle);
-  border: 1px solid rgba(244, 63, 94, 0.4);
-  color: #fb7185;
-  padding: 10px 12px;
+  border: 1px solid var(--kiara-danger);
+  color: #ffffff;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   line-height: 1.4;
 }
 
 .errorIcon {
   flex-shrink: 0;
   margin-top: 2px;
+  color: var(--kiara-danger);
 }
 
 /* ── Área Principal de Preview ──────────────────────────────────── */
@@ -124,24 +122,23 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px;
+  gap: 12px;
+  padding: 16px;
   overflow-y: auto;
-  background: radial-gradient(circle at 50% 30%, rgba(99, 102, 241, 0.04), transparent 60%);
+  background: #000000;
 }
 
 .previewContainer {
   flex: 1;
-  min-height: 380px;
-  background: #000;
+  min-height: 360px;
+  background: #000000;
   border: 1px solid var(--kiara-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-lg);
 }
 
 .previewVideo {
@@ -153,8 +150,8 @@
 
 .previewOverlayTop {
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: 12px;
+  left: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -165,16 +162,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(16, 185, 129, 0.2);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(16, 185, 129, 0.5);
-  color: #34d399;
-  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid #222222;
+  color: #ededed;
+  padding: 3px 8px;
   border-radius: var(--radius-full);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  box-shadow: 0 0 12px var(--kiara-live-glow);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .liveDot {
@@ -182,19 +177,38 @@
   height: 6px;
   border-radius: 50%;
   background: var(--kiara-live);
-  animation: kiaraPulse 1.8s ease-in-out infinite;
 }
 
 .pausedIndicator {
-  background: rgba(245, 158, 11, 0.2);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(245, 158, 11, 0.5);
-  color: #fbbf24;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid #333333;
+  color: var(--kiara-warning);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.switchScreenBtn {
+  background: rgba(10, 10, 10, 0.85);
+  border: 1px solid var(--kiara-border);
+  color: var(--kiara-text);
   padding: 4px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: 0.68rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.switchScreenBtn:hover {
+  background: var(--kiara-surface-hover);
+  border-color: #ffffff;
+  color: #ffffff;
 }
 
 /* ── Estado Vazio / Placeholder do Estúdio ──────────────────────── */
@@ -203,61 +217,60 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 14px;
-  max-width: 440px;
-  padding: 40px 20px;
+  gap: 12px;
+  max-width: 380px;
+  padding: 30px 20px;
 }
 
 .placeholderIconBox {
-  width: 80px;
-  height: 80px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: var(--kiara-surface-raised);
   border: 1px solid var(--kiara-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--kiara-accent);
-  box-shadow: 0 0 32px var(--kiara-accent-glow);
+  color: var(--kiara-text-secondary);
 }
 
 .placeholderState h3 {
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.02em;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
 }
 
 .placeholderState p {
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   color: var(--kiara-text-secondary);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .placeholderSteps {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 10px;
+  gap: 12px;
+  margin-top: 6px;
 }
 
 .step {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.76rem;
+  gap: 5px;
+  font-size: 0.72rem;
   color: var(--kiara-text-muted);
 }
 
 .stepNum {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--kiara-surface-hover);
   border: 1px solid var(--kiara-border);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.68rem;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.62rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -267,24 +280,23 @@
 .roomShareSection {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   background: var(--kiara-surface);
   border: 1px solid var(--kiara-border);
-  border-radius: var(--radius-xl);
-  padding: 18px 24px;
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
 }
 
 .tunnelWarning {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 6px 10px;
   background: var(--kiara-warning-subtle);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: var(--radius-md);
-  color: #fbbf24;
-  font-size: 0.8rem;
+  border: 1px solid rgba(234, 179, 8, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-warning);
+  font-size: 0.75rem;
 }
 
 /* ── Responsividade ─────────────────────────────────────────────── */

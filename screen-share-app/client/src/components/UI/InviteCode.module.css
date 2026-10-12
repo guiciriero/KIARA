@@ -1,24 +1,18 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
 }
 
 .codeCard {
   background: var(--kiara-surface-raised);
   border: 1px solid var(--kiara-border);
-  border-radius: var(--radius-lg);
-  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--transition-fast);
-}
-
-.codeCard:hover {
-  border-color: var(--kiara-border-active);
+  gap: 8px;
 }
 
 .codeHeader {
@@ -28,20 +22,20 @@
 }
 
 .label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 600;
   color: var(--kiara-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
 }
 
 .tag {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #818cf8;
-  background: rgba(99, 102, 241, 0.12);
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--kiara-text-secondary);
+  background: #171717;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
 }
 
 .codeRow {
@@ -53,42 +47,40 @@
 
 .code {
   font-family: var(--font-mono);
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #fff;
-  text-shadow: 0 0 16px rgba(99, 102, 241, 0.35);
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: #ffffff;
   line-height: 1;
 }
 
 .copyCodeBtn {
-  background: var(--kiara-accent);
-  color: #fff;
-  padding: 8px 16px;
-  font-size: 0.85rem;
+  background: #ffffff;
+  color: #000000;
+  padding: 6px 12px;
+  font-size: 0.78rem;
   font-weight: 600;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  transition: opacity var(--transition-fast);
 }
 
 .copyCodeBtn:hover:not(.copied) {
-  background: var(--kiara-accent-hover);
-  box-shadow: var(--shadow-glow);
+  opacity: 0.9;
 }
 
 .copyCodeBtn.copied {
-  background: var(--kiara-live);
-  color: #fff;
+  background: #222222;
+  color: #ffffff;
 }
 
 .urlCard {
-  background: var(--kiara-surface);
-  border: 1px solid var(--kiara-border-subtle);
-  border-radius: var(--radius-md);
-  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .urlHeader {
@@ -99,11 +91,11 @@
 .urlRow {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .urlText {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   color: var(--kiara-text-secondary);
   font-family: var(--font-mono);
   overflow: hidden;
@@ -113,23 +105,22 @@
 }
 
 .copyUrlBtn {
-  background: var(--kiara-surface-hover);
+  background: #141414;
   border: 1px solid var(--kiara-border);
   color: var(--kiara-text);
-  padding: 6px 12px;
-  font-size: 0.78rem;
+  padding: 4px 10px;
+  font-size: 0.74rem;
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
 .copyUrlBtn:hover:not(.copied) {
-  background: var(--kiara-surface-active);
-  border-color: var(--kiara-border-active);
+  background: #1f1f1f;
+  border-color: #333333;
 }
 
 .copyUrlBtn.copied {
-  background: var(--kiara-live-subtle);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #34d399;
+  background: #222222;
+  color: #ffffff;
 }

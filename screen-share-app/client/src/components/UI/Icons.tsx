@@ -6,67 +6,44 @@ interface IconProps extends React.SVGProps<SVGSVGElement> {
 }
 
 /**
- * Logotipo oficial da KIARA.
- * Prisma geométrico estilizado com feixe de luz / transmissão quântica.
+ * Logotipo minimalista da KIARA.
+ * Prisma geométrico preto/branco com traço nítido e núcleo de precisão.
  */
 export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
-  size = 28,
+  size = 24,
   withText = true,
   className,
   ...props
 }) => (
-  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', verticalAlign: 'middle' }}>
+  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', verticalAlign: 'middle', userSelect: 'none' }}>
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       {...props}
     >
-      <defs>
-        <linearGradient id="kiara-grad-primary" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#818CF8" />
-          <stop offset="0.5" stopColor="#6366F1" />
-          <stop offset="1" stopColor="#4F46E5" />
-        </linearGradient>
-        <linearGradient id="kiara-grad-pulse" x1="16" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#38BDF8" />
-          <stop offset="1" stopColor="#818CF8" />
-        </linearGradient>
-      </defs>
-      {/* Background shape */}
-      <rect width="32" height="32" rx="8" fill="#12141C" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-      {/* Prism facets */}
+      <rect width="24" height="24" rx="5" fill="#0f0f0f" stroke="#222222" strokeWidth="1" />
       <path
-        d="M16 6L25 12V20L16 26L7 20V12L16 6Z"
-        stroke="url(#kiara-grad-primary)"
-        strokeWidth="1.75"
+        d="M12 4L19 8V16L12 20L5 16V8L12 4Z"
+        stroke="#ffffff"
+        strokeWidth="1.4"
         strokeLinejoin="round"
       />
-      <path
-        d="M16 6V26M7 12L25 20M7 20L25 12"
-        stroke="url(#kiara-grad-pulse)"
-        strokeWidth="1.25"
-        strokeOpacity="0.75"
-        strokeLinejoin="round"
-      />
-      <circle cx="16" cy="16" r="3" fill="#FFFFFF" />
-      <circle cx="16" cy="16" r="5" stroke="#38BDF8" strokeWidth="1" strokeDasharray="2 2" />
+      <circle cx="12" cy="12" r="2" fill="#ffffff" />
     </svg>
     {withText && (
       <span
         style={{
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif',
-          fontWeight: 700,
-          fontSize: '1.2rem',
-          letterSpacing: '-0.02em',
-          color: '#F8FAFC',
+          fontFamily: 'inherit',
+          fontWeight: 650,
+          fontSize: '0.95rem',
+          letterSpacing: '0.04em',
+          color: '#ffffff',
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '6px',
         }}
       >
         KIARA
