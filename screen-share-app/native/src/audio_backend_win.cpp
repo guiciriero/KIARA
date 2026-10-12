@@ -281,7 +281,7 @@ std::string ActivateProcessLoopbackClient(uint32_t pid, ComPtr<IAudioClient>& ou
   PROPVARIANT pv = {};
   pv.vt = VT_BLOB;
   pv.blob.cbSize = sizeof(params);
-  pv.blob.pBlob = reinterpret_cast<BYTE*>(&params);   // Pilha: não usar PropVariantClear
+  pv.blob.pBlobData = reinterpret_cast<BYTE*>(&params);   // Pilha: não usar PropVariantClear
 
   // Ponteiro cru com Release explícito: ComPtr não combina bem com classe de
   // herança múltipla de interfaces COM (base IUnknown ambígua).
