@@ -196,27 +196,6 @@ export interface StreamStats {
   timestamp: number;
 }
 
-// ─── Captura Nativa ──────────────────────────────────────────────────────────
-
-/** Informações de uma janela/monitor disponível para captura */
-export interface CaptureSource {
-  id: string;
-  type: 'window' | 'monitor' | 'region';
-  name: string;
-  thumbnailBase64?: string;
-  bounds: { x: number; y: number; width: number; height: number };
-}
-
-/** Configuração de região personalizada de captura */
-export interface CaptureRegion {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  monitorIndex: number;
-}
-
 // ─── Estado da Aplicação ─────────────────────────────────────────────────────
 
-export type AppMode = 'idle' | 'broadcasting' | 'viewing';
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
