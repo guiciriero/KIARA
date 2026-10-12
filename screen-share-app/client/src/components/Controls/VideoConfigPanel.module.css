@@ -1,0 +1,46 @@
+/* VideoConfigPanel.module.css */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.disabled { opacity: 0.6; pointer-events: none; }
+.label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+.field select,
+.field input[type="range"] {
+  width: 100%;
+}
+.slider {
+  accent-color: var(--color-accent);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.rangeLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+.hint {
+  font-size: 0.78rem;
+  color: var(--color-warning);
+  margin-top: 4px;
+}

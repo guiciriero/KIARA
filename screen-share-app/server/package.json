@@ -1,0 +1,28 @@
+{
+  "name": "@screen-share/server",
+  "version": "1.0.0",
+  "description": "Servidor de sinalização WebRTC para compartilhamento de tela",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "uuid": "^9.0.1",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.2",
+    "@types/uuid": "^9.0.8",
+    "typescript": "^5.4.5",
+    "ts-node-dev": "^2.0.0"
+  }
+}

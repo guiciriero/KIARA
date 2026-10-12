@@ -1,0 +1,19 @@
+{
+  "name": "@screen-share/native",
+  "version": "1.0.0",
+  "description": "Módulo nativo C++ para captura de tela e áudio por aplicativo",
+  "main": "build/Release/screen_capture.node",
+  "scripts": {
+    "build": "node-gyp configure && node-gyp build",
+    "build:debug": "node-gyp configure --debug && node-gyp build --debug",
+    "clean": "node-gyp clean",
+    "rebuild": "node-gyp rebuild"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2"
+  },
+  "gypfile": true
+}

@@ -1,0 +1,25 @@
+# Renomeie este arquivo para .gitignore
+# NUNCA commite o arquivo .env — ele contém credenciais sensíveis.
+
+# Dependências
+node_modules/
+
+# Arquivos de build
+dist/
+build/
+*.tsbuildinfo
+
+# Módulo nativo compilado
+native/build/
+native/*.node
+
+# Variáveis de ambiente (NUNCA commitar)
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# macOS
+.DS_Store

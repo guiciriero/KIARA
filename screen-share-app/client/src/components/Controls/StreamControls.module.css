@@ -1,0 +1,48 @@
+/* StreamControls.module.css */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.btnStart {
+  background: var(--color-success);
+  color: #fff;
+  padding: 13px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+}
+.btnStart:hover { filter: brightness(1.1); }
+
+.btnPause {
+  background: var(--color-surface-2);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  padding: 10px;
+  font-size: 0.88rem;
+  border-radius: var(--radius);
+}
+.btnPause:hover { background: rgba(255, 193, 7, 0.1); }
+
+.btnResume {
+  background: var(--color-surface-2);
+  color: var(--color-success);
+  border: 1px solid var(--color-success);
+  padding: 10px;
+  font-size: 0.88rem;
+  border-radius: var(--radius);
+}
+.btnResume:hover { background: rgba(76, 175, 125, 0.1); }
+
+.btnStop {
+  background: rgba(239, 83, 80, 0.12);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  padding: 10px;
+  font-size: 0.88rem;
+  border-radius: var(--radius);
+}
+.btnStop:hover { background: rgba(239, 83, 80, 0.25); }

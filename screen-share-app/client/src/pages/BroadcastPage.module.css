@@ -1,0 +1,104 @@
+/* BroadcastPage.module.css */
+
+.layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 320px;
+  min-width: 280px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 16px;
+  overflow-y: auto;
+}
+
+.backBtn {
+  background: none;
+  color: var(--color-text-muted);
+  padding: 6px 0;
+  font-size: 0.85rem;
+  text-align: left;
+  border-radius: 0;
+}
+.backBtn:hover { color: var(--color-text); }
+
+.sidebarTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 12px;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  overflow: auto;
+}
+
+.previewContainer {
+  flex: 1;
+  background: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 300px;
+}
+
+.preview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-muted);
+}
+.placeholder span { font-size: 3rem; }
+.placeholder p { font-size: 0.9rem; }
+
+.roomInfo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.viewers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+.viewers strong { color: var(--color-text); font-size: 1rem; }
+
+.errorBox {
+  background: rgba(239, 83, 80, 0.1);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--color-danger);
+}

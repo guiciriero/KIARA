@@ -1,0 +1,14 @@
+{
+  "name": "@screen-share/shared",
+  "version": "1.0.0",
+  "description": "Tipos TypeScript compartilhados entre servidor e cliente",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

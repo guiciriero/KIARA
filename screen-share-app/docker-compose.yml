@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  # ─── Servidor de Sinalização ─────────────────────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: screenshare-server
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"   # Exposto apenas localmente (não 0.0.0.0)
+    environment:
+      - PORT=3001
+      - CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:3000}
+      - NODE_ENV=${NODE_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - screenshare-net
+
+  # ─── Cliente (servido via Nginx) ─────────────────────────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: screenshare-client
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:80"     # Nginx na porta 80 internamente
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - screenshare-net
+
+networks:
+  screenshare-net:
+    driver: bridge

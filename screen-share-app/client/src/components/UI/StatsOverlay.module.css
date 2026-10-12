@@ -1,0 +1,62 @@
+/* StatsOverlay.module.css */
+.overlay {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  z-index: 10;
+}
+
+.badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid;
+}
+
+.dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+}
+
+.qualityLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.metrics {
+  display: flex;
+  gap: 12px;
+  border-left: 1px solid rgba(255,255,255,0.1);
+  padding-left: 12px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.metricLabel {
+  font-size: 0.62rem;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metricValue {
+  font-size: 0.78rem;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}

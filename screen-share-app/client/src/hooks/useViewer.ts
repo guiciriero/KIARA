@@ -1,0 +1,102 @@
+/**
+ * useViewer.ts
+ * Hook para o modo espectador.
+ * Gerencia: entrada na sala → WebRTC → recebimento do stream → reconexão automática.
+ */
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSocket } from '../services/SocketContext';
+import { WebRTCViewer } from '../services/webrtcService';
+import type { StreamStats, ConnectionState } from '@shared/index';
+
+export interface ViewerState {
+  remoteStream: MediaStream | null;
+  viewerCount: number;
+  connectionState: ConnectionState;
+  stats: StreamStats | null;
+  error: string | null;
+  hostDisconnected: boolean;
+}
+
+export function useViewer(roomCode: string | undefined) {
+  const { socket } = useSocket();
+  const viewerRef  = useRef<WebRTCViewer | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [state, setState] = useState<ViewerState>({
+    remoteStream: null, viewerCount: 0,
+    connectionState: 'disconnected', stats: null,
+    error: null, hostDisconnected: false,
+  });
+
+  // Escuta eventos do servidor
+  // Roda quando socket ou roomCode mudar — socket pode chegar async após montagem
+  useEffect(() => {
+    if (!socket || !roomCode) return;
+
+    setState((s) => ({ ...s, connectionState: 'connecting', error: null }));
+
+    // Solicita entrada na sala assim que o socket estiver pronto
+    socket.emit('room:join', { code: roomCode });
+
+    socket.on('room:joined', (data: { roomId: string; hostId: string; viewerCount: number }) => {
+      setState((s) => ({
+        ...s, viewerCount: data.viewerCount, connectionState: 'connecting',
+      }));
+
+      // Inicializa o WebRTC viewer aguardando offer do apresentador
+      const viewer = new WebRTCViewer(socket, data.hostId);
+      viewer.onStream((stream) => {
+        setState((s) => ({ ...s, remoteStream: stream, connectionState: 'connected' }));
+      });
+      viewerRef.current = viewer;
+    });
+
+    socket.on('room:error', (data: { message: string }) => {
+      setState((s) => ({ ...s, error: data.message, connectionState: 'failed' }));
+    });
+
+    socket.on('room:host-disconnected', () => {
+      setState((s) => ({ ...s, hostDisconnected: true, connectionState: 'disconnected' }));
+      viewerRef.current?.destroy();
+    });
+
+    // Estatísticas vindas do apresentador via servidor
+    socket.on('stream:stats', (stats: StreamStats) => {
+      setState((s) => ({ ...s, stats }));
+    });
+
+    // Reconexão automática em caso de desconexão do socket
+    socket.on('disconnect', () => {
+      setState((s) => ({ ...s, connectionState: 'reconnecting' }));
+      // Tenta reconectar após 3 segundos
+      reconnectTimerRef.current = setTimeout(() => {
+        if (roomCode) socket.emit('room:join', { code: roomCode });
+      }, 3000);
+    });
+
+    return () => {
+      socket.off('room:joined');
+      socket.off('room:error');
+      socket.off('room:host-disconnected');
+      socket.off('stream:stats');
+      socket.off('disconnect');
+      viewerRef.current?.destroy();
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    };
+  }, [socket, roomCode]);
+
+  /** Sai da sala voluntariamente */
+  const leaveRoom = useCallback(() => {
+    socket?.emit('room:leave');
+    viewerRef.current?.destroy();
+    viewerRef.current = null;
+    setState({
+      remoteStream: null, viewerCount: 0,
+      connectionState: 'disconnected', stats: null,
+      error: null, hostDisconnected: false,
+    });
+  }, [socket]);
+
+  return { state, leaveRoom };
+}
