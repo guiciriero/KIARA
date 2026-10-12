@@ -93,6 +93,7 @@ npm run lint        # ESLint (flat config)
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest (cliente + lógica de atualização do desktop)
 npm run build       # typecheck + build de produção
+npm run e2e         # WebRTC + áudio dinâmico em Chrome real (precisa do Google Chrome; veja client/e2e/README.md)
 ```
 
 Variáveis de ambiente: veja `.env.example`. O TURN do cliente (`VITE_TURN_*`) só é usado
@@ -157,7 +158,7 @@ Também vale abrir `chrome://webrtc-internals` no navegador durante a live.
 
 ## 📄 Licença
 
-MIT — livre para uso pessoal e comercial.
+MIT — livre para uso pessoal e comercial. Texto completo em [`LICENSE`](../LICENSE).
 
 ## Atualização do aplicativo
 
@@ -168,12 +169,10 @@ O app desktop (Windows) tem o botão **Atualizar** na tela inicial: verifica, ba
 - O app instalado consulta o feed, baixa a versão nova e, em "Reiniciar e atualizar", fecha túnel/servidor/áudio e roda o instalador.
 - Em desenvolvimento (`npm run dev`) e fora do Windows o botão fica desativado.
 
-**Repositório privado (requisito para funcionar)**
-O app não pode embutir token. Com o repositório privado, a API/Releases do GitHub devolvem 404 sem autenticação e o app mostra: "O repositório de releases é privado ou ainda não há versão publicada". Opções:
-1. Tornar o repositório público; ou
-2. Copiar `latest.yml`, `.exe` e `.blockmap` para um local público https (repo público só de releases, GitHub Pages, bucket) e definir `KIARA_UPDATE_URL=https://.../` (em tempo de execução ou no build, que embute o valor em `build-info.json`).
+**Repositório público**
+O app não embute token: o feed de releases precisa ser legível sem autenticação, por isso o repositório é público. Se voltar a ser privado, o app mostra "O repositório de releases é privado ou ainda não há versão publicada"; nesse caso copie `latest.yml`, `.exe` e `.blockmap` para um local público https e defina `KIARA_UPDATE_URL=https://.../` (em tempo de execução ou no build, que embute o valor em `build-info.json`).
 
 **Limitações**
-- Sem assinatura de código: o Windows SmartScreen mostra "Editor desconhecido" (Mais informações > Executar assim mesmo).
+- Sem assinatura de código: o Windows SmartScreen mostra "Editor desconhecido" (Mais informações > Executar assim mesmo). Assinar não remove o aviso de imediato — a reputação se acumula com o tempo. Opções avaliadas: SignPath Foundation (gratuito para open source; exige LICENSE OSI, releases publicadas, MFA e aprovação manual por release) ou um certificado comercial. O Microsoft Artifact Signing é pago e não atende contas individuais/organizações no Brasil.
 - Rate limit do GitHub (403/429) é tratado com mensagem amigável.
 - A primeira instalação com o auto-update ainda é manual; só versões posteriores se atualizam sozinhas.
