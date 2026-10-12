@@ -164,6 +164,23 @@ describe('webrtcService', () => {
       broadcaster.destroy();
     });
 
+    it('ignora o segundo evento failed (connectionState + iceConnectionState) e envia só um restart', async () => {
+      const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-dup' });
+      await vi.waitFor(() => expect(FakeRTCPeerConnection.instances.length).toBe(1));
+
+      const pc = FakeRTCPeerConnection.instances[0];
+      pc.simulateConnectionState('failed');
+      pc.simulateIceConnectionState('failed');
+
+      await vi.waitFor(() => expect(socket.getEmissions('webrtc:offer').length).toBe(2));
+      await new Promise((r) => setTimeout(r, 20));
+      expect(pc.restartIceCount).toBe(1);
+      expect(socket.getEmissions('webrtc:offer').length).toBe(2);
+
+      broadcaster.destroy();
+    });
+
     it('dispara ICE restart em disconnected apenas após o período de grace (3000ms)', async () => {
       vi.useFakeTimers();
       const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
@@ -225,13 +242,16 @@ describe('webrtcService', () => {
       initialPc.simulateConnectionState('failed');
       await vi.waitFor(() => expect(initialPc.restartIceCount).toBe(1));
 
+      initialPc.simulateConnectionState('connecting');
       initialPc.simulateConnectionState('failed');
       await vi.waitFor(() => expect(initialPc.restartIceCount).toBe(2));
 
+      initialPc.simulateConnectionState('connecting');
       initialPc.simulateConnectionState('failed');
       await vi.waitFor(() => expect(initialPc.restartIceCount).toBe(3));
 
       // 4ª falha -> deve fechar o peer antigo e criar um novo
+      initialPc.simulateConnectionState('connecting');
       initialPc.simulateConnectionState('failed');
       await vi.waitFor(() => {
         expect(initialPc.isClosed).toBe(true);

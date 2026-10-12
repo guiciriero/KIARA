@@ -37,6 +37,7 @@ interface PeerConnectionData {
   bitrateController: BitrateController;
   iceRestartAttempts: number;
   iceGraceTimer: ReturnType<typeof setTimeout> | null;
+  iceFailureHandled: boolean;
   iceCandidateBuffer: RTCIceCandidatePayload[];
 }
 
@@ -319,6 +320,7 @@ export class WebRTCBroadcaster {
       bitrateController: new BitrateController(this.videoConfig.bitrate),
       iceRestartAttempts: 0,
       iceGraceTimer: null,
+      iceFailureHandled: false,
       iceCandidateBuffer: [],
     };
     this.peers.set(viewerId, peerData);
@@ -365,6 +367,10 @@ export class WebRTCBroadcaster {
     const handleConnectionStateChange = () => {
       const state = pc.connectionState;
       const iceState = pc.iceConnectionState;
+      const failed = state === 'failed' || iceState === 'failed';
+
+      // Chrome costuma reportar 'failed' nos dois eventos; sem isso o restart rodaria duas vezes.
+      if (!failed) peerData.iceFailureHandled = false;
 
       if (state === 'connected' || iceState === 'connected' || iceState === 'completed') {
         if (peerData.iceGraceTimer) {
@@ -375,7 +381,9 @@ export class WebRTCBroadcaster {
         return;
       }
 
-      if (state === 'failed' || iceState === 'failed') {
+      if (failed) {
+        if (peerData.iceFailureHandled) return;
+        peerData.iceFailureHandled = true;
         if (peerData.iceGraceTimer) {
           clearTimeout(peerData.iceGraceTimer);
           peerData.iceGraceTimer = null;
