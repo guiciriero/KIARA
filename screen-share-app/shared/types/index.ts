@@ -75,6 +75,23 @@ export interface CaptureSourceInfo {
   thumbnailDataUrl: string;
 }
 
+/** Estado da atualização do app desktop (união discriminada por `status`). */
+interface UpdateStateBase {
+  currentVersion: string;
+  /** SHA curto do commit do build instalado (ou "dev") */
+  build?: string;
+}
+
+export type UpdateState =
+  | (UpdateStateBase & { status: 'disabled'; message: string })
+  | (UpdateStateBase & { status: 'idle' })
+  | (UpdateStateBase & { status: 'checking' })
+  | (UpdateStateBase & { status: 'available'; latestVersion: string })
+  | (UpdateStateBase & { status: 'not-available' })
+  | (UpdateStateBase & { status: 'downloading'; latestVersion?: string; progress: number })
+  | (UpdateStateBase & { status: 'downloaded'; latestVersion?: string; progress: 100 })
+  | (UpdateStateBase & { status: 'error'; latestVersion?: string; message: string });
+
 export interface ScreenShareHostApi {
   platform: 'windows' | 'macos';
   audio: {
@@ -101,6 +118,16 @@ export interface ScreenShareHostApi {
      * Rejeita com mensagem legível em pt-BR se o link for inválido.
      */
     openViewerLink(url: string): Promise<void>;
+  };
+  updater: {
+    getState(): Promise<UpdateState>;
+    /** Consulta o feed de releases; o resultado chega em `onState`. */
+    check(): Promise<UpdateState>;
+    download(): Promise<UpdateState>;
+    /** Fecha o app e roda o instalador. Só vale em `downloaded`. */
+    install(): Promise<UpdateState>;
+    /** Assina mudanças de estado; devolve a função que cancela a assinatura. */
+    onState(cb: (state: UpdateState) => void): () => void;
   };
 }
 
@@ -159,8 +186,12 @@ export interface StreamStats {
   fps: number;
   videoBitrate: number;   // kbps atual
   audioBitrate: number;   // kbps atual
-  latencyMs: number;      // Latência estimada em milissegundos
-  packetsLost: number;    // Total de pacotes perdidos
+  latencyMs: number;      // RTT do par de candidatos ICE selecionado
+  packetsLost: number;    // Total acumulado de pacotes perdidos (reportado pelo espectador)
+  lossPercent: number;    // Perda no último intervalo de amostragem (0-100)
+  jitterMs: number;       // Jitter reportado pelo espectador
+  /** Motivo pelo qual o encoder reduziu qualidade ('none' = sem limitação) */
+  qualityLimitation: 'none' | 'cpu' | 'bandwidth' | 'other';
   connectionQuality: 'excellent' | 'good' | 'fair' | 'poor';
   timestamp: number;
 }
