@@ -9,7 +9,7 @@ Aplicação completa de compartilhamento de tela com captura de áudio por aplic
 | Funcionalidade | Detalhes |
 |---|---|
 | **Captura de vídeo** | Até 4K (3840×2160), 60 FPS, codecs H.264 / VP9 / H.265 |
-| **Captura de áudio** | WASAPI loopback por processo (Windows) / PipeWire por sink-input (Linux) |
+| **Captura de áudio** | No app desktop: por aplicativo — WASAPI Process Loopback (Windows 10 2004+) / ScreenCaptureKit (macOS 13+). No navegador: áudio do sistema inteiro |
 | **Transmissão WebRTC** | Peer-to-peer com fallback STUN/TURN, múltiplos espectadores simultâneos |
 | **Sinalização** | Node.js + Socket.IO com reconexão automática |
 | **Código de convite** | Código de 6 dígitos gerado automaticamente, copiável com um clique |
@@ -24,7 +24,8 @@ Aplicação completa de compartilhamento de tela com captura de áudio por aplic
 screen-share-app/
 ├── server/           → Servidor de sinalização WebRTC (Node.js + TypeScript)
 ├── client/           → Interface do usuário (React 18 + TypeScript + Vite)
-├── native/           → Módulo C++ de captura nativa (Windows/Linux)
+├── native/           → Módulo C++ de captura de áudio por app (Windows/macOS)
+├── desktop/          → App Electron (habilita o áudio por aplicativo)
 ├── shared/types/     → Tipos TypeScript compartilhados entre servidor e cliente
 ├── docker-compose.yml
 └── .env.example
@@ -225,34 +226,47 @@ docker-compose down
 
 ---
 
-## 🔧 Compilar o Módulo Nativo C++ (opcional)
+## 🖥️ App Desktop (áudio por aplicativo)
 
-O módulo nativo é necessário apenas para **captura de áudio por aplicativo individual** no modo Electron. No navegador web, o áudio é capturado via `getDisplayMedia` (áudio do sistema inteiro).
+O navegador só consegue compartilhar o áudio do **sistema inteiro**. Para transmitir o áudio de
+apenas alguns aplicativos (ex.: o vídeo, sem o som do jogo) use o app desktop (Electron).
 
-### Windows
+| Sistema | Tecnologia | Requisito |
+|---|---|---|
+| Windows | WASAPI Process Loopback | Windows 10 versão 2004 (build 19041) ou superior |
+| macOS | ScreenCaptureKit | macOS 13 ou superior |
 
-```bash
-# Pré-requisito: Visual Studio Build Tools 2019+ com suporte a C++
-# Instala as ferramentas globais se ainda não tiver
-npm install -g node-gyp windows-build-tools
-
-cd native
-npm install
-npm run build
-```
-
-### Linux (Ubuntu/Debian)
+### Compilar e rodar
 
 ```bash
-# Instala dependências do sistema
-sudo apt install build-essential python3 libpipewire-0.3-dev libx11-dev libxext-dev
-
-cd native
+# 1. Compilar o módulo nativo (Windows: Visual Studio Build Tools com C++; macOS: Xcode Command Line Tools)
+cd desktop
 npm install
-npm run build
+npm run build:native
+
+# 2. Modo desenvolvimento (com o Vite rodando em http://localhost:3000)
+npm run dev
+
+# 3. Modo produção (usa client/dist)
+cd ../client && npm run build && cd ../desktop
+npm start
 ```
 
-O arquivo compilado ficará em `native/build/Release/screen_capture.node`.
+> No modo produção o app abre em `app://app`; adicione essa origem ao `CLIENT_ORIGIN` do servidor.
+
+### Como usar
+1. Abra o app desktop e vá em **Compartilhar Tela**.
+2. Escolha a tela/janela no seletor de captura.
+3. Em **Fontes de Áudio**, marque só os aplicativos desejados e ajuste o volume de cada um.
+4. Inicie. Somente o áudio dos apps marcados vai para os espectadores. A seleção vale ao iniciar a transmissão.
+
+### Permissões
+- **macOS:** conceda **Gravação de Tela e Áudio do Sistema** em Ajustes do Sistema > Privacidade e Segurança e reinicie o app.
+- **Windows:** nenhuma permissão extra.
+
+### Status de testes
+- macOS: módulo compila e lista aplicativos. A captura de áudio ao vivo ainda não foi validada.
+- Windows: o código foi escrito, mas **ainda não foi compilado nem testado**.
 
 ---
 
@@ -295,11 +309,7 @@ VITE_SERVER_URL=http://127.0.0.1:3002
 - Configure um servidor TURN geograficamente próximo a você e ao espectador
 
 ### O módulo nativo não compila no Windows
-```bash
-npm install -g windows-build-tools
-npm install -g node-gyp
-cd native && npm rebuild
-```
+Instale o Visual Studio Build Tools com "Desenvolvimento para desktop com C++" e o Windows SDK 10.0.19041 ou superior, depois rode `npm run build:native` em `desktop/`.
 
 ---
 
@@ -337,8 +347,9 @@ cd native && npm rebuild
 | Servidor de sinalização | Node.js 20, TypeScript 5, Express 4, Socket.IO 4, Winston |
 | Interface do usuário | React 18, TypeScript 5, Vite 5, React Router 6 |
 | Transmissão de vídeo | WebRTC nativo do navegador (`RTCPeerConnection`, `getDisplayMedia`) |
-| Captura nativa (Windows) | C++17, DXGI Desktop Duplication, WASAPI, Node Addon API |
-| Captura nativa (Linux) | C++17, X11, PipeWire, Node Addon API |
+| App desktop | Electron |
+| Captura de áudio (Windows) | C++17, WASAPI Process Loopback, Node Addon API |
+| Captura de áudio (macOS) | Objective-C++, ScreenCaptureKit, Node Addon API |
 | Containerização | Docker, Docker Compose, Nginx, Red Hat UBI 9 |
 
 ---

@@ -9,12 +9,13 @@
  * streamRef.current retornado pelo hook (não reativo).
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBroadcast } from '../hooks/useBroadcast';
 import { useAudioSources } from '../hooks/useAudioSources';
 import StreamControls from '../components/Controls/StreamControls';
 import AudioSourceList from '../components/Controls/AudioSourceList';
+import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
 import VideoConfigPanel from '../components/Controls/VideoConfigPanel';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
@@ -31,9 +32,34 @@ const BroadcastPage: React.FC = () => {
     codec: 'H264', bitrate: 4000, quality: 'high',
   });
 
-  // stream agora é reativo — vem de state.stream
-  const { state, startSharing, stopSharing, togglePause } = useBroadcast(videoConfig);
   const audioHook = useAudioSources();
+  const { setPaused: setAudioPollingPaused } = audioHook;
+  // (desktop) tela/janela escolhida no CaptureSourcePicker
+  const [captureSourceId, setCaptureSourceId] = useState<string | null>(null);
+
+  // Seleção de áudio por aplicativo (PIDs marcados + volume/mute individuais).
+  // Os PIDs valem ao iniciar a transmissão; volume/mute refletem ao vivo.
+  const audioSelection = useMemo(() => {
+    const pids: number[] = [];
+    const volumes: Record<number, number> = {};
+    const muted: Record<number, boolean> = {};
+    for (const src of audioHook.sources) {
+      if (!audioHook.selected.has(src.id)) continue;
+      pids.push(src.processId);
+      volumes[src.processId] = src.volume;
+      muted[src.processId] = src.isMuted;
+    }
+    return { pids, volumes, muted };
+  }, [audioHook.sources, audioHook.selected]);
+
+  // stream agora é reativo — vem de state.stream
+  const { state, startSharing, stopSharing, togglePause } =
+    useBroadcast(videoConfig, undefined, audioSelection, captureSourceId);
+
+  // Pausa a atualização periódica da lista de apps enquanto transmite
+  useEffect(() => {
+    setAudioPollingPaused(state.isSharing);
+  }, [state.isSharing, setAudioPollingPaused]);
 
   // Conecta o stream local ao elemento <video> de preview sempre que ele mudar
   useEffect(() => {
@@ -61,6 +87,15 @@ const BroadcastPage: React.FC = () => {
           disabled={state.isSharing}
         />
 
+        {/* Seletor de tela/janela — só aparece no app desktop */}
+        {audioHook.isDesktop && (
+          <CaptureSourcePicker
+            selectedId={captureSourceId}
+            onSelect={setCaptureSourceId}
+            disabled={state.isSharing}
+          />
+        )}
+
         {/* Lista de aplicativos com saída de áudio */}
         <AudioSourceList
           sources={audioHook.sources}
@@ -70,6 +105,7 @@ const BroadcastPage: React.FC = () => {
           onVolumeChange={audioHook.setVolume}
           onMuteToggle={audioHook.toggleMute}
           onRefresh={audioHook.refreshSources}
+          webMode={!audioHook.isDesktop}
         />
 
         {/* Botões de iniciar, pausar e encerrar */}

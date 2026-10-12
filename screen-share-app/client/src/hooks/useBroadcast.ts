@@ -17,6 +17,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCBroadcaster } from '../services/webrtcService';
 import { startScreenCapture, combineStreams, stopStream } from '../services/captureService';
+import { AppAudioMixer } from '../services/appAudioMixer';
 import type { VideoConfig, AudioConfig, StreamStats, ConnectionState } from '@shared/index';
 
 export interface BroadcastState {
@@ -42,13 +43,38 @@ const DEFAULT_AUDIO_CONFIG: AudioConfig = {
   sampleRate: 48000, bitrate: 128, codec: 'opus', sources: [],
 };
 
+/**
+ * Seleção de áudio por aplicativo (somente app desktop).
+ * Os PIDs valem no momento em que a transmissão INICIA: alterar a seleção de
+ * apps durante a transmissão não adiciona/remove fontes (fora do escopo).
+ * Já volume e mute são refletidos ao vivo no mixer.
+ */
+export interface AudioSelection {
+  pids: number[];
+  volumes: Record<number, number>;
+  muted: Record<number, boolean>;
+}
+
+const EMPTY_AUDIO_SELECTION: AudioSelection = { pids: [], volumes: {}, muted: {} };
+
 export function useBroadcast(
   videoConfig: VideoConfig = DEFAULT_VIDEO_CONFIG,
   _audioConfig: AudioConfig = DEFAULT_AUDIO_CONFIG,
+  audioSelection: AudioSelection = EMPTY_AUDIO_SELECTION,
+  /** (desktop) ID da tela/janela escolhida na interface */
+  captureSourceId: string | null = null,
 ) {
   const { socket } = useSocket();
   const broadcasterRef = useRef<WebRTCBroadcaster | null>(null);
   const streamRef      = useRef<MediaStream | null>(null);
+  /** Stream bruto retornado pelo getDisplayMedia (garante parar o vídeo mesmo em erro) */
+  const captureStreamRef = useRef<MediaStream | null>(null);
+  const mixerRef         = useRef<AppAudioMixer | null>(null);
+  const audioStartedRef  = useRef(false);
+  const stopSharingRef   = useRef<() => void>(() => undefined);
+  /** Sempre com a seleção mais recente (usada em callbacks assíncronos) */
+  const audioSelectionRef = useRef(audioSelection);
+  audioSelectionRef.current = audioSelection;
 
   const [state, setState] = useState<BroadcastState>({
     isSharing: false, isPaused: false,
@@ -61,6 +87,16 @@ export function useBroadcast(
   useEffect(() => {
     return () => cleanupAllRef.current();
   }, []);
+
+  // Reflete volume/mute no mixer ao vivo durante a transmissão
+  useEffect(() => {
+    const mixer = mixerRef.current;
+    if (!mixer) return;
+    for (const pid of audioSelection.pids) {
+      mixer.setVolume(pid, audioSelection.volumes[pid] ?? 1);
+      mixer.setMuted(pid, audioSelection.muted[pid] ?? false);
+    }
+  }, [audioSelection]);
 
   // Escuta eventos do servidor relacionados à sala
   useEffect(() => {
@@ -94,8 +130,35 @@ export function useBroadcast(
 
     try {
       // 1. Captura a tela — o navegador abrirá o seletor nativo
-      const { videoTrack, audioTracks } = await startScreenCapture(videoConfig);
-      const combined = combineStreams(videoTrack, audioTracks);
+      const host = window.screenShareHost;
+      const { stream: captureStream, videoTrack, audioTracks } =
+        await startScreenCapture(videoConfig, captureSourceId);
+      captureStreamRef.current = captureStream;
+
+      let combined: MediaStream;
+      const selection = audioSelectionRef.current;
+      if (host) {
+        // Desktop: o áudio vem do processo nativo (por PID) e é mixado no renderer.
+        // Sem nenhum app selecionado, transmite SEM áudio.
+        if (selection.pids.length > 0) {
+          const mixer = await AppAudioMixer.create();
+          mixerRef.current = mixer;
+          for (const pid of selection.pids) {
+            mixer.addSource(pid);
+            mixer.setVolume(pid, selection.volumes[pid] ?? 1);
+            mixer.setMuted(pid, selection.muted[pid] ?? false);
+          }
+          // Marca antes: se start() falhar parcialmente, o cleanup ainda chama stop()
+          audioStartedRef.current = true;
+          await host.audio.start(selection.pids, (chunk) => mixer.push(chunk));
+          combined = new MediaStream([videoTrack, mixer.track]);
+        } else {
+          combined = new MediaStream([videoTrack]);
+        }
+      } else {
+        // Web: áudio do sistema inteiro vindo do getDisplayMedia
+        combined = combineStreams(videoTrack, audioTracks);
+      }
       streamRef.current = combined;
 
       // Atualiza o stream no state para o preview ser reativo
@@ -142,7 +205,7 @@ export function useBroadcast(
       broadcasterRef.current = broadcaster;
 
       // Se o usuário clicar em "Parar" no seletor nativo do browser
-      videoTrack.onended = () => stopSharing();
+      videoTrack.onended = () => stopSharingRef.current();
 
     } catch (err) {
       const message =
@@ -152,7 +215,7 @@ export function useBroadcast(
       setState((s) => ({ ...s, error: message, connectionState: 'disconnected', stream: null }));
       cleanupAllRef.current();
     }
-  }, [socket, videoConfig]);
+  }, [socket, videoConfig, captureSourceId]);
 
   /** Congela ou retoma o vídeo sem encerrar a transmissão */
   const togglePause = useCallback(() => {
@@ -174,12 +237,27 @@ export function useBroadcast(
     });
   }, [socket]);
 
+  stopSharingRef.current = stopSharing;
+
   // useRef para a função de limpeza evita avisos de dependência nos useCallbacks
   const cleanupAllRef = useRef(() => {
     broadcasterRef.current?.destroy();
     broadcasterRef.current = null;
+
+    // Para a captura nativa de áudio e libera o mixer (se existirem)
+    if (audioStartedRef.current) {
+      audioStartedRef.current = false;
+      window.screenShareHost?.audio.stop().catch(() => undefined);
+    }
+    if (mixerRef.current) {
+      void mixerRef.current.destroy();
+      mixerRef.current = null;
+    }
+
     stopStream(streamRef.current);
     streamRef.current = null;
+    stopStream(captureStreamRef.current);
+    captureStreamRef.current = null;
   });
 
   return { state, startSharing, stopSharing, togglePause };

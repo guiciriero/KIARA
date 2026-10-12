@@ -1,0 +1,15 @@
+{
+  "name": "@screen-share/desktop",
+  "version": "1.0.0",
+  "description": "Shell Electron do Screen Share (captura de áudio por aplicativo)",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "ELECTRON_START_URL=http://localhost:3000 electron .",
+    "build:native": "cd ../native && npm install && npm run build"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0"
+  }
+}

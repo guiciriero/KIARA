@@ -33,9 +33,6 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("stopAudioCapture",
     Napi::Function::New(env, StopAudioCapture, "stopAudioCapture"));
 
-  exports.Set("setSourceVolume",
-    Napi::Function::New(env, SetSourceVolume, "setSourceVolume"));
-
   return exports;
 }
 

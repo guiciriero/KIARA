@@ -54,6 +54,44 @@ export interface AudioSource {
   isMuted: boolean;
   platform: 'windows' | 'linux' | 'macos';
 }
+// ─── Ponte Electron (preload → renderer) ─────────────────────────────────────
+// Exposta em `window.screenShareHost` SOMENTE quando rodando no app desktop.
+// No navegador comum a propriedade não existe.
+
+/** Bloco de áudio PCM de um aplicativo (float32 intercalado L,R,L,R...) */
+export interface NativeAudioChunk {
+  pid: number;
+  pcm: Float32Array;
+  frames: number;       // amostras por canal
+  sampleRate: number;   // sempre 48000
+  channels: number;     // sempre 2
+}
+
+/** Tela ou janela disponível para captura de vídeo */
+export interface CaptureSourceInfo {
+  id: string;
+  name: string;
+  type: 'screen' | 'window';
+  thumbnailDataUrl: string;
+}
+
+export interface ScreenShareHostApi {
+  platform: 'windows' | 'macos';
+  audio: {
+    /** Lista aplicativos cujo áudio pode ser capturado */
+    listSources(): Promise<AudioSource[]>;
+    /** Inicia a captura dos PIDs. Rejeita com mensagem legível em caso de falha. */
+    start(pids: number[], onChunk: (chunk: NativeAudioChunk) => void): Promise<void>;
+    stop(): Promise<void>;
+  };
+  capture: {
+    listSources(): Promise<CaptureSourceInfo[]>;
+    /** Define a fonte usada pelo PRÓXIMO getDisplayMedia (uso único) */
+    selectSource(id: string): Promise<void>;
+  };
+}
+
+
 
 // ─── Eventos WebSocket / Sinalização ─────────────────────────────────────────
 

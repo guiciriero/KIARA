@@ -16,10 +16,12 @@ interface Props {
   onVolumeChange: (id: string, volume: number) => void;
   onMuteToggle: (id: string) => void;
   onRefresh: () => void;
+  /** Quando true (navegador comum), exibe o aviso de que só há áudio do sistema */
+  webMode?: boolean;
 }
 
 const AudioSourceList: React.FC<Props> = ({
-  sources, selected, loading, onToggle, onVolumeChange, onMuteToggle, onRefresh,
+  sources, selected, loading, onToggle, onVolumeChange, onMuteToggle, onRefresh, webMode = false,
 }) => {
   return (
     <div className={styles.container}>
@@ -34,6 +36,13 @@ const AudioSourceList: React.FC<Props> = ({
           {loading ? '…' : '↻'}
         </button>
       </div>
+
+      {webMode && (
+        <p className={styles.notice}>
+          No navegador só é possível compartilhar o áudio do sistema inteiro.
+          Use o app desktop para escolher aplicativos.
+        </p>
+      )}
 
       {sources.length === 0 && !loading && (
         <p className={styles.empty}>Nenhum aplicativo com áudio encontrado.</p>

@@ -19,27 +19,44 @@ export interface CaptureResult {
 
 /**
  * Inicia a captura de tela.
- * Abre o seletor nativo do navegador (janela, monitor, aba).
  *
- * @param videoConfig  Configurações de resolução e FPS desejados
+ * - Web: abre o seletor nativo do navegador (janela, monitor, aba) e captura
+ *   também o áudio do sistema.
+ * - Desktop (Electron, `window.screenShareHost` presente): o áudio NÃO vem do
+ *   getDisplayMedia (`audio: false`) — ele é capturado por aplicativo e mixado pelo
+ *   AppAudioMixer. Se `captureSourceId` for informado, ele é registrado no host
+ *   (selectSource, uso único) antes do getDisplayMedia.
+ *
+ * @param videoConfig      Configurações de resolução e FPS desejados
+ * @param captureSourceId  (desktop) ID da tela/janela escolhida na interface
  */
-export async function startScreenCapture(videoConfig: VideoConfig): Promise<CaptureResult> {
+export async function startScreenCapture(
+  videoConfig: VideoConfig,
+  captureSourceId?: string | null,
+): Promise<CaptureResult> {
+  const host = window.screenShareHost;
+
   const constraints: DisplayMediaStreamOptions = {
     video: {
       width:     { ideal: videoConfig.width,     max: 3840 },
       height:    { ideal: videoConfig.height,    max: 2160 },
       frameRate: { ideal: videoConfig.frameRate, max: 60   },
     },
-    // O áudio do sistema via getDisplayMedia é suportado no Chrome (Windows/macOS)
-    audio: {
-      suppressLocalAudioPlayback: false,
-      echoCancellation: false,
-      noiseSuppression: false,
-      sampleRate: 48000,
-    } as MediaTrackConstraints,
+    audio: host
+      ? false
+      // O áudio do sistema via getDisplayMedia é suportado no Chrome (Windows/macOS)
+      : ({
+          suppressLocalAudioPlayback: false,
+          echoCancellation: false,
+          noiseSuppression: false,
+          sampleRate: 48000,
+        } as MediaTrackConstraints),
   };
 
   try {
+    if (host && captureSourceId) {
+      await host.capture.selectSource(captureSourceId);
+    }
     const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
     const videoTrack = stream.getVideoTracks()[0];
     const audioTracks = stream.getAudioTracks();
