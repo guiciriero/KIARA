@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
@@ -8,6 +8,10 @@ export default defineConfig({
     alias: {
       '@shared': path.resolve(__dirname, '../shared/types'),
     },
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts', '../desktop/src/**/*.test.ts'],
   },
   server: {
     port: 3000,

@@ -25,6 +25,9 @@ extraResources:
     to: bin/cloudflared.exe
   - from: ../native/build/Release/screen_capture.node
     to: native/screen_capture.node
+  # Versão/SHA do build (gerado por scripts/write-build-info.mjs)
+  - from: build/build-info.json
+    to: build-info.json
 
 electronLanguages:
   - pt-BR
@@ -48,5 +51,13 @@ nsis:
   createDesktopShortcut: true
   deleteAppDataOnUninstall: false
 
-# Sem auto-update: nenhum bloco "publish" é configurado.
-publish: null
+# Auto-update (electron-updater). O electron-builder gera latest.yml + .blockmap ao lado do
+# instalador e embute o app-update.yml (feed padrão = Releases do GitHub deste repositório).
+# O build NUNCA publica sozinho (--publish never); quem publica é o workflow do GitHub Actions.
+# Repositório privado: o app não consulta o GitHub sem token (e token não pode ir no cliente);
+# aponte o feed para um local público com KIARA_UPDATE_URL (ver README, "Atualização do aplicativo").
+publish:
+  provider: github
+  owner: guiciriero
+  repo: RTS-SS-KIARA
+  releaseType: release

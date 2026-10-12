@@ -56,6 +56,7 @@ app.on('second-instance', () => {
 
 const { startTunnel, findCloudflared } = require('./runtime/tunnel');
 const { findFreePort, startServer, resolveClientDist } = require('./runtime/server');
+const { createUpdater } = require('./updater');
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -351,6 +352,21 @@ function registerIpc() {
     const href = validateViewerUrl(urlString);
     await shell.openExternal(href);
   });
+
+  // ── Atualização do app ───────────────────────────────────────────────────
+  const updater = createUpdater({
+    app,
+    isDev: IS_DEV,
+    onState: (state) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updater:state', state);
+    },
+    // Mesma limpeza do encerramento normal: sem túnel/servidor/áudio órfãos ao instalar.
+    beforeInstall: () => { stopAudio(); stopRuntime(); },
+  });
+  handle('updater:get-state', () => updater.getState());
+  handle('updater:check', () => updater.check());
+  handle('updater:download', () => updater.download());
+  handle('updater:install', () => updater.install());
 }
 
 // ─── getDisplayMedia ─────────────────────────────────────────────────────────

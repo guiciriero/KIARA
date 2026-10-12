@@ -13,12 +13,16 @@
     "build:native": "cd ../native && npm install && npm run build",
     "bundle:server": "node scripts/bundle-server.mjs",
     "prepare:resources": "node scripts/prepare-resources.mjs",
-    "dist:win": "npm run bundle:server && npm run prepare:resources && electron-builder --win nsis --x64",
+    "build-info": "node scripts/write-build-info.mjs",
+    "dist:win": "npm run bundle:server && npm run prepare:resources && npm run build-info && electron-builder --win nsis --x64 --publish never",
     "pack:dir": "electron-builder --dir"
   },
   "devDependencies": {
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

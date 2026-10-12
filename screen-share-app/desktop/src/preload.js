@@ -32,6 +32,14 @@ function removeChunkListener() {
   }
 }
 
+// Listeners de estado da atualização (cada onState devolve seu próprio unsubscribe).
+function onUpdaterState(cb) {
+  if (typeof cb !== 'function') throw new Error('Callback de atualização inválida.');
+  const listener = (_event, state) => cb(state);
+  ipcRenderer.on('updater:state', listener);
+  return () => ipcRenderer.removeListener('updater:state', listener);
+}
+
 const api = {
   platform,
   audio: {
@@ -75,6 +83,13 @@ const api = {
   app: {
     getPublicUrl: () => invoke('app:get-public-url'),
     openViewerLink: (url) => invoke('app:open-viewer-link', url),
+  },
+  updater: {
+    getState: () => invoke('updater:get-state'),
+    check: () => invoke('updater:check'),
+    download: () => invoke('updater:download'),
+    install: () => invoke('updater:install'),
+    onState: onUpdaterState,
   },
 };
 
