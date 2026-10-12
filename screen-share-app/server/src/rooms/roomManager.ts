@@ -6,7 +6,7 @@
 
 import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import type { Room } from '../../../shared/types/index';
+import type { Room } from '../../../shared/types';
 import { logger } from '../utils/logger';
 
 /** Mapa interno: roomId → Room */

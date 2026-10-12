@@ -14,7 +14,7 @@ import type {
   RTCIceCandidatePayload,
   StreamConfig,
   StreamStats,
-} from '../../../shared/types/index';
+} from '../../../shared/types';
 import type { RoomManager } from '../rooms/roomManager';
 import { logger } from '../utils/logger';
 import { buildInviteUrl } from '../utils/publicUrl';
