@@ -51,12 +51,12 @@ jobs:
           npm ci || npm install
           npm run build
 
-      # Servidor de sinalização (o desktop gera depois um bundle único com esbuild).
-      - name: server - instalar e compilar
+      # Servidor de sinalização: só instala as dependências. O desktop gera depois um bundle
+      # único com esbuild direto do código-fonte, então NÃO rodamos o `tsc` aqui (ele falha com
+      # TS6059 porque importa tipos de shared/types, que fica fora do rootDir do servidor).
+      - name: server - instalar dependências
         working-directory: screen-share-app/server
-        run: |
-          npm ci || npm install
-          npm run build
+        run: npm ci || npm install
 
       # Site (client/dist) que o app serve na mesma origem.
       - name: client - instalar e compilar
