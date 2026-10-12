@@ -5,35 +5,14 @@ interface IconProps extends React.SVGProps<SVGSVGElement> {
   className?: string;
 }
 
-/**
- * Logotipo minimalista da KIARA.
- * Prisma geométrico preto/branco com traço nítido e núcleo de precisão.
- */
+/** Logotipo da KIARA: shih tzu (public/favicon.svg), o mesmo ícone do app e da aba. */
 export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
   size = 24,
   withText = true,
   className,
-  ...props
 }) => (
   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', verticalAlign: 'middle', userSelect: 'none' }}>
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      {...props}
-    >
-      <rect width="24" height="24" rx="5" fill="#0f0f0f" stroke="#222222" strokeWidth="1" />
-      <path
-        d="M12 4L19 8V16L12 20L5 16V8L12 4Z"
-        stroke="#ffffff"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="12" r="2" fill="#ffffff" />
-    </svg>
+    <img src="/favicon.svg" width={size} height={size} alt="" className={className} draggable={false} />
     {withText && (
       <span
         style={{
