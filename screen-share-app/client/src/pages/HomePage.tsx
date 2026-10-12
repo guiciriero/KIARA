@@ -9,6 +9,7 @@ import {
   IconArrowRight,
 } from '../components/UI/Icons';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
+import UpdateButton from '../components/UI/UpdateButton';
 import styles from './HomePage.module.css';
 
 const HomePage: React.FC = () => {
@@ -77,6 +78,7 @@ const HomePage: React.FC = () => {
           <KiaraLogo size={22} withText />
         </div>
         <div className={styles.headerRight}>
+          <UpdateButton />
           <ConnectionBadge state={connected ? 'connected' : 'connecting'} compact />
         </div>
       </header>
