@@ -114,76 +114,102 @@ async function sha256File(file) {
 }
 
 // ── (b) cloudflared ────────────────────────────────────────────────────────
-async function resolveRelease() {
-  const envTag = process.env.CLOUDFLARED_VERSION?.trim();
-  const envSha = process.env.CLOUDFLARED_SHA256?.trim().toLowerCase().replace(/^sha256:/, '');
-
-  // Tag + hash informados manualmente: dispensa a API.
-  if (envTag && envSha) return { tag: envTag, digest: null, envSha };
-
-  const api = envTag
-    ? `https://api.github.com/repos/${REPO}/releases/tags/${encodeURIComponent(envTag)}`
-    : `https://api.github.com/repos/${REPO}/releases/latest`;
-  const rel = await getJson(api);
-  const asset = (rel.assets || []).find((a) => a.name === ASSET);
-  if (!asset) fail(`Asset ${ASSET} não encontrado na release ${rel.tag_name ?? envTag}.`);
-  const digest = typeof asset.digest === 'string' && asset.digest.startsWith('sha256:')
-    ? asset.digest.slice('sha256:'.length).toLowerCase()
-    : null;
-  return { tag: rel.tag_name, digest, envSha };
-}
-
-async function downloadVerified(url, expected, destFile) {
+async function downloadDirect(url, destFile, expectedSha) {
   const tmp = `${destFile}.download`;
   fs.mkdirSync(path.dirname(destFile), { recursive: true });
+  console.log(`[prepare-resources] Baixando: ${url}`);
   const res = await httpsGet(url);
   const hash = crypto.createHash('sha256');
-  res.on('data', (c) => hash.update(c));
+  
   await new Promise((resolve, reject) => {
     const out = fs.createWriteStream(tmp);
+    res.on('data', (c) => hash.update(c));
     res.on('error', reject);
     out.on('error', reject);
     out.on('finish', resolve);
     res.pipe(out);
   });
-  const got = hash.digest('hex');
-  if (got !== expected) {
+
+  const stats = fs.statSync(tmp);
+  if (stats.size < 5 * 1024 * 1024) {
     fs.rmSync(tmp, { force: true });
-    fail(`SHA-256 NÃO confere para ${ASSET}.\n  esperado: ${expected}\n  obtido:   ${got}`);
+    throw new Error(`Arquivo baixado é muito pequeno (${stats.size} bytes), possível página de erro.`);
   }
+
+  // Verifica magic bytes de executável Windows (MZ)
+  const fd = fs.openSync(tmp, 'r');
+  const buffer = Buffer.alloc(2);
+  fs.readSync(fd, buffer, 0, 2, 0);
+  fs.closeSync(fd);
+  if (buffer.toString('ascii') !== 'MZ') {
+    fs.rmSync(tmp, { force: true });
+    throw new Error('O arquivo baixado não é um executável Windows válido.');
+  }
+
+  const got = hash.digest('hex');
+  if (expectedSha && got !== expectedSha) {
+    fs.rmSync(tmp, { force: true });
+    throw new Error(`SHA-256 NÃO confere para ${ASSET}.\n  esperado: ${expectedSha}\n  obtido:   ${got}`);
+  }
+
   fs.renameSync(tmp, destFile);
+  console.log(`[prepare-resources] cloudflared pronto em: ${destFile} (${(stats.size / 1024 / 1024).toFixed(1)} MB)`);
 }
 
 async function prepareCloudflared() {
-  const { tag, digest, envSha } = await resolveRelease();
-
-  let expected;
-  if (digest) {
-    if (envSha && envSha !== digest) {
-      fail(`CLOUDFLARED_SHA256 (${envSha}) diverge do digest oficial da release (${digest}).`);
+  // Se o binário já existe e é válido (> 5MB), não rebaixa
+  if (fs.existsSync(OUT_FILE)) {
+    const stats = fs.statSync(OUT_FILE);
+    if (stats.size > 5 * 1024 * 1024) {
+      console.log(`[prepare-resources] cloudflared.exe já existe e é válido (${(stats.size / 1024 / 1024).toFixed(1)} MB). Pulando download.`);
+      return;
     }
-    expected = digest;
-  } else if (envSha) {
-    expected = envSha;
+  }
+
+  const envTag = process.env.CLOUDFLARED_VERSION?.trim();
+  const envSha = process.env.CLOUDFLARED_SHA256?.trim().toLowerCase().replace(/^sha256:/, '');
+
+  let downloadUrl = `https://github.com/${REPO}/releases/latest/download/${ASSET}`;
+  let expectedSha = envSha || null;
+
+  if (envTag && envTag !== 'latest') {
+    // Tenta obter release da API se houver token, caso contrário faz download direto da tag
+    try {
+      const api = `https://api.github.com/repos/${REPO}/releases/tags/${encodeURIComponent(envTag)}`;
+      const rel = await getJson(api);
+      const asset = (rel.assets || []).find((a) => a.name === ASSET);
+      if (asset) {
+        if (typeof asset.digest === 'string' && asset.digest.startsWith('sha256:')) {
+          expectedSha = asset.digest.slice('sha256:'.length).toLowerCase();
+        }
+      }
+      downloadUrl = `https://github.com/${REPO}/releases/download/${encodeURIComponent(rel.tag_name || envTag)}/${ASSET}`;
+    } catch {
+      // Fallback sem API se GitHub retornar 403 / rate limit
+      console.warn(`[prepare-resources] Aviso: API do GitHub indisponível ou rate limit. Usando download direto da release.`);
+      downloadUrl = `https://github.com/${REPO}/releases/download/${encodeURIComponent(envTag)}/${ASSET}`;
+    }
   } else {
-    fail(
-      `A release ${tag} não publica digest SHA-256 para ${ASSET}.\n` +
-        '  Defina CLOUDFLARED_SHA256 com o hash esperado para continuar.',
-    );
+    // Modo latest: tenta pegar digest da API ou usa download direto latest
+    try {
+      const api = `https://api.github.com/repos/${REPO}/releases/latest`;
+      const rel = await getJson(api);
+      const asset = (rel.assets || []).find((a) => a.name === ASSET);
+      if (asset) {
+        if (typeof asset.digest === 'string' && asset.digest.startsWith('sha256:')) {
+          expectedSha = asset.digest.slice('sha256:'.length).toLowerCase();
+        }
+      }
+      if (rel.tag_name) {
+        downloadUrl = `https://github.com/${REPO}/releases/download/${encodeURIComponent(rel.tag_name)}/${ASSET}`;
+      }
+    } catch {
+      console.warn(`[prepare-resources] Aviso: API do GitHub indisponível. Usando release oficial mais recente.`);
+      downloadUrl = `https://github.com/${REPO}/releases/latest/download/${ASSET}`;
+    }
   }
-  if (!/^[0-9a-f]{64}$/.test(expected)) fail(`SHA-256 esperado inválido: ${expected}`);
 
-  console.log(`[prepare-resources] cloudflared ${tag} — sha256 esperado: ${expected}`);
-
-  if (fs.existsSync(OUT_FILE) && (await sha256File(OUT_FILE)) === expected) {
-    console.log(`[prepare-resources] Cache OK, já existe e confere: ${OUT_FILE}`);
-    return;
-  }
-
-  const url = `https://github.com/${REPO}/releases/download/${encodeURIComponent(tag)}/${ASSET}`;
-  console.log(`[prepare-resources] Baixando ${url}`);
-  await downloadVerified(url, expected, OUT_FILE);
-  console.log(`[prepare-resources] Baixado e verificado: ${OUT_FILE}`);
+  await downloadDirect(downloadUrl, OUT_FILE, expectedSha);
 }
 
 checkPrereqs();

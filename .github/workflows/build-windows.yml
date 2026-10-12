@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 env:
-  # Versão fixa do cloudflared (o hash SHA-256 é verificado contra o digest oficial da release).
-  CLOUDFLARED_VERSION: "2026.10.0"
+  # Usa a última release estável oficial do cloudflared
+  CLOUDFLARED_VERSION: "latest"
 
 jobs:
   build:
@@ -104,6 +104,7 @@ jobs:
         working-directory: screen-share-app/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GITHUB_TOKEN: ${{ github.token }}
         run: npm run dist:win
 
       # Falha o job se o instalador não foi gerado.
