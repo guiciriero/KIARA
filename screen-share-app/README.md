@@ -51,6 +51,26 @@ Instale as seguintes ferramentas antes de começar:
 
 ---
 
+## 🌍 Usar com outra pessoa (redes diferentes) — modo fácil
+
+Um comando sobe o servidor e cria um link público HTTPS (Cloudflare Quick Tunnel — grátis, sem conta). **Quem assiste não precisa instalar nada**, só abrir o link no navegador.
+
+1. **Instale o `cloudflared`** (uma vez só):
+   - macOS: `brew install cloudflared`
+   - Windows: `winget install --id Cloudflare.cloudflared` (reabra o terminal depois)
+   - Linux: [documentação oficial](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+2. **Rode** na pasta do projeto: `npm run share` (na primeira vez instala as dependências e faz o build sozinho).
+3. **Copie o link** impresso no quadro "Pronto!" e envie à outra pessoa (por exemplo, no WhatsApp). Você abre `http://localhost:3001`, inicia a transmissão e envia o link `/view/CÓDIGO` que o app mostra com botão de copiar.
+4. O espectador abre o link no navegador e **clica em "Ativar som"** para ouvir o áudio.
+
+Para compartilhar o áudio de um aplicativo específico, use `npm run share:desktop`.
+
+> 🔒 **Privacidade:** quem tiver o link **e** o código consegue assistir. O endereço muda a cada execução; quando terminar, feche o terminal (Ctrl+C) para derrubar tudo.
+>
+> ⚠️ **Redes muito restritivas:** se o vídeo não conectar (redes corporativas, alguns 4G), será preciso um servidor TURN próprio. O Open Relay do `.env.example` serve apenas para testes.
+
+---
+
 ### Passo 1 — Clonar e entrar na pasta do projeto
 
 ```bash

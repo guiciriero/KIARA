@@ -4,6 +4,7 @@
  * Mantém o estado em memória (para produção, substituir por Redis).
  */
 
+import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import type { Room } from '../../../shared/types/index';
 import { logger } from '../utils/logger';
@@ -26,7 +27,7 @@ export class RoomManager {
     let code: string;
     do {
       code = Array.from({ length: 6 }, () =>
-        chars[Math.floor(Math.random() * chars.length)],
+        chars[randomInt(chars.length)],
       ).join('');
     } while (this.codeIndex.has(code));
     return code;

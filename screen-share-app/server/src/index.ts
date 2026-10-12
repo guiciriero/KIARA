@@ -5,20 +5,44 @@
 
 import 'dotenv/config';
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import { setupSignaling } from './signaling/signalingHandler';
 import { RoomManager } from './rooms/roomManager';
 import { logger } from './utils/logger';
+import { getAllowedOrigins, getPublicUrl, isOriginAllowed } from './utils/publicUrl';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:3000';
+
+/** Função de origem compartilhada entre cors() do Express e Socket.IO */
+const originCheck = (
+  origin: string | undefined,
+  callback: (err: Error | null, allow?: boolean) => void,
+): void => {
+  callback(null, isOriginAllowed(origin, PORT));
+};
+
+// Site estático (client/dist) — funciona em src/ (ts-node-dev) e em dist/
+const CLIENT_DIST = path.resolve(__dirname, '../../client/dist');
+const CLIENT_INDEX = path.join(CLIENT_DIST, 'index.html');
+const servingClient = fs.existsSync(CLIENT_DIST) && fs.existsSync(CLIENT_INDEX);
 
 // ─── Express ─────────────────────────────────────────────────────────────────
 const app = express();
+app.disable('x-powered-by');
 
-app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+// Cabeçalhos de segurança básicos
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Frame-Options', 'DENY');
+  next();
+});
+
+app.use(cors({ origin: originCheck, credentials: true }));
 app.use(express.json());
 
 // Endpoint de saúde — usado por health checks do Docker / load balancer
@@ -26,14 +50,32 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
+if (servingClient) {
+  app.use(express.static(CLIENT_DIST, { index: 'index.html', dotfiles: 'ignore', redirect: false }));
+
+  // Fallback SPA: qualquer GET fora de /socket.io e /health devolve o index.html
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/socket.io') || req.path.startsWith('/health')) {
+      next();
+      return;
+    }
+    res.sendFile(CLIENT_INDEX);
+  });
+}
+
 // ─── Servidor HTTP + Socket.IO ────────────────────────────────────────────────
 const httpServer = createServer(app);
 
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: CLIENT_ORIGIN,
+    origin: originCheck,
     methods: ['GET', 'POST'],
     credentials: true,
+  },
+  // Recusa o handshake (polling e websocket) de origens fora da allowlist
+  allowRequest: (req, callback) => {
+    const origin = req.headers.origin;
+    callback(null, isOriginAllowed(typeof origin === 'string' ? origin : undefined, PORT));
   },
   // Aumenta o limite de payload para suportar thumbnails em base64
   maxHttpBufferSize: 5 * 1024 * 1024, // 5 MB
@@ -51,7 +93,14 @@ setupSignaling(io, roomManager);
 // ─── Inicialização ────────────────────────────────────────────────────────────
 httpServer.listen(PORT, '127.0.0.1', () => {
   logger.info(`Servidor de sinalização iniciado em http://127.0.0.1:${PORT}`);
-  logger.info(`Aceitando conexões de: ${CLIENT_ORIGIN}`);
+  const publicUrl = getPublicUrl();
+  if (publicUrl) logger.info(`PUBLIC_URL: ${publicUrl}`);
+  logger.info(`Origens permitidas: ${getAllowedOrigins(PORT).join(', ')}`);
+  logger.info(
+    servingClient
+      ? `Servindo o site estático de ${CLIENT_DIST}`
+      : `client/dist não encontrado (${CLIENT_DIST}); site não será servido`,
+  );
 });
 
 // Tratamento gracioso de encerramento

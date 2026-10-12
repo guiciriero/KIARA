@@ -1,0 +1,15 @@
+{
+  "name": "screen-share-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ScreenShare — comando único para compartilhar com outra pessoa",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "share": "node scripts/share.mjs",
+    "share:desktop": "node scripts/share.mjs --desktop",
+    "setup": "node scripts/share.mjs --setup-only"
+  }
+}

@@ -17,9 +17,27 @@ import type {
 } from '../../../shared/types/index';
 import type { RoomManager } from '../rooms/roomManager';
 import { logger } from '../utils/logger';
+import { buildInviteUrl } from '../utils/publicUrl';
 
 /** Mapa de socketId → roomId para rastrear em qual sala cada socket está */
 const socketRoomMap = new Map<string, string>();
+
+/** Anti-força-bruta: máximo de tentativas falhas de room:join por socket na janela */
+const MAX_JOIN_FAILURES = 8;
+const JOIN_FAILURE_WINDOW_MS = 60_000;
+/** socketId → timestamps (ms) das tentativas falhas recentes */
+const joinFailures = new Map<string, number[]>();
+
+function recentJoinFailures(socketId: string): number[] {
+  const cutoff = Date.now() - JOIN_FAILURE_WINDOW_MS;
+  const recent = (joinFailures.get(socketId) ?? []).filter((t) => t > cutoff);
+  joinFailures.set(socketId, recent);
+  return recent;
+}
+
+function registerJoinFailure(socketId: string): void {
+  recentJoinFailures(socketId).push(Date.now());
+}
 
 export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): void {
 
@@ -41,7 +59,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): vo
         socket.emit('room:created', {
           roomId: room.id,
           code: room.code,
-          inviteUrl: `${process.env.CLIENT_ORIGIN ?? 'http://localhost:3000'}/view/${room.code}`,
+          inviteUrl: buildInviteUrl(room.code),
         });
 
         logger.info(`Apresentador ${socket.id} criou sala ${room.id} (${room.code})`);
@@ -54,7 +72,13 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): vo
     // ── Entrar em sala (espectador) ──────────────────────────────────────────
     socket.on('room:join', (data: { code: string }) => {
       try {
+        if (recentJoinFailures(socket.id).length >= MAX_JOIN_FAILURES) {
+          socket.emit('room:error', { message: 'Muitas tentativas. Aguarde um minuto.' });
+          return;
+        }
+
         if (!data?.code || typeof data.code !== 'string') {
+          registerJoinFailure(socket.id);
           socket.emit('room:error', { message: 'O código informado não é válido. Verifique e tente novamente.' });
           return;
         }
@@ -62,11 +86,13 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): vo
         const room = roomManager.getRoomByCode(data.code);
 
         if (!room) {
+          registerJoinFailure(socket.id);
           socket.emit('room:error', { message: 'Sala não encontrada. Verifique o código e tente novamente.' });
           return;
         }
 
         if (!room.isActive) {
+          registerJoinFailure(socket.id);
           socket.emit('room:error', { message: 'Esta sala já foi encerrada pelo apresentador.' });
           return;
         }
@@ -160,6 +186,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): vo
     // ── Desconexão ───────────────────────────────────────────────────────────
     socket.on('disconnect', (reason) => {
       logger.info(`Conexão encerrada: ${socket.id} (motivo: ${reason})`);
+      joinFailures.delete(socket.id);
       handleDisconnect(socket, io, roomManager);
     });
   });

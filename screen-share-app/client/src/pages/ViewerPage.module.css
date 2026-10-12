@@ -107,3 +107,39 @@
   font-size: 0.95rem;
 }
 .btnPrimary:hover { background: var(--color-accent-hover); }
+
+.unmuteOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.unmuteBtn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  padding: 14px 28px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.unmuteBtn:hover {
+  background: var(--color-accent-hover);
+}
+
+.unmuteBtn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}

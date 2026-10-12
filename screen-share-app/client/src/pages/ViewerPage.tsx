@@ -5,12 +5,12 @@
  * Recebe o código da sala via URL, conecta ao servidor e reproduz
  * o vídeo do apresentador assim que a conexão P2P for estabelecida.
  *
- * Correção: removida chamada manual a videoRef.current.play() — o atributo
- * `autoPlay` já cuida disso, e chamar .play() programaticamente pode
- * disparar erros de política de autoplay em alguns navegadores.
+ * Autoplay com som: navegadores bloqueiam autoplay com som quando o espectador
+ * acessa diretamente. O <video> inicia com `muted` para permitir autoplay imediato
+ * do vídeo, e exibe um botão central para o espectador ativar o áudio com um clique.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useViewer } from '../hooks/useViewer';
 import StatsOverlay from '../components/UI/StatsOverlay';
@@ -22,14 +22,26 @@ const ViewerPage: React.FC = () => {
   const navigate   = useNavigate();
   const videoRef   = useRef<HTMLVideoElement>(null);
   const { state, leaveRoom } = useViewer(code);
+  const [isMuted, setIsMuted] = useState(true);
 
   // Conecta o stream remoto ao elemento <video> sempre que ele chegar
   useEffect(() => {
     if (videoRef.current && state.remoteStream) {
       videoRef.current.srcObject = state.remoteStream;
-      // Não chamamos .play() aqui — o atributo autoPlay do elemento já faz isso
     }
   }, [state.remoteStream]);
+
+  const handleEnableAudio = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch((err) => {
+          console.warn('[ScreenShare] Erro ao reproduzir com áudio:', err);
+        });
+      }
+    }
+    setIsMuted(false);
+  };
 
   const handleLeave = () => {
     leaveRoom();
@@ -101,16 +113,32 @@ const ViewerPage: React.FC = () => {
 
         {/*
           autoPlay: reproduz automaticamente quando o stream chegar.
+          muted: inicia mudo para respeitar a política de autoplay dos navegadores.
           playsInline: evita que o iOS abra o player em tela cheia.
           preload="none": não pré-carrega nada antes do stream estar disponível.
         */}
         <video
           ref={videoRef}
           autoPlay
+          muted
           playsInline
           preload="none"
           className={styles.player}
         />
+
+        {/* Botão de ativação de som quando o stream estiver conectado e ainda mudo */}
+        {state.connectionState === 'connected' && isMuted && (
+          <div className={styles.unmuteOverlay}>
+            <button
+              type="button"
+              className={styles.unmuteBtn}
+              onClick={handleEnableAudio}
+              aria-label="Clique para ativar o som"
+            >
+              🔊 Clique para ativar o som
+            </button>
+          </div>
+        )}
 
         {state.stats && <StatsOverlay stats={state.stats} />}
       </div>

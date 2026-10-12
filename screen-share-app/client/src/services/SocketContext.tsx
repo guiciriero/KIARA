@@ -27,7 +27,7 @@ const SocketContext = createContext<SocketContextValue>({
   connected: false,
 });
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://127.0.0.1:3001';
+const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? (import.meta.env.PROD ? window.location.origin : 'http://127.0.0.1:3001');
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Usamos useState para que mudanças no socket disparem re-render e atualizem consumidores
