@@ -1,145 +1,400 @@
-/* ViewerPage.module.css */
-
-.layout {
-  display: flex;
-  flex-direction: column;
+.playerLayout {
+  position: relative;
+  width: 100vw;
   height: 100vh;
   background: #000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
 }
 
+/* ── Top Bar Flutuante ─────────────────────────────────────────── */
 .topBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  z-index: 10;
+  padding: 0 24px;
+  background: linear-gradient(180deg, rgba(8, 9, 13, 0.9) 0%, rgba(8, 9, 13, 0.4) 60%, transparent 100%);
+  z-index: 30;
+  transition: opacity var(--transition-base), transform var(--transition-base);
 }
 
-.roomBadge {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
+.topBar.hidden {
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
 }
-.roomBadge strong {
-  color: var(--color-text);
+
+.topBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.roomPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+.roomLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--kiara-text-muted);
+}
+
+.roomCode {
   font-family: var(--font-mono);
-  letter-spacing: 2px;
+  font-size: 0.88rem;
+  color: #fff;
+  letter-spacing: 0.1em;
 }
 
-.centerBadges {
+.topBarCenter {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.viewers {
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
+.viewersBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  color: var(--kiara-text-secondary);
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
 }
 
 .leaveBtn {
-  background: rgba(239, 83, 80, 0.15);
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-  padding: 6px 16px;
-  font-size: 0.85rem;
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  color: #fb7185;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
 }
-.leaveBtn:hover { background: rgba(239, 83, 80, 0.3); }
 
-.playerContainer {
+.leaveBtn:hover {
+  background: rgba(244, 63, 94, 0.3);
+  color: #fff;
+  border-color: var(--kiara-danger);
+}
+
+/* ── Viewport do Vídeo ──────────────────────────────────────────── */
+.videoViewport {
   flex: 1;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #000;
   overflow: hidden;
 }
 
-.player {
+.videoElement {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #000;
 }
 
+/* ── Loading Overlay ────────────────────────────────────────────── */
 .loadingOverlay {
   position: absolute;
   inset: 0;
+  background: rgba(8, 9, 13, 0.92);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  background: rgba(0,0,0,0.7);
-  z-index: 5;
-  color: var(--color-text-muted);
+  gap: 14px;
+  z-index: 10;
+  text-align: center;
+  padding: 20px;
 }
 
 .spinner {
-  width: 40px; height: 40px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-accent);
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--kiara-border);
+  border-top-color: var(--kiara-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  box-shadow: 0 0 20px var(--kiara-accent-glow);
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.centeredMessage {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 24px;
-  text-align: center;
-}
-.centeredMessage span { font-size: 3.5rem; }
-.centeredMessage h2   { font-size: 1.4rem; }
-.centeredMessage p    { color: var(--color-text-muted); max-width: 400px; }
-
-.btnPrimary {
-  background: var(--color-accent);
+.loadingOverlay h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
   color: #fff;
-  padding: 12px 28px;
-  font-size: 0.95rem;
 }
-.btnPrimary:hover { background: var(--color-accent-hover); }
 
+.loadingOverlay p {
+  font-size: 0.85rem;
+  color: var(--kiara-text-muted);
+}
+
+/* ── Unmute Overlay ─────────────────────────────────────────────── */
 .unmuteOverlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
-  z-index: 6;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
 }
 
-.unmuteBtn {
-  pointer-events: auto;
+.unmuteButton {
+  background: rgba(18, 20, 28, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 32px var(--kiara-accent-glow);
+  padding: 16px 28px;
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #fff;
+  transition: all var(--transition-base);
+  animation: kiaraPulse 3s ease-in-out infinite;
+}
+
+.unmuteButton:hover {
+  transform: scale(1.04);
+  border-color: var(--kiara-accent);
+  background: rgba(30, 34, 48, 0.98);
+}
+
+.unmuteIconBox {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--kiara-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 0 16px var(--kiara-accent-glow);
+}
+
+.unmuteText {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: 2px;
+}
+
+.unmuteText strong {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.unmuteText span {
+  font-size: 0.78rem;
+  color: var(--kiara-text-secondary);
+}
+
+/* ── Barra Inferior Flutuante ──────────────────────────────────── */
+.bottomBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: linear-gradient(0deg, rgba(8, 9, 13, 0.95) 0%, rgba(8, 9, 13, 0.5) 60%, transparent 100%);
+  z-index: 30;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.bottomBar.hidden {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+.bottomBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.liveIndicator {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 12px var(--kiara-live-glow);
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kiara-live);
+  animation: kiaraPulse 1.8s ease-in-out infinite;
+}
+
+.volumeControl {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  background: var(--color-accent);
-  color: #fff;
-  padding: 14px 28px;
-  font-size: 1rem;
-  font-weight: 600;
-  border-radius: var(--radius);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.volumeSlider {
+  width: 80px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  outline: none;
+  border: none;
+  padding: 0;
   cursor: pointer;
-  transition: background var(--transition), transform var(--transition);
 }
 
-.unmuteBtn:hover {
-  background: var(--color-accent-hover);
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
 }
 
-.unmuteBtn:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 3px;
+.bottomBarRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.iconBtn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--kiara-text-secondary);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  padding: 0;
+}
+
+.iconBtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.iconBtn.activeBtn {
+  background: var(--kiara-accent);
+  color: #fff;
+  border-color: var(--kiara-accent);
+  box-shadow: 0 0 12px var(--kiara-accent-glow);
+}
+
+/* ── Centered Message (Erros / Fim de Transmissão) ─────────────── */
+.centeredPage {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--kiara-bg);
+}
+
+.messageCard {
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-xl);
+  padding: 40px 32px;
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  box-shadow: var(--shadow-lg);
+}
+
+.messageIconWrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kiara-accent-hover);
+  box-shadow: 0 0 24px var(--kiara-accent-glow);
+}
+
+.errorIconWrap {
+  color: var(--kiara-danger);
+  border-color: rgba(244, 63, 94, 0.3);
+  box-shadow: 0 0 24px var(--kiara-danger-subtle);
+}
+
+.messageCard h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.messageCard p {
+  font-size: 0.88rem;
+  color: var(--kiara-text-secondary);
+  line-height: 1.5;
+}
+
+.btnPrimary {
+  margin-top: 8px;
+  background: var(--kiara-accent);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-size: 0.92rem;
+  font-weight: 600;
+  box-shadow: 0 4px 14px var(--kiara-accent-glow);
+  width: 100%;
+}
+
+.btnPrimary:hover {
+  background: var(--kiara-accent-hover);
+  box-shadow: 0 6px 20px var(--kiara-accent-glow);
 }

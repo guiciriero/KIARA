@@ -1,12 +1,6 @@
-/**
- * CaptureSourcePicker.tsx
- * Seletor de tela/janela para o app desktop (Electron).
- * Lista `host.capture.listSources()` com miniaturas. Só renderiza no desktop
- * e fica desabilitado durante a transmissão.
- */
-
 import React, { useCallback, useEffect, useState } from 'react';
 import type { CaptureSourceInfo } from '@shared/index';
+import { IconScreen, IconWindow, IconRefresh } from '../UI/Icons';
 import styles from './CaptureSourcePicker.module.css';
 
 interface Props {
@@ -15,13 +9,12 @@ interface Props {
   disabled: boolean;
 }
 
-/** Só aceita data URLs de imagem — evita usar valores arbitrários em <img src> */
 const isSafeImageDataUrl = (url: string): boolean => url.startsWith('data:image/');
 
 const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }) => {
   const [sources, setSources] = useState<CaptureSourceInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const host = window.screenShareHost;
@@ -39,20 +32,24 @@ const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }
 
   useEffect(() => { void load(); }, [load]);
 
-  // Fora do app desktop o navegador mostra o seu próprio seletor
   if (!window.screenShareHost) return null;
 
   return (
     <div className={`${styles.container} ${disabled ? styles.disabled : ''}`}>
       <div className={styles.header}>
-        <span className={styles.label}>🖥️ Tela ou Janela</span>
+        <div className={styles.titleGroup}>
+          <IconScreen size={16} className={styles.icon} />
+          <span className={styles.title}>Tela ou Janela</span>
+        </div>
         <button
+          type="button"
           className={styles.refreshBtn}
           onClick={() => { void load(); }}
           disabled={disabled || loading}
-          title="Atualizar lista"
+          title="Atualizar telas e janelas disponíveis"
+          aria-label="Atualizar fontes de captura"
         >
-          {loading ? '…' : '↻'}
+          <IconRefresh size={14} className={loading ? styles.spinning : ''} />
         </button>
       </div>
 
@@ -61,9 +58,17 @@ const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }
         <p className={styles.empty}>Nenhuma tela ou janela encontrada.</p>
       )}
 
+      {loading && (
+        <div className={styles.loading}>
+          <div className={styles.miniSpinner} />
+          <span>Buscando telas e janelas…</span>
+        </div>
+      )}
+
       <ul className={styles.grid}>
         {sources.map((src) => {
           const isSelected = src.id === selectedId;
+          const isScreen = src.type === 'screen';
           return (
             <li key={src.id}>
               <button
@@ -75,11 +80,21 @@ const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled }
                 title={src.name}
               >
                 <div className={styles.thumb}>
-                  {isSafeImageDataUrl(src.thumbnailDataUrl)
-                    ? <img src={src.thumbnailDataUrl} alt="" />
-                    : <span>{src.type === 'screen' ? '🖥️' : '🪟'}</span>}
+                  {isSafeImageDataUrl(src.thumbnailDataUrl) ? (
+                    <img src={src.thumbnailDataUrl} alt="" className={styles.thumbImg} />
+                  ) : (
+                    <div className={styles.thumbFallback}>
+                      {isScreen ? <IconScreen size={24} /> : <IconWindow size={24} />}
+                    </div>
+                  )}
+                  <div className={styles.badgeType}>
+                    {isScreen ? 'Monitor' : 'Janela'}
+                  </div>
                 </div>
-                <span className={styles.name}>{src.name}</span>
+                <div className={styles.infoRow}>
+                  {isScreen ? <IconScreen size={13} className={styles.typeIcon} /> : <IconWindow size={13} className={styles.typeIcon} />}
+                  <span className={styles.name}>{src.name}</span>
+                </div>
               </button>
             </li>
           );

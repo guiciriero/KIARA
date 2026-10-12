@@ -6,7 +6,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: screenshare-server
+    container_name: kiara-server
     restart: unless-stopped
     ports:
       - "127.0.0.1:3001:3001"   # Exposto apenas localmente (não 0.0.0.0)
@@ -23,14 +23,14 @@ services:
       timeout: 5s
       retries: 3
     networks:
-      - screenshare-net
+      - kiara-net
 
   # ─── Cliente (servido via Nginx) ─────────────────────────────────────────
   client:
     build:
       context: ./client
       dockerfile: Dockerfile
-    container_name: screenshare-client
+    container_name: kiara-client
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:80"     # Nginx na porta 80 internamente
@@ -38,8 +38,8 @@ services:
       server:
         condition: service_healthy
     networks:
-      - screenshare-net
+      - kiara-net
 
 networks:
-  screenshare-net:
+  kiara-net:
     driver: bridge

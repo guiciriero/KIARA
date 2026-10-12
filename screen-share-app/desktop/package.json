@@ -1,9 +1,9 @@
 {
-  "name": "@screen-share/desktop",
-  "productName": "Screen Share",
+  "name": "@kiara/desktop",
+  "productName": "KIARA",
   "version": "1.0.0",
-  "description": "Shell Electron do Screen Share (captura de áudio por aplicativo)",
-  "author": "Screen Share",
+  "description": "Aplicativo Desktop KIARA — Compartilhamento de tela e áudio por aplicativo",
+  "author": "KIARA",
   "license": "MIT",
   "private": true,
   "main": "src/main.js",

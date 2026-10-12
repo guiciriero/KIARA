@@ -1,24 +1,77 @@
-/* ConnectionBadge.module.css */
 .badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 10px;
-  border-radius: 20px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  width: fit-content;
-}
-.compact {
-  padding: 4px 8px;
-  font-size: 0.78rem;
-}
-.dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.label {
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border);
   font-size: 0.8rem;
   font-weight: 500;
+  color: var(--kiara-text-muted);
+  letter-spacing: 0.02em;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+  user-select: none;
+}
+
+.compact {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  gap: 6px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--kiara-text-muted);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.label {
+  line-height: 1;
+}
+
+/* ── Estados Dinâmicos ────────────────────────────────────────── */
+.badge[data-state="connected"] {
+  background: var(--kiara-live-subtle);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.badge[data-state="connected"] .dot {
+  background: var(--kiara-live);
+  box-shadow: 0 0 8px var(--kiara-live);
+  animation: kiaraPulse 2.4s ease-in-out infinite;
+}
+
+.badge[data-state="connecting"],
+.badge[data-state="reconnecting"] {
+  background: var(--kiara-warning-subtle);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.badge[data-state="connecting"] .dot,
+.badge[data-state="reconnecting"] .dot {
+  background: var(--kiara-warning);
+  animation: kiaraPulse 1.2s ease-in-out infinite;
+}
+
+.badge[data-state="failed"] {
+  background: var(--kiara-danger-subtle);
+  border-color: rgba(244, 63, 94, 0.35);
+  color: #fb7185;
+}
+
+.badge[data-state="failed"] .dot {
+  background: var(--kiara-danger);
+}
+
+.badge[data-state="disconnected"] {
+  background: var(--kiara-surface);
+  border-color: var(--kiara-border);
+  color: var(--kiara-text-muted);
 }

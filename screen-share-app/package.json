@@ -1,9 +1,9 @@
 {
-  "name": "screen-share-app",
+  "name": "kiara-app",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "ScreenShare — comando único para compartilhar com outra pessoa",
+  "description": "KIARA — Compartilhamento de tela e áudio em tempo real com baixa latência",
   "engines": {
     "node": ">=20"
   },

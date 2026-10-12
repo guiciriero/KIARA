@@ -1,7 +1,7 @@
 # Configuração do electron-builder (instalador Windows NSIS).
 # Caminhos relativos a desktop/.
-appId: com.screenshare.app
-productName: Screen Share
+appId: com.kiara.app
+productName: KIARA
 
 directories:
   output: release
@@ -35,7 +35,7 @@ win:
     - target: nsis
       arch:
         - x64
-  artifactName: "ScreenShare-Setup-${version}.${ext}"
+  artifactName: "KIARA-Setup-${version}.${ext}"
   # SEM assinatura de código: nenhum campo de certificado (certificateFile,
   # signtoolOptions, azureSignOptions...) é definido de propósito.
   # Consequência: o Windows SmartScreen mostrará o aviso "Editor desconhecido".

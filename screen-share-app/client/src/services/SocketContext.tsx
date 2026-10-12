@@ -52,7 +52,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     s.on('connect_error', (err) => {
       // Mantém o log técnico no console (não exibido ao usuário)
-      console.warn('[ScreenShare] Não foi possível conectar ao servidor:', err.message);
+      console.warn('[KIARA] Não foi possível conectar ao servidor:', err.message);
     });
 
     setSocket(s);

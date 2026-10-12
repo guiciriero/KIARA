@@ -1,4 +1,4 @@
-# Build do instalador Windows (NSIS) do app desktop Screen Share.
+# Build do instalador Windows (NSIS) do app desktop KIARA.
 # Gatilhos: manual (Actions > Build Windows > Run workflow) e tags "v*" (ex.: v1.0.0).
 name: Build Windows
 
@@ -111,8 +111,8 @@ jobs:
         working-directory: screen-share-app/desktop
         run: |
           ls -la release
-          if ! ls release/ScreenShare-Setup-*.exe >/dev/null 2>&1; then
-            echo "::error::Instalador release/ScreenShare-Setup-*.exe não foi gerado"
+          if ! ls release/KIARA-Setup-*.exe >/dev/null 2>&1; then
+            echo "::error::Instalador release/KIARA-Setup-*.exe não foi gerado"
             exit 1
           fi
 
@@ -120,8 +120,8 @@ jobs:
       - name: Enviar instalador como artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ScreenShare-Setup-windows
-          path: screen-share-app/desktop/release/ScreenShare-Setup-*.exe
+          name: KIARA-Setup-windows
+          path: screen-share-app/desktop/release/KIARA-Setup-*.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -138,7 +138,7 @@ jobs:
       - name: Baixar instalador
         uses: actions/download-artifact@v8
         with:
-          name: ScreenShare-Setup-windows
+          name: KIARA-Setup-windows
           path: dist
 
       # Cria a release com o GITHUB_TOKEN padrão (sem segredos extras).
@@ -147,7 +147,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" dist/ScreenShare-Setup-*.exe \
+          gh release create "$TAG" dist/KIARA-Setup-*.exe \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Screen Share $TAG" \
+            --title "KIARA $TAG" \
             --generate-notes

@@ -70,7 +70,7 @@ export class WebRTCBroadcaster {
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
       } catch {
-        console.warn('[ScreenShare] Não foi possível processar a resposta do espectador.');
+        console.warn('[KIARA] Não foi possível processar a resposta do espectador.');
       }
     });
 
@@ -118,7 +118,7 @@ export class WebRTCBroadcaster {
     // Acompanha o estado da conexão e tenta reconectar se falhar
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed') {
-        console.warn(`[ScreenShare] Conexão com espectador perdida. Tentando reconectar...`);
+        console.warn(`[KIARA] Conexão com espectador perdida. Tentando reconectar...`);
         this.cleanupPeer(viewerId);
         setTimeout(() => this.initiateConnection(viewerId), 2000);
       }
@@ -156,7 +156,7 @@ export class WebRTCBroadcaster {
         offer: { sdp: offer.sdp, type: offer.type },
       });
     } catch {
-      console.error('[ScreenShare] Não foi possível iniciar a conexão com o espectador.');
+      console.error('[KIARA] Não foi possível iniciar a conexão com o espectador.');
       this.cleanupPeer(viewerId);
     }
   }
@@ -270,7 +270,7 @@ export class WebRTCViewer {
         answer: { sdp: answer.sdp, type: answer.type },
       });
     } catch {
-      console.error('[ScreenShare] Não foi possível estabelecer conexão com o apresentador.');
+      console.error('[KIARA] Não foi possível estabelecer conexão com o apresentador.');
     }
   }
 

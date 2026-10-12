@@ -432,21 +432,21 @@ function startDesktop() {
 function printBanner(publicUrl, tunnelActive) {
   const L = [
     '',
-    '*** Pronto! ***',
+    '✦ KIARA — Compartilhamento de Tela e Áudio ✦',
     '',
     `(a) Você (host) abre:  ${LOCAL_URL}`,
     '',
-    `(b) Link para a outra pessoa (cole no WhatsApp):`,
+    `(b) Link de acesso público para espectadores:`,
     `    ${publicUrl}`,
     '',
-    '    Cada transmissão gera um link /view/CÓDIGO que o próprio app',
-    '    mostra com botão de copiar — é esse link que você envia.',
+    '    Ao iniciar no estúdio, use o botão de copiar o link /view/CÓDIGO',
+    '    para enviar a quem for assistir.',
     '',
     tunnelActive
-      ? '(c) O endereço muda a cada execução. Fechar este terminal (ou Ctrl+C)\n    derruba tudo.'
-      : '(c) Sem túnel: este endereço só funciona nesta máquina/rede (ou no seu\n    domínio, se PUBLIC_URL aponta para ele). Ctrl+C derruba tudo.',
+      ? '(c) Túnel seguro ativo. O endereço muda a cada sessão. Fechar\n    este terminal (Ctrl+C) encerra a transmissão.'
+      : '(c) Sem túnel externo: funciona em rede local ou via PUBLIC_URL.\n    Ctrl+C encerra o servidor.',
     '',
-    '(d) Dica: para compartilhar o áudio de um app específico use\n    npm run share:desktop',
+    '(d) Dica: para capturar áudio por aplicativo individual, use:\n    npm run share:desktop',
     '',
   ];
   const width = Math.max(...L.flatMap((l) => l.split('\n')).map((l) => [...l].length)) + 2;

@@ -44,6 +44,49 @@ export interface AudioSource {
     isMuted: boolean;
     platform: 'windows' | 'linux' | 'macos';
 }
+/** Bloco de áudio PCM de um aplicativo (float32 intercalado L,R,L,R...) */
+export interface NativeAudioChunk {
+    pid: number;
+    pcm: Float32Array;
+    frames: number;
+    sampleRate: number;
+    channels: number;
+}
+/** Tela ou janela disponível para captura de vídeo */
+export interface CaptureSourceInfo {
+    id: string;
+    name: string;
+    type: 'screen' | 'window';
+    thumbnailDataUrl: string;
+}
+export interface ScreenShareHostApi {
+    platform: 'windows' | 'macos';
+    audio: {
+        /** Lista aplicativos cujo áudio pode ser capturado */
+        listSources(): Promise<AudioSource[]>;
+        /** Inicia a captura dos PIDs. Rejeita com mensagem legível em caso de falha. */
+        start(pids: number[], onChunk: (chunk: NativeAudioChunk) => void): Promise<void>;
+        stop(): Promise<void>;
+    };
+    capture: {
+        listSources(): Promise<CaptureSourceInfo[]>;
+        /** Define a fonte usada pelo PRÓXIMO getDisplayMedia (uso único) */
+        selectSource(id: string): Promise<void>;
+    };
+    app: {
+        /**
+         * URL pública (https) desta instância do app, gerada pelo túnel embutido.
+         * null quando o túnel não está ativo (modo dev, ou falha ao criar o túnel).
+         */
+        getPublicUrl(): Promise<string | null>;
+        /**
+         * Abre no navegador padrão o link de transmissão de OUTRA pessoa.
+         * O processo principal valida: https + caminho /view/CÓDIGO (6 caracteres).
+         * Rejeita com mensagem legível em pt-BR se o link for inválido.
+         */
+        openViewerLink(url: string): Promise<void>;
+    };
+}
 /** Tipos de eventos trocados entre cliente e servidor */
 export type SignalingEvent = 'room:create' | 'room:join' | 'room:leave' | 'room:error' | 'room:created' | 'room:joined' | 'room:viewer-joined' | 'room:viewer-left' | 'room:host-disconnected' | 'webrtc:offer' | 'webrtc:answer' | 'webrtc:ice-candidate' | 'stream:config-update' | 'stream:stats';
 /** Payload genérico de evento de sinalização */

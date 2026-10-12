@@ -1,48 +1,69 @@
-/* StreamControls.module.css */
 .container {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--color-border);
+  width: 100%;
 }
 
 .btnStart {
-  background: var(--color-success);
+  width: 100%;
+  background: var(--kiara-accent);
   color: #fff;
-  padding: 13px;
+  padding: 13px 20px;
   font-size: 0.95rem;
   font-weight: 600;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px var(--kiara-accent-glow);
+  letter-spacing: -0.01em;
 }
-.btnStart:hover { filter: brightness(1.1); }
 
-.btnPause {
-  background: var(--color-surface-2);
-  color: var(--color-warning);
-  border: 1px solid var(--color-warning);
-  padding: 10px;
-  font-size: 0.88rem;
-  border-radius: var(--radius);
+.btnStart:hover {
+  background: var(--kiara-accent-hover);
+  box-shadow: 0 6px 22px var(--kiara-accent-glow);
 }
-.btnPause:hover { background: rgba(255, 193, 7, 0.1); }
+
+.activeActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.btnPause,
+.btnResume {
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border);
+  color: var(--kiara-text);
+  padding: 11px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+}
+
+.btnPause:hover,
+.btnResume:hover {
+  background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-active);
+}
 
 .btnResume {
-  background: var(--color-surface-2);
-  color: var(--color-success);
-  border: 1px solid var(--color-success);
-  padding: 10px;
-  font-size: 0.88rem;
-  border-radius: var(--radius);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.08);
 }
-.btnResume:hover { background: rgba(76, 175, 125, 0.1); }
 
 .btnStop {
-  background: rgba(239, 83, 80, 0.12);
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-  padding: 10px;
-  font-size: 0.88rem;
-  border-radius: var(--radius);
+  background: var(--kiara-danger-subtle);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  color: #fb7185;
+  padding: 11px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
 }
-.btnStop:hover { background: rgba(239, 83, 80, 0.25); }
+
+.btnStop:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: var(--kiara-danger);
+  color: #fff;
+}

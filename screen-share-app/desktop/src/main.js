@@ -423,9 +423,9 @@ function escapeHtml(s) {
 function loadErrorPage(win, title, detail) {
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>Screen Share</title>
-<style>body{font-family:system-ui,sans-serif;background:#111827;color:#e5e7eb;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-main{max-width:560px;padding:24px}h1{font-size:20px;margin:0 0 12px}p{line-height:1.5;color:#9ca3af}code{color:#e5e7eb}</style></head>
+<title>KIARA</title>
+<style>body{font-family:system-ui,sans-serif;background:#08090d;color:#e5e7eb;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+main{max-width:560px;padding:24px}h1{font-size:20px;margin:0 0 12px;color:#f43f5e}p{line-height:1.5;color:#94a3b8}code{color:#e5e7eb}</style></head>
 <body><main><h1>${escapeHtml(title)}</h1><p>${detail}</p></main></body></html>`;
   return win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 }
@@ -433,22 +433,22 @@ main{max-width:560px;padding:24px}h1{font-size:20px;margin:0 0 12px}p{line-heigh
 function loadSplashPage(win) {
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>Screen Share — Aguarde</title>
+<title>KIARA — Carregando</title>
 <style>
-  body{font-family:system-ui,sans-serif;background:#111827;color:#e5e7eb;
+  body{font-family:system-ui,sans-serif;background:#08090d;color:#e5e7eb;
        display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
   main{text-align:center;max-width:400px;padding:24px}
-  h1{font-size:22px;margin:0 0 16px;font-weight:600}
-  p{color:#9ca3af;line-height:1.6}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;
+  h1{font-size:22px;margin:0 0 16px;font-weight:700;color:#f1f5f9;letter-spacing:-0.02em}
+  p{color:#94a3b8;line-height:1.6;font-size:14px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6366f1;
        margin:0 3px;animation:blink 1.2s infinite}
   .dot:nth-child(2){animation-delay:.2s}
   .dot:nth-child(3){animation-delay:.4s}
   @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
 </style></head>
 <body><main>
-  <h1>Screen Share</h1>
-  <p>Preparando… (iniciando conexão segura)</p>
+  <h1>KIARA</h1>
+  <p>Iniciando o estúdio de transmissão segura…</p>
   <p><span class="dot"></span><span class="dot"></span><span class="dot"></span></p>
 </main></body></html>`;
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
@@ -501,7 +501,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    title: 'Screen Share',
+    title: 'KIARA',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
