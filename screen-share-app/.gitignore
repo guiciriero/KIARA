@@ -27,3 +27,6 @@ desktop/release/
 desktop/build/
 desktop/resources/bin/
 desktop/resources/native/
+
+# Saída do bundle do e2e (client/e2e)
+client/e2e/.build/
