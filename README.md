@@ -205,13 +205,15 @@ A faixa de áudio enviada pelo WebRTC é sempre a mesma: a saída de um mixer We
 - **Web:** o áudio do sistema (`getDisplayMedia`) passa pelo mixer. Desmarcar a fonte silencia sem encerrar a faixa, e ela pode ser religada. Se o navegador não compartilhou áudio, aparece um erro pedindo para reiniciar a transmissão marcando "Compartilhar áudio".
 - Se uma troca falhar, a interface volta para a seleção que realmente está no ar e mostra o erro.
 
-### Desempenho do WebRTC
+### Desempenho do WebRTC e Controle de Qualidade
 
 | Ajuste | Motivo |
 |---|---|
 | `degradationPreference='maintain-framerate'` e `contentHint='motion'` | Com a rede apertada, o encoder reduz a resolução e não os quadros por segundo |
 | `maxBitrate` e `maxFramerate` aplicados de fato | O `VideoConfig` agora chega ao sender |
-| Codec escolhido primeiro; H.264 prefere o perfil High | Melhor qualidade por bit em hardware |
+| Codec escolhido primeiro; suporte a H.264, AV1, VP9 e H.265 | Melhor qualidade por bit em hardware e compatibilidade com placas de vídeo modernas |
+| Controle individual de resolução para quem assiste | O espectador escolhe no player (Auto, 1080p, 720p, 480p, 360p) e o apresentador aplica `scaleResolutionDownBy` só para ele |
+| App desktop com aceleração direta de GPU (NVENC/WebRTC) | Flags no Electron para codificação e decodificação aceleradas por hardware sem engasgos |
 | `bundlePolicy: 'max-bundle'`, `rtcpMuxPolicy: 'require'`, `iceCandidatePoolSize: 2` | Uma única porta de transporte e ICE mais rápido |
 | ICE restart: `disconnected` por 3 s ou `failed` chama `restartIce()` com nova offer; depois de 3 tentativas o peer é recriado | Recupera de troca de rede ou de Wi-Fi sem derrubar a sala |
 | Controle AIMD de bitrate por espectador (perda acima de 5 % ou RTT acima de 300 ms por 2 amostras reduz para 75 %; 5 amostras saudáveis sobem 10 % do alvo) | Evita congestionamento sem mexer no FPS e nunca passa do alvo |
