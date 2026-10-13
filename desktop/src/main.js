@@ -30,12 +30,18 @@ const {
   utilityProcess,
 } = require('electron');
 
-// ─── Aceleração por Hardware e Otimizações de Vídeo (KIARA 60 FPS) ───────────
+// ─── Aceleração por Hardware e Otimizações de Vídeo (KIARA 60 FPS / Baixa Latência) ───
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
 app.commandLine.appendSwitch('enable-accelerated-mjpeg-decode');
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization');
+app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
+app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch(
+  'enable-features',
+  'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRtcHideLocalIpsWithMdns,PlatformHEVCDecoderSupport'
+);
 
 // ─── Instância única ──────────────────────────────────────────────────────────
 
