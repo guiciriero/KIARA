@@ -52,13 +52,6 @@
   color: #ffffff;
 }
 
-.subtitle {
-  font-size: 0.9rem;
-  color: var(--kiara-text-secondary);
-  font-weight: 400;
-  letter-spacing: -0.01em;
-}
-
 .cardsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

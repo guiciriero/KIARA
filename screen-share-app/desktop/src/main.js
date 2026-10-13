@@ -456,7 +456,7 @@ main{max-width:560px;padding:24px}h1{font-size:20px;margin:0 0 12px;color:#f43f5
 function loadSplashPage(win) {
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>KIARA — Carregando</title>
+<title>KIARA</title>
 <style>
   body{font-family:system-ui,sans-serif;background:#08090d;color:#e5e7eb;
        display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
@@ -538,6 +538,7 @@ function createWindow() {
     },
   });
   mainWindow = win;
+  win.removeMenu();
   const wc = win.webContents;
 
   win.once('ready-to-show', () => win.show());

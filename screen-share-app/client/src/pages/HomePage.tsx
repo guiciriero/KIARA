@@ -89,9 +89,6 @@ const HomePage: React.FC = () => {
           <h1 className={styles.title}>
             Compartilhamento de tela direto, sem atrito.
           </h1>
-          <p className={styles.subtitle}>
-            P2P WebRTC · 60 FPS nativo · Áudio por aplicativo
-          </p>
         </div>
 
         {/* ── Grid Minimalista ────────────────────────────────────────────── */}
