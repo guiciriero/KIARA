@@ -53,10 +53,10 @@ const isWin = process.platform === 'win32';
 // ─── Utilidades de log ───────────────────────────────────────────────────────
 
 const log = (msg) => console.log(msg);
-const warn = (msg) => console.warn(`⚠️  ${msg}`);
+const warn = (msg) => console.warn(`Aviso: ${msg}`);
 
 function fail(msg) {
-  console.error(`\n❌ ${msg}\n`);
+  console.error(`\nErro: ${msg}\n`);
   return shutdown(1);
 }
 
@@ -242,20 +242,20 @@ async function ensureDependencies() {
   const typesNeedsInstall = !existsSync(path.join(DIRS.types, 'node_modules'));
   const typesNeedsBuild = !existsSync(path.join(DIRS.types, 'dist'));
   if (typesNeedsInstall || typesNeedsBuild) {
-    log('📦 Preparando shared/types...');
+    log('Preparando os tipos compartilhados...');
     if (typesNeedsInstall) await runNpm(['install'], DIRS.types);
     await runNpm(['run', 'build'], DIRS.types);
   }
   if (!existsSync(path.join(DIRS.server, 'node_modules', 'ts-node-dev'))) {
-    log('📦 Instalando dependências do servidor...');
+    log('Instalando as dependências do servidor...');
     await runNpm(['install'], DIRS.server);
   }
   if (!existsSync(path.join(DIRS.client, 'node_modules', 'vite'))) {
-    log('📦 Instalando dependências do cliente...');
+    log('Instalando as dependências do cliente...');
     await runNpm(['install'], DIRS.client);
   }
   if (OPT.desktop && !existsSync(path.join(DIRS.desktop, 'node_modules', 'electron'))) {
-    log('📦 Instalando dependências do desktop (Electron)...');
+    log('Instalando as dependências do app desktop...');
     await runNpm(['install'], DIRS.desktop);
   }
 }
@@ -283,10 +283,10 @@ function clientNeedsBuild() {
 
 async function buildClient() {
   if (!clientNeedsBuild()) {
-    log('✅ client/dist está atualizado (use --rebuild para forçar o build).');
+    log('O site já está compilado e atualizado (use --rebuild para compilar de novo).');
     return;
   }
-  log('🔨 Fazendo o build do cliente...');
+  log('Compilando o site...');
   // VITE_SERVER_URL não pode existir no build: o cliente deve usar a mesma origem.
   const env = { ...process.env };
   delete env.VITE_SERVER_URL;
@@ -432,7 +432,7 @@ function startDesktop() {
 function printBanner(publicUrl, tunnelActive) {
   const L = [
     '',
-    '✦ KIARA — Compartilhamento de Tela e Áudio ✦',
+    'KIARA - Compartilhamento de tela e áudio',
     '',
     `(a) Você (host) abre:  ${LOCAL_URL}`,
     '',
@@ -469,7 +469,7 @@ async function main() {
   await buildClient();
 
   if (OPT.setupOnly) {
-    log('\n✅ Setup concluído. Rode: npm run share');
+    log('\nTudo pronto. Para começar, rode: npm run share');
     return shutdown(0);
   }
 
@@ -489,12 +489,12 @@ async function main() {
       console.error('\n' + cloudflaredHelp() + '\n');
       return shutdown(1);
     }
-    log('🌐 Abrindo o túnel da Cloudflare (pode levar alguns segundos)...');
+    log('Abrindo o túnel da Cloudflare (pode levar alguns segundos)...');
     publicUrl = await startTunnel(cloudflared);
-    log('✅ Túnel criado.');
+    log('Túnel criado.');
   }
 
-  log('🚀 Iniciando o servidor...');
+  log('Iniciando o servidor...');
   startServer(publicUrl);
   await waitForHealth();
   if (shuttingDown) return;

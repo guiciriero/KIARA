@@ -30,7 +30,11 @@ jobs:
   build:
     name: Compilar instalador
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    env:
+      # A assinatura só acontece em tags v* e quando o segredo SIGNPATH_API_TOKEN existe.
+      # Sem ele, o build segue normal e gera o instalador sem assinatura.
+      SIGN_INSTALLER: ${{ secrets.SIGNPATH_API_TOKEN != '' && github.ref_type == 'tag' }}
     defaults:
       run:
         shell: bash
@@ -143,6 +147,63 @@ jobs:
             exit 1
           fi
 
+      # Assinatura de código via SignPath (https://signpath.io). Configuração única, feita no site
+      # da SignPath e neste repositório (Settings > Secrets and variables > Actions):
+      #   Segredo   SIGNPATH_API_TOKEN              token do usuário "submitter" do projeto
+      #   Variável  SIGNPATH_ORGANIZATION_ID        ID da organização
+      #   Variável  SIGNPATH_PROJECT_SLUG           slug do projeto
+      #   Variável  SIGNPATH_SIGNING_POLICY_SLUG    slug da política (ex.: release-signing)
+      # Artifact configuration do projeto na SignPath:
+      #   <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+      #     <zip-file>
+      #       <pe-file path="KIARA-Setup-*.exe"><authenticode-sign/></pe-file>
+      #     </zip-file>
+      #   </artifact-configuration>
+      # Na política de código aberto, cada assinatura precisa de aprovação manual no site;
+      # por isso só tags v* são assinadas.
+      - name: Enviar instalador sem assinatura (entrada da SignPath)
+        id: unsigned
+        if: env.SIGN_INSTALLER == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: KIARA-Setup-unsigned
+          path: desktop/release/KIARA-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Assinar instalador (SignPath)
+        if: env.SIGN_INSTALLER == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 2400
+          output-artifact-directory: ${{ github.workspace }}/signed
+
+      # Troca o instalador pelo assinado e recalcula hash/tamanho no latest.yml, senão o
+      # auto-update recusaria o arquivo. O .blockmap antigo deixa de valer e é removido.
+      - name: Aplicar instalador assinado e atualizar latest.yml
+        if: env.SIGN_INSTALLER == 'true'
+        working-directory: desktop
+        run: |
+          ls -la ../signed
+          cp ../signed/KIARA-Setup-*.exe release/
+          rm -f release/KIARA-Setup-*.exe.blockmap
+          node scripts/refresh-latest-yml.mjs
+
+      - name: Conferir assinatura
+        if: env.SIGN_INSTALLER == 'true'
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem desktop/release/KIARA-Setup-*.exe | Select-Object -First 1
+          $s = Get-AuthenticodeSignature $f.FullName
+          Write-Host "$($f.Name): $($s.Status) - $($s.SignerCertificate.Subject)"
+          if ($s.Status -ne 'Valid') { throw "Assinatura inválida: $($s.Status)" }
+
       # Guarda o instalador como artifact (aba do workflow > Artifacts).
       - name: Enviar instalador como artifact
         uses: actions/upload-artifact@v7
@@ -152,7 +213,8 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Arquivos do auto-update (latest.yml + .blockmap + .exe) para o job de publicação.
+      # Arquivos do auto-update (latest.yml + .exe, e o .blockmap quando o build não é assinado)
+      # para o job de publicação.
       - name: Enviar arquivos de atualização
         uses: actions/upload-artifact@v7
         with:
@@ -189,9 +251,26 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           TAG="v${VERSION}"
+          HASH=$(sha256sum dist/KIARA-Setup-*.exe | cut -d' ' -f1)
+          {
+            echo "### Como instalar"
+            echo
+            echo "Baixe o \`KIARA-Setup-${VERSION}.exe\` abaixo e abra. Você pode escolher a pasta de instalação."
+            echo
+            echo "Se o Windows mostrar \"O Windows protegeu seu computador\", clique em **Mais informações** e depois em **Executar assim mesmo**."
+            echo "O aviso aparece com programas novos ou pouco baixados. O código-fonte está aberto neste repositório."
+            echo
+            echo "Para conferir que o arquivo é o mesmo gerado aqui, o SHA-256 do instalador é:"
+            echo
+            echo "\`${HASH}\`"
+            echo
+            echo "No PowerShell: \`Get-FileHash .\\KIARA-Setup-${VERSION}.exe\`"
+            echo
+          } > notes.md
           gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SHA" \
             --title "KIARA $TAG" \
             --latest \
+            --notes-file notes.md \
             --generate-notes

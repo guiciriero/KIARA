@@ -1,288 +1,205 @@
-# ✦ KIARA — Compartilhamento de Tela em Alta Fidelidade
+# KIARA
 
-**KIARA** é uma plataforma moderna e ultrarrápida de compartilhamento de tela e áudio P2P em tempo real, com suporte a captura de áudio isolado por processo/aplicativo, codecs adaptativos de vídeo até 4K a 60 FPS e interface de estúdio e player com design refinado.
+Compartilhe sua tela e o som do computador com quem você quiser, direto do navegador ou do app para Windows. Quem assiste só precisa abrir um link.
 
----
-
-## ✨ Recursos Principais
-
-| Recurso | Detalhes |
-|---|---|
-| **Transmissão de Vídeo** | Até 4K (3840×2160), 60 FPS, codecs H.264 / VP9 / H.265 adaptativos |
-| **Captura de Áudio Isolado** | No app desktop: áudio por aplicativo individual — WASAPI Process Loopback (Windows 10 2004+) / ScreenCaptureKit (macOS 13+). No navegador: áudio do sistema |
-| **Conexão WebRTC P2P** | Comunicação direta ponto a ponto com fallback STUN/TURN, suporte a múltiplos espectadores simultâneos |
-| **Sinalização em Tempo Real** | Node.js + Socket.IO com reconexão automática e telemetria de latência |
-| **Código e Link de Convite** | Código seguro de 6 caracteres gerado automaticamente com cópia em 1 clique |
-| **Telemetria / HUD de Estatísticas** | FPS, bitrate de vídeo/áudio, latência RTT em milissegundos e qualidade de rede em tempo real |
-| **Player do Espectador** | Modo cinematográfico com autohide de controles, volume local independente, botão de ativação de áudio e tela cheia |
+O KIARA transmite vídeo de até 4K a 60 FPS, ligando você e os espectadores de forma direta (WebRTC). No app desktop dá para escolher de quais programas o som sai, por exemplo o vídeo sim e o jogo não.
 
 ---
 
-## 🏗️ Estrutura do Projeto
+## Para quem só quer usar
 
+### Instalar no Windows
+
+1. Abra a página de [Releases](../../releases/latest) e baixe o `KIARA-Setup-<versão>.exe`.
+2. Dê dois cliques no arquivo. O instalador deixa você escolher a pasta e não pede senha de administrador.
+3. Abra o KIARA pelo atalho na Área de Trabalho e clique em **Iniciar Transmissão**.
+4. Copie o link que aparece e mande para quem vai assistir (no WhatsApp, por exemplo). A pessoa abre no navegador, sem instalar nada.
+
+**Sobre o aviso do Windows.** Na primeira vez, o Windows pode mostrar "O Windows protegeu seu computador". Isso acontece com qualquer programa novo ou pouco baixado, e não quer dizer que o arquivo tenha algo errado. Para continuar, clique em **Mais informações** e depois em **Executar assim mesmo**. Se quiser se certificar de que o arquivo é o original, veja [como conferir o instalador](#conferir-que-o-instalador-é-o-original).
+
+### Assistir uma transmissão
+
+1. Abra o link que a pessoa mandou.
+2. Clique em **Ativar Som da Transmissão** para ouvir o áudio (os navegadores bloqueiam o som até você clicar).
+3. Para sair, clique em **Sair**.
+
+Se preferir, abra a página inicial no navegador, digite o código de 6 caracteres (ou cole o link) e clique em **Entrar**. No app instalado, cole o link completo.
+
+### Dicas
+
+- O app precisa ficar aberto no computador de quem transmite.
+- O link muda a cada vez que o app é aberto. Quando você fecha, a sala acaba.
+- Quem tiver o link e o código consegue assistir, então envie só para quem você confia.
+- No macOS, libere **Gravação de Tela e Áudio do Sistema** em Ajustes do Sistema, Privacidade e Segurança, e reabra o app.
+
+---
+
+## Conferir que o instalador é o original
+
+Cada release publicada mostra o SHA-256 do instalador na descrição. Para comparar, rode no PowerShell, na pasta onde você baixou:
+
+```powershell
+Get-FileHash .\KIARA-Setup-<versão>.exe
 ```
-./
-├── server/           → Servidor de sinalização e entrega estática (Node.js + TypeScript)
-├── client/           → Interface web do Host e Viewer (React 18 + TypeScript + Vite)
-├── native/           → Módulo nativo C++ de captura de áudio por app (WASAPI / ScreenCaptureKit)
-├── desktop/          → Shell Desktop Electron (captura de áudio por processo)
-├── shared/types/     → Definições de tipos TypeScript compartilhadas
-├── scripts/          → Scripts de automação e túnel (Cloudflared)
-├── .github/workflows/→ Build do instalador Windows e publicação de releases
-├── docker-compose.yml
-└── .env.example
-```
+
+Se o valor for igual ao da página da release, o arquivo é o mesmo que foi gerado pelo GitHub a partir do código deste repositório. O instalador é montado automaticamente pelo GitHub Actions, e você pode ler o passo a passo em [`.github/workflows/build-windows.yml`](.github/workflows/build-windows.yml).
 
 ---
 
-## 🚀 Como Rodar Localmente
+## Para quem quer rodar o código
 
-### Pré-requisitos
+### O que você precisa
 
-- **Node.js** 20 LTS ou superior
-- **npm** 10+
-- **Git**
+- Node.js 20 ou mais novo, com npm 10 ou mais novo
+- Git
 
----
-
-### Execução Rápida (Comando Único)
+### Um comando só
 
 ```bash
 npm run share
 ```
 
-Para abrir o aplicativo Desktop com captura de áudio isolado por app:
+Na primeira vez ele instala as dependências, compila o site, sobe o servidor e cria um link público pela Cloudflare (grátis, sem conta). Para isso você precisa do `cloudflared`:
+
+- macOS: `brew install cloudflared`
+- Windows: `winget install --id Cloudflare.cloudflared` (reabra o terminal depois)
+- Linux: veja a [documentação oficial](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+
+Para abrir o app desktop, com som por aplicativo, use `npm run share:desktop`.
+
+Se o vídeo não conectar em redes muito restritas (empresas, alguns planos 4G), será preciso um servidor TURN próprio. O Open Relay que vem no `.env.example` serve só para testes.
+
+### Modo de desenvolvimento
+
+Abra um terminal para cada etapa.
+
 ```bash
-npm run share:desktop
+# 1. Tipos compartilhados (tem que ser o primeiro)
+cd shared/types && npm install && npm run build
+
+# 2. Servidor de sinalização
+cd ../../server && npm install && npm run dev
+
+# 3. Interface web
+cd ../client && npm install && npm run dev
 ```
 
----
+Depois abra http://localhost:3000 (Chrome ou Edge funcionam melhor). Copie `.env.example` para `.env` se quiser mudar portas ou o servidor TURN. O TURN do cliente (`VITE_TURN_*`) só é usado quando URL, usuário e credencial estão preenchidos juntos.
 
-### Execução em Modo de Desenvolvimento
+| Serviço | Porta | Onde mudar |
+|---|---|---|
+| Interface (Vite) | 3000 | `client/vite.config.ts` |
+| Servidor de sinalização | 3001 | `.env`, variável `PORT` |
 
-1. **Tipos Compartilhados:**
-   ```bash
-   cd shared/types
-   npm install
-   npm run build
-   ```
-
-2. **Servidor de Sinalização:**
-   ```bash
-   cd ../server
-   npm install
-   npm run dev
-   ```
-
-3. **Interface do Usuário (Cliente Web):**
-   ```bash
-   cd ../client
-   npm install
-   npm run dev
-   ```
-
-Acesse **http://localhost:3000** no navegador (Chrome, Edge, Firefox, Safari).
-
----
-
-### Qualidade (cliente)
+### Qualidade do código
 
 ```bash
 cd client
-npm run lint        # ESLint (flat config)
+npm run lint        # ESLint
 npm run typecheck   # tsc --noEmit
-npm test            # Vitest (cliente + lógica de atualização do desktop)
-npm run build       # typecheck + build de produção
-npm run e2e         # WebRTC + áudio dinâmico em Chrome real (precisa do Google Chrome; veja client/e2e/README.md)
+npm test            # Vitest (cliente e lógica de atualização do desktop)
+npm run build       # typecheck e build de produção
+npm run e2e         # WebRTC e áudio em um Chrome de verdade (veja client/e2e/README.md)
 ```
 
-Variáveis de ambiente: veja `.env.example`. O TURN do cliente (`VITE_TURN_*`) só é usado
-se URL, usuário e credencial estiverem definidos juntos.
+### Docker
 
----
-
-## 🎮 Como Usar
-
-### Para compartilhar sua tela
-
-1. Acesse `http://localhost:3000`
-2. Clique no botão **"Iniciar Compartilhamento"**
-3. Na barra lateral esquerda, configure:
-   - **Resolução e FPS** desejados
-   - **Codec de vídeo** (H.264 é o mais compatível)
-   - **Fontes de áudio** — marque os aplicativos cujo áudio você quer transmitir
-4. Clique em **"▶ Iniciar Compartilhamento"**
-5. O navegador exibirá um seletor — escolha a **janela**, o **monitor** ou a **aba** que deseja compartilhar
-6. Após confirmar, o código de 6 dígitos aparecerá na tela — compartilhe com quem quiser assistir
-7. Use **"⏸ Pausar"** para congelar a imagem sem encerrar a transmissão
-8. Use **"⏹ Encerrar"** para finalizar tudo e fechar a sala
-
-### Para assistir uma transmissão
-
-1. Acesse `http://localhost:3000` (ou o link de convite recebido diretamente)
-2. Digite o **código de 6 dígitos** no campo de entrada
-3. Clique em **"Entrar"**
-4. O vídeo do apresentador aparecerá automaticamente após a conexão ser estabelecida
-5. As estatísticas de qualidade (FPS, bitrate, latência) ficam no canto inferior esquerdo do vídeo
-6. Clique em **"Sair"** para deixar a sala a qualquer momento
-
----
-
-## 🐳 Executar com Docker Compose
-
-Se preferir não instalar Node.js localmente, use Docker:
-
-### Pré-requisitos
-
-- Docker 26+ e Docker Compose instalados
-
-### Passos
+Se não quiser instalar o Node.js:
 
 ```bash
-# 1. Configure o .env
 cp .env.example .env
-
-# 2. Compile os projetos TypeScript (necessário antes do build das imagens)
 cd shared/types && npm install && npm run build && cd ../..
 cd server && npm install && npm run build && cd ..
 cd client && npm install && npm run build && cd ..
-
-# 3. Suba os containers
 docker-compose up -d
-
-# 4. Acompanhe os logs se quiser
-docker-compose logs -f server
-docker-compose logs -f client
 ```
 
-Acesse **http://localhost:3000**.
+Acesse http://localhost:3000. Para parar: `docker-compose down`.
 
-Para parar os containers:
-```bash
-docker-compose down
-```
+### App desktop (som por aplicativo)
 
----
-
-## 🖥️ App Desktop (áudio por aplicativo)
-
-O navegador só consegue compartilhar o áudio do **sistema inteiro**. Para transmitir o áudio de
-apenas alguns aplicativos (ex.: o vídeo, sem o som do jogo) use o app desktop (Electron).
+O navegador só consegue compartilhar o som do sistema inteiro. O app desktop (Electron) usa um módulo nativo em C++ para captar o som de programas específicos.
 
 | Sistema | Tecnologia | Requisito |
 |---|---|---|
-| Windows | WASAPI Process Loopback | Windows 10 versão 2004 (build 19041) ou superior |
-| macOS | ScreenCaptureKit | macOS 13 ou superior |
-
-### Compilar e rodar
+| Windows | WASAPI Process Loopback | Windows 10 versão 2004 (build 19041) ou mais novo |
+| macOS | ScreenCaptureKit | macOS 13 ou mais novo |
 
 ```bash
-# 1. Compilar o módulo nativo (Windows: Visual Studio Build Tools com C++; macOS: Xcode Command Line Tools)
 cd desktop
 npm install
-npm run build:native
-
-# 2. Modo desenvolvimento (com o Vite rodando em http://localhost:3000)
-npm run dev
-
-# 3. Modo produção (usa client/dist)
-cd ../client && npm run build && cd ../desktop
-npm start
+npm run build:native   # precisa do Visual Studio Build Tools (Windows) ou do Xcode CLT (macOS)
+npm run dev            # com o Vite rodando em http://localhost:3000
+npm start              # modo produção, usa client/dist
 ```
 
-> No modo produção o app abre em `app://app`; adicione essa origem ao `CLIENT_ORIGIN` do servidor.
+No modo produção o app abre em `app://app`; adicione essa origem ao `CLIENT_ORIGIN` do servidor.
 
-### Como usar
-1. Abra o app desktop e vá em **Compartilhar Tela**.
-2. Escolha a tela/janela no seletor de captura.
-3. Em **Fontes de Áudio**, marque só os aplicativos desejados e ajuste o volume de cada um.
-4. Inicie. Somente o áudio dos apps marcados vai para os espectadores. A seleção vale ao iniciar a transmissão.
+Estado dos testes: no macOS o módulo compila e lista os aplicativos, mas a captura de áudio ao vivo ainda não foi validada. No Windows o instalador é gerado pelo GitHub Actions, mas a captura por aplicativo ainda precisa de testes em máquinas reais.
 
-### Permissões
-- **macOS:** conceda **Gravação de Tela e Áudio do Sistema** em Ajustes do Sistema > Privacidade e Segurança e reinicie o app.
-- **Windows:** nenhuma permissão extra.
+### Organização das pastas
 
-### Status de testes
-- macOS: módulo compila e lista aplicativos. A captura de áudio ao vivo ainda não foi validada.
-- Windows: o código foi escrito, mas **ainda não foi compilado nem testado**.
-
-### 📦 Instalador para Windows (para quem não usa terminal)
-
-**Gerar o instalador (pelo GitHub):** cada push na `main` (ou **Actions > Build Windows > Run workflow**) gera o artifact **KIARA-Setup-windows** e publica uma release com `KIARA-Setup-<versão>.exe`. Tags `v*` usam a própria tag.
-
-**Instalar:** dê duplo clique no `.exe`, escolha "Somente para mim" e a pasta de instalação (se quiser mudar). Não precisa de administrador. Como o instalador não é assinado, o Windows SmartScreen mostra "Editor desconhecido": clique em **Mais informações > Executar assim mesmo**.
-
-**Usar:** abra o **KIARA**, clique em **Compartilhar**, copie o link gerado e envie a quem for assistir (que só precisa abri-lo no navegador).
-
-**Limitações:** o app precisa ficar aberto no computador de quem transmite, e o link muda a cada vez que o app é aberto.
+```
+server/            Servidor de sinalização e do site (Node.js, TypeScript)
+client/            Interface de quem transmite e de quem assiste (React, Vite)
+native/            Módulo C++ de captura de áudio por aplicativo
+desktop/           App Electron
+shared/types/      Tipos TypeScript usados pelo servidor e pelo cliente
+scripts/           Comando `npm run share` e túnel da Cloudflare
+.github/workflows/ Gera o instalador do Windows e publica as releases
+```
 
 ---
 
-## 🐛 Solução de Problemas
+## Atualização do app
 
-### "Você precisa permitir o compartilhamento de tela"
-O navegador pediu permissão e você clicou em "Negar" ou fechou o seletor. Clique em "Iniciar Compartilhamento" novamente e autorize quando solicitado.
+O app para Windows tem o botão **Atualizar** na tela inicial. Ele procura a versão mais nova, baixa e instala por cima, sem precisar desinstalar. A pasta escolhida na primeira instalação é mantida.
 
-### "Você cancelou a seleção de tela"
-Você fechou o seletor de janelas sem escolher nada. Clique em "Iniciar" novamente e selecione uma janela ou monitor.
+- Cada push na `main` gera a release `v1.0.<número do build>`. Tags `v*` usam a própria tag. A release traz o `.exe` e o `latest.yml` que o app consulta.
+- O app não guarda nenhum token, então o repositório de releases precisa ser público. Se ele voltar a ser privado, o app avisa que não achou versão; nesse caso, hospede `latest.yml`, o `.exe` e o `.blockmap` em um endereço https público e defina `KIARA_UPDATE_URL=https://.../` (em tempo de execução ou no build).
+- A primeira instalação é manual. Só as seguintes se atualizam sozinhas.
+- Em desenvolvimento (`npm run dev`) e fora do Windows, o botão fica desativado.
 
-### O espectador não recebe o vídeo
-1. Verifique se ambos estão na mesma rede ou se as portas UDP estão abertas
-2. Em redes com NAT restritivo (corporativo, 4G), configure um servidor TURN no `.env`
-3. Use o serviço gratuito do Open Relay para testes: https://www.metered.ca/tools/openrelay/
+### Assinatura do instalador
 
-### Erro "EADDRINUSE: address already in use :::3001"
-Outra instância do servidor já está rodando. Encerre com `Ctrl+C` ou altere a porta no `.env`:
-```env
-PORT=3002
-```
-E também no cliente:
-```env
-VITE_SERVER_URL=http://127.0.0.1:3002
-```
+O instalador ainda não é assinado digitalmente, e é por isso que o Windows mostra o aviso de "Editor desconhecido". A assinatura de verdade (não existe atalho que dispense isso) está preparada no workflow para a [SignPath Foundation](https://signpath.org/), que oferece assinatura gratuita para projetos de código aberto.
 
-### Alta latência (mais de 300ms)
-- Reduza o bitrate de vídeo no painel (recomendado: 2000–4000 kbps para 1080p)
-- Escolha uma resolução menor (ex.: 720p) para conexões lentas
-- Configure um servidor TURN geograficamente próximo a você e ao espectador
+Como ligar, quando a SignPath aprovar o projeto:
 
-### O módulo nativo não compila no Windows
-Instale o Visual Studio Build Tools com "Desenvolvimento para desktop com C++" e o Windows SDK 10.0.19041 ou superior, depois rode `npm run build:native` em `desktop/`.
+1. Na SignPath, crie o projeto com a *artifact configuration* que está comentada no workflow.
+2. No GitHub, em *Settings, Secrets and variables, Actions*, cadastre o segredo `SIGNPATH_API_TOKEN` e as variáveis `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` e `SIGNPATH_SIGNING_POLICY_SLUG`.
+3. Publique uma tag `v*` (`git tag v1.1.0 && git push origin v1.1.0`). Cada assinatura precisa de uma aprovação manual no site da SignPath, por isso só as tags são assinadas.
+
+Sem o segredo, o build continua funcionando e gera o instalador sem assinatura. Quando há assinatura, o workflow troca o `.exe`, recalcula o hash no `latest.yml` (para o auto-update continuar aceitando o arquivo) e confere se a assinatura é válida antes de publicar.
+
+Mesmo assinado, o aviso do SmartScreen pode continuar aparecendo por um tempo: a reputação do programa cresce com o número de downloads. Alternativas pagas são um certificado comercial de assinatura de código ou publicar na Microsoft Store.
 
 ---
 
-## 🎧 Áudio durante a transmissão
+## Detalhes técnicos
 
-A faixa de áudio enviada ao WebRTC é **sempre a mesma** (saída de um mixer Web Audio criada
-no início da live). Trocar de aplicativo, ligar/desligar uma fonte, mutar ou mudar o volume
-altera só o grafo de áudio atrás dessa faixa — sem `replaceTrack`, sem renegociar e sem
-interromper o vídeo.
+### Áudio durante a transmissão
 
-- **Desktop:** ao mudar a seleção, o app reinicia a captura nativa com o novo conjunto de PIDs;
-  fontes removidas são desconectadas antes (sem eco nem duplicação).
-- **Web:** o áudio do sistema (`getDisplayMedia`) passa pelo mixer; desmarcar a fonte silencia sem
-  encerrar a faixa, e ela pode ser religada. Se o navegador não compartilhou áudio, aparece um erro
-  pedindo para reiniciar a transmissão marcando "Compartilhar áudio".
-- Se uma troca falhar, a interface volta à seleção que realmente está no ar e mostra o erro.
+A faixa de áudio enviada pelo WebRTC é sempre a mesma: a saída de um mixer Web Audio criado quando a transmissão começa. Trocar de aplicativo, ligar ou desligar uma fonte, silenciar ou mudar o volume mexe só no grafo de áudio por trás dessa faixa. Não há `replaceTrack`, não há renegociação e o vídeo não é interrompido.
 
----
+- **Desktop:** ao mudar a seleção, o app reinicia a captura nativa com o novo conjunto de PIDs. As fontes removidas são desconectadas antes, para não gerar eco nem duplicação.
+- **Web:** o áudio do sistema (`getDisplayMedia`) passa pelo mixer. Desmarcar a fonte silencia sem encerrar a faixa, e ela pode ser religada. Se o navegador não compartilhou áudio, aparece um erro pedindo para reiniciar a transmissão marcando "Compartilhar áudio".
+- Se uma troca falhar, a interface volta para a seleção que realmente está no ar e mostra o erro.
 
-## 📈 Desempenho e diagnóstico (WebRTC)
+### Desempenho do WebRTC
 
-| Ajuste | Por quê |
+| Ajuste | Motivo |
 |---|---|
-| `degradationPreference='maintain-framerate'` + `contentHint='motion'` | Sob pressão de rede o encoder reduz resolução, não FPS |
-| `maxBitrate`/`maxFramerate` aplicados de fato (o broadcaster agora recebe o `VideoConfig`) | Antes bitrate/fps/codec nunca chegavam ao sender |
-| Codec escolhido primeiro; H.264 prefere perfil High (`profile-level-id=64…`, `packetization-mode=1`) | Melhor qualidade por bit em hardware |
-| `bundlePolicy: 'max-bundle'`, `rtcpMuxPolicy: 'require'`, `iceCandidatePoolSize: 2` | Uma só porta de transporte e ICE mais rápido |
-| ICE restart: `disconnected` + 3 s de tolerância ou `failed` → `restartIce()` + nova offer; após 3 tentativas recria o peer | Recupera de troca de rede/Wi-Fi sem derrubar a sala |
-| Controle AIMD de bitrate por espectador (perda > 5 % ou RTT > 300 ms por 2 amostras → ×0,75; saudável por 5 → +10 % do alvo) | Evita congestionamento sem mexer no FPS; nunca passa do alvo configurado |
+| `degradationPreference='maintain-framerate'` e `contentHint='motion'` | Com a rede apertada, o encoder reduz a resolução e não os quadros por segundo |
+| `maxBitrate` e `maxFramerate` aplicados de fato | O `VideoConfig` agora chega ao sender |
+| Codec escolhido primeiro; H.264 prefere o perfil High | Melhor qualidade por bit em hardware |
+| `bundlePolicy: 'max-bundle'`, `rtcpMuxPolicy: 'require'`, `iceCandidatePoolSize: 2` | Uma única porta de transporte e ICE mais rápido |
+| ICE restart: `disconnected` por 3 s ou `failed` chama `restartIce()` com nova offer; depois de 3 tentativas o peer é recriado | Recupera de troca de rede ou de Wi-Fi sem derrubar a sala |
+| Controle AIMD de bitrate por espectador (perda acima de 5 % ou RTT acima de 300 ms por 2 amostras reduz para 75 %; 5 amostras saudáveis sobem 10 % do alvo) | Evita congestionamento sem mexer no FPS e nunca passa do alvo |
 
-Métricas no overlay (a cada 2 s, pior caso entre espectadores): FPS, bitrate de vídeo/áudio, RTT,
-perda %, jitter e motivo de limitação do encoder. Para conferir manualmente no console do app:
+O overlay de estatísticas (a cada 2 s, pior caso entre os espectadores) mostra FPS, bitrate de vídeo e áudio, RTT, perda, jitter e o motivo de limitação do encoder. Para conferir à mão no console, com `pc` sendo o `RTCPeerConnection` de quem transmite:
 
 ```js
-// pc = RTCPeerConnection do apresentador
 const r = await pc.getStats();
 r.forEach((s) => {
   if (s.type === 'outbound-rtp' && s.kind === 'video')
@@ -294,35 +211,46 @@ r.forEach((s) => {
 });
 ```
 
-Também vale abrir `chrome://webrtc-internals` no navegador durante a live.
+Também vale abrir `chrome://webrtc-internals` durante a transmissão.
+
+### Tecnologias
+
+| Camada | O que usa |
+|---|---|
+| Servidor | Node.js 20, TypeScript, Express, Socket.IO, Winston |
+| Interface | React 18, TypeScript, Vite, React Router |
+| Vídeo | WebRTC do navegador (`RTCPeerConnection`, `getDisplayMedia`) |
+| App desktop | Electron |
+| Áudio no Windows | C++17, WASAPI Process Loopback, Node Addon API |
+| Áudio no macOS | Objective-C++, ScreenCaptureKit, Node Addon API |
+| Contêineres | Docker, Docker Compose, Nginx, Red Hat UBI 9 |
+
+### Segurança e privacidade
+
+- Os serviços locais escutam só em `127.0.0.1`.
+- Os contêineres rodam como usuário comum (UID 1001), a partir de imagens `registry.redhat.io/ubi9/*`.
+- O vídeo e o áudio são protegidos por DTLS 1.2 e SRTP, o padrão do WebRTC.
+- As credenciais do TURN ficam só no `.env`, nunca no código.
+- O túnel é temporário: as salas e os links mudam a cada sessão e nada fica gravado.
 
 ---
 
-## 🔒 Segurança e Privacidade
+## Problemas comuns
 
-- Conexões com serviços locais restritas a `127.0.0.1` (sem binding em interfaces abertas).
-- Mídia transmitida com criptografia ponta a ponta **DTLS 1.2 + SRTP**.
-- Túnel efêmero: salas temporárias e links únicos a cada sessão.
+**"Você precisa permitir o compartilhamento de tela".** O navegador pediu permissão e você negou ou fechou o seletor. Inicie de novo e autorize.
+
+**"Você cancelou a seleção de tela".** Você fechou o seletor sem escolher nada. Inicie de novo e selecione uma janela ou monitor.
+
+**O espectador não recebe o vídeo.** Veja se as portas UDP não estão bloqueadas. Em redes restritas (empresa, 4G), configure um servidor TURN no `.env`. Para testes, o Open Relay serve: https://www.metered.ca/tools/openrelay/
+
+**`EADDRINUSE: address already in use :::3001`.** Já existe um servidor rodando. Encerre-o com `Ctrl+C` ou troque a porta no `.env` (`PORT=3002`) e no cliente (`VITE_SERVER_URL=http://127.0.0.1:3002`).
+
+**Latência alta (mais de 300 ms).** Reduza o bitrate (2000 a 4000 kbps para 1080p), escolha uma resolução menor ou use um servidor TURN perto de você e do espectador.
+
+**O módulo nativo não compila no Windows.** Instale o Visual Studio Build Tools com "Desenvolvimento para desktop com C++" e o Windows SDK 10.0.19041 ou mais novo, depois rode `npm run build:native` dentro de `desktop/`.
 
 ---
 
-## 📄 Licença
+## Licença
 
-MIT — livre para uso pessoal e comercial. Texto completo em [`LICENSE`](LICENSE).
-
-## Atualização do aplicativo
-
-O app desktop (Windows) tem o botão **Atualizar** na tela inicial: verifica, baixa e instala a versão mais recente sem desinstalar nada (electron-updater; o instalador NSIS por usuário atualiza por cima, mesmo `appId`).
-
-**Como funciona**
-- Cada push na `main` gera uma release `v1.0.<run_number>` (e tags `v*` usam a própria tag) com `KIARA-Setup-x.y.z.exe`, `.blockmap` e `latest.yml`, publicada só com o `github.token` do workflow.
-- O app instalado consulta o feed, baixa a versão nova e, em "Reiniciar e atualizar", fecha túnel/servidor/áudio e roda o instalador.
-- Em desenvolvimento (`npm run dev`) e fora do Windows o botão fica desativado.
-
-**Repositório público**
-O app não embute token: o feed de releases precisa ser legível sem autenticação, por isso o repositório é público. Se voltar a ser privado, o app mostra "O repositório de releases é privado ou ainda não há versão publicada"; nesse caso copie `latest.yml`, `.exe` e `.blockmap` para um local público https e defina `KIARA_UPDATE_URL=https://.../` (em tempo de execução ou no build, que embute o valor em `build-info.json`).
-
-**Limitações**
-- Sem assinatura de código: o Windows SmartScreen mostra "Editor desconhecido" (Mais informações > Executar assim mesmo). Assinar não remove o aviso de imediato — a reputação se acumula com o tempo. Opções avaliadas: SignPath Foundation (gratuito para open source; exige LICENSE OSI, releases publicadas, MFA e aprovação manual por release) ou um certificado comercial. O Microsoft Artifact Signing é pago e não atende contas individuais/organizações no Brasil.
-- Rate limit do GitHub (403/429) é tratado com mensagem amigável.
-- A primeira instalação com o auto-update ainda é manual; só versões posteriores se atualizam sozinhas.
+MIT, livre para uso pessoal e comercial. Texto completo em [`LICENSE`](LICENSE).
