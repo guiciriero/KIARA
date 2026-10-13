@@ -217,7 +217,7 @@ const ViewerPage: React.FC = () => {
                 ? 'Tentando restabelecer conexão…'
                 : 'Aguardando o vídeo do apresentador…'}
             </h3>
-            <p>Conexão direta P2P WebRTC em andamento</p>
+            <p>Conexão direta em andamento</p>
           </div>
         )}
 
