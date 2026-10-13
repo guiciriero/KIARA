@@ -39,6 +39,10 @@ interface PeerConnectionData {
   iceGraceTimer: ReturnType<typeof setTimeout> | null;
   iceFailureHandled: boolean;
   iceCandidateBuffer: RTCIceCandidatePayload[];
+  qualityPreference?: {
+    targetHeight: number | null;
+    maxBitrateKbps: number | null;
+  };
 }
 
 /**
@@ -145,7 +149,11 @@ export class WebRTCBroadcaster {
     }
   }
 
-  private async applySenderParameters(sender: RTCRtpSender, config?: VideoConfig): Promise<void> {
+  private async applySenderParameters(
+    sender: RTCRtpSender,
+    config?: VideoConfig,
+    qualityPref?: { targetHeight: number | null; maxBitrateKbps: number | null }
+  ): Promise<void> {
     try {
       const params = sender.getParameters();
       if (!params.encodings || params.encodings.length === 0) {
@@ -153,12 +161,23 @@ export class WebRTCBroadcaster {
       }
       params.degradationPreference = 'maintain-framerate';
       const fps = config?.frameRate || 60;
-      const bitrateKbps = config?.bitrate || 5000;
+      const baseBitrateKbps = config?.bitrate || 5000;
+      const targetBitrateKbps = qualityPref?.maxBitrateKbps
+        ? Math.min(qualityPref.maxBitrateKbps, baseBitrateKbps)
+        : baseBitrateKbps;
 
       params.encodings[0].maxFramerate = fps;
-      params.encodings[0].maxBitrate = bitrateKbps * 1000;
+      params.encodings[0].maxBitrate = targetBitrateKbps * 1000;
       params.encodings[0].priority = 'high';
       params.encodings[0].networkPriority = 'high';
+
+      // Downscale individual para o espectador via scaleResolutionDownBy
+      if (qualityPref?.targetHeight && config?.height && qualityPref.targetHeight < config.height) {
+        const scale = config.height / qualityPref.targetHeight;
+        params.encodings[0].scaleResolutionDownBy = Math.max(1, scale);
+      } else {
+        delete params.encodings[0].scaleResolutionDownBy;
+      }
 
       await sender.setParameters(params);
     } catch (err) {
@@ -174,11 +193,36 @@ export class WebRTCBroadcaster {
       peerData.bitrateController.updateTarget(this.videoConfig.bitrate);
       const sender = peerData.pc.getSenders().find((s) => s.track?.kind === 'video');
       if (sender) {
-        promises.push(this.applySenderParameters(sender, this.videoConfig));
+        promises.push(this.applySenderParameters(sender, this.videoConfig, peerData.qualityPreference));
       }
     }
     await Promise.allSettled(promises);
   }
+
+  private handleQualityRequest = async ({
+    viewerId,
+    targetHeight,
+    maxBitrateKbps,
+  }: {
+    viewerId: string;
+    targetHeight: number | null;
+    maxBitrateKbps: number | null;
+  }) => {
+    const peerData = this.peers.get(viewerId);
+    if (!peerData) return;
+
+    peerData.qualityPreference = { targetHeight, maxBitrateKbps };
+    const effectiveBitrate = maxBitrateKbps
+      ? Math.min(maxBitrateKbps, this.videoConfig.bitrate)
+      : this.videoConfig.bitrate;
+
+    peerData.bitrateController.updateTarget(effectiveBitrate);
+
+    const sender = peerData.pc.getSenders().find((s) => s.track?.kind === 'video');
+    if (sender) {
+      await this.applySenderParameters(sender, this.videoConfig, peerData.qualityPreference);
+    }
+  };
 
   onStats(cb: (stats: StreamStats) => void): void {
     this.statsCallback = cb;
@@ -309,6 +353,7 @@ export class WebRTCBroadcaster {
     this.socket.on('webrtc:ice-candidate', this.handleIceCandidate);
     this.socket.on('room:viewer-joined', this.handleViewerJoined);
     this.socket.on('room:viewer-left', this.handleViewerLeft);
+    this.socket.on('stream:quality-request', this.handleQualityRequest);
   }
 
   private async initiateConnection(viewerId: string): Promise<void> {
@@ -498,6 +543,7 @@ export class WebRTCBroadcaster {
     this.socket.off('webrtc:ice-candidate', this.handleIceCandidate);
     this.socket.off('room:viewer-joined', this.handleViewerJoined);
     this.socket.off('room:viewer-left', this.handleViewerLeft);
+    this.socket.off('stream:quality-request', this.handleQualityRequest);
   }
 }
 
