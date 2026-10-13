@@ -2,6 +2,8 @@
 
 Compartilhe sua tela e o som do computador com quem você quiser, direto do navegador ou do app para Windows. Quem assiste só precisa abrir um link.
 
+O site está no ar em https://kiara-a15m.onrender.com. Na hospedagem grátis ele hiberna quando fica sem uso, então a primeira visita pode demorar cerca de 1 minuto para abrir.
+
 O KIARA transmite vídeo de até 4K a 60 FPS, ligando você e os espectadores de forma direta (WebRTC). No app desktop dá para escolher de quais programas o som sai, por exemplo o vídeo sim e o jogo não.
 
 ---
@@ -10,7 +12,7 @@ O KIARA transmite vídeo de até 4K a 60 FPS, ligando você e os espectadores de
 
 ### Instalar no Windows
 
-1. Baixe o instalador. O jeito mais fácil é abrir o site do KIARA e clicar em **Baixar KIARA para Windows**, no canto de cima: ele sempre entrega a versão mais recente. Se preferir, pegue o `KIARA-Setup-<versão>.exe` na página de [Releases](../../releases/latest).
+1. Baixe o instalador. O jeito mais fácil é abrir o [site do KIARA](https://kiara-a15m.onrender.com) e clicar em **Baixar KIARA para Windows**, no canto de cima: ele sempre entrega a versão mais recente. Se preferir, pegue o `KIARA-Setup-<versão>.exe` na página de [Releases](../../releases/latest).
 2. Dê dois cliques no arquivo. O instalador deixa você escolher a pasta e não pede senha de administrador.
 3. Abra o KIARA pelo atalho na Área de Trabalho e clique em **Iniciar Transmissão**.
 4. Copie o link que aparece e mande para quem vai assistir (no WhatsApp, por exemplo). A pessoa abre no navegador, sem instalar nada.
