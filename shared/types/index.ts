@@ -38,7 +38,7 @@ export interface AudioConfig {
   sources: AudioSource[]; // Fontes de áudio selecionadas
 }
 
-export type VideoCodec = 'H264' | 'H265' | 'VP9' | 'VP8';
+export type VideoCodec = 'H264' | 'H265' | 'VP9' | 'VP8' | 'AV1';
 export type AudioCodec = 'opus' | 'aac';
 
 // ─── Fontes de Áudio ─────────────────────────────────────────────────────────
@@ -149,6 +149,7 @@ export type SignalingEvent =
   | 'webrtc:answer'
   | 'webrtc:ice-candidate'
   | 'stream:config-update'
+  | 'stream:quality-request'
   | 'stream:stats';
 
 /** Payload genérico de evento de sinalização */
@@ -178,6 +179,14 @@ export interface RTCIceCandidatePayload {
   candidate: string;
   sdpMid: string | null;
   sdpMLineIndex: number | null;
+}
+
+export type ViewerQualityPreference = 'auto' | '1080p' | '720p' | '480p' | '360p';
+
+export interface QualityRequestPayload {
+  targetHeight?: number | null; // null ou 0 = original/auto
+  maxBitrateKbps?: number | null;
+  preference: ViewerQualityPreference;
 }
 
 // ─── Estatísticas de Transmissão ─────────────────────────────────────────────
