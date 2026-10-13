@@ -78,6 +78,15 @@ const HomePage: React.FC = () => {
           <KiaraLogo size={22} withText />
         </div>
         <div className={styles.headerRight}>
+          {!isInstalledApp && (
+            <a
+              href="/download/windows"
+              className={styles.btnDownload}
+              title="Baixa o instalador da versão mais recente do KIARA para Windows"
+            >
+              Baixar KIARA para Windows
+            </a>
+          )}
           <UpdateButton />
           <ConnectionBadge state={connected ? 'connected' : 'connecting'} compact />
         </div>

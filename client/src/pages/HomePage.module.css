@@ -26,6 +26,28 @@
   gap: 12px;
 }
 
+.btnDownload {
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--kiara-border-active);
+  background: transparent;
+  color: var(--kiara-text);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background var(--transition-fast);
+}
+
+.btnDownload:hover {
+  background: var(--kiara-surface-hover);
+}
+
+.btnDownload:focus-visible {
+  outline: 2px solid var(--kiara-accent);
+  outline-offset: 2px;
+}
+
 .main {
   flex: 1;
   display: flex;

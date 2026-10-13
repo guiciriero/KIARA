@@ -16,6 +16,10 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      '/download': {
+        target: process.env.VITE_SERVER_URL ?? 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
       // Redireciona chamadas /api ao servidor de sinalização
       '/socket.io': {
         target: process.env.VITE_SERVER_URL ?? 'http://127.0.0.1:3001',

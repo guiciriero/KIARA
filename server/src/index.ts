@@ -14,6 +14,7 @@ import { setupSignaling } from './signaling/signalingHandler';
 import { RoomManager } from './rooms/roomManager';
 import { logger } from './utils/logger';
 import { getAllowedOrigins, getPublicUrl, isOriginAllowed } from './utils/publicUrl';
+import { getLatestWindowsInstallerUrl, getReleasesPageUrl } from './utils/latestRelease';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 // Padrão seguro: só loopback. Em hospedagem (ex.: Render) o proxy da plataforma
@@ -57,12 +58,20 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
+// Download do instalador do Windows: redireciona para o .exe da última release
+// (se o GitHub estiver indisponível, cai na página de releases).
+app.get('/download/windows', async (_req, res) => {
+  const url = await getLatestWindowsInstallerUrl();
+  res.setHeader('Cache-Control', 'no-store');
+  res.redirect(302, url ?? getReleasesPageUrl());
+});
+
 if (servingClient) {
   app.use(express.static(CLIENT_DIST, { index: 'index.html', dotfiles: 'ignore', redirect: false }));
 
   // Fallback SPA: qualquer GET fora de /socket.io e /health devolve o index.html
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/socket.io') || req.path.startsWith('/health')) {
+    if (req.path.startsWith('/socket.io') || req.path.startsWith('/health') || req.path.startsWith('/download/')) {
       next();
       return;
     }
