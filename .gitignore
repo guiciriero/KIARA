@@ -30,3 +30,6 @@ desktop/resources/native/
 
 # Saída do bundle do e2e (client/e2e)
 client/e2e/.build/
+
+# Regras locais do assistente Bob (não versionar)
+.bob/
