@@ -47,9 +47,9 @@ win:
   # O usuário deve clicar em "Mais informações" > "Executar assim mesmo".
 
 nsis:
-  oneClick: true
-  perMachine: false                      # instala por usuário, sem pedir administrador
-  allowToChangeInstallationDirectory: false
+  oneClick: false                        # assistente com tela de escolha da pasta
+  perMachine: false                      # padrão: instala por usuário, sem pedir administrador
+  allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   deleteAppDataOnUninstall: false
 

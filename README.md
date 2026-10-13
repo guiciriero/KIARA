@@ -210,7 +210,7 @@ npm start
 
 **Gerar o instalador (pelo GitHub):** cada push na `main` (ou **Actions > Build Windows > Run workflow**) gera o artifact **KIARA-Setup-windows** e publica uma release com `KIARA-Setup-<versão>.exe`. Tags `v*` usam a própria tag.
 
-**Instalar:** dê duplo clique no `.exe`. Não precisa de administrador. Como o instalador não é assinado, o Windows SmartScreen mostra "Editor desconhecido": clique em **Mais informações > Executar assim mesmo**.
+**Instalar:** dê duplo clique no `.exe`, escolha "Somente para mim" e a pasta de instalação (se quiser mudar). Não precisa de administrador. Como o instalador não é assinado, o Windows SmartScreen mostra "Editor desconhecido": clique em **Mais informações > Executar assim mesmo**.
 
 **Usar:** abra o **KIARA**, clique em **Compartilhar**, copie o link gerado e envie a quem for assistir (que só precisa abri-lo no navegador).
 
