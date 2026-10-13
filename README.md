@@ -10,7 +10,7 @@ O KIARA transmite vídeo de até 4K a 60 FPS, ligando você e os espectadores de
 
 ### Instalar no Windows
 
-1. Abra a página de [Releases](../../releases/latest) e baixe o `KIARA-Setup-<versão>.exe`.
+1. Baixe o instalador. O jeito mais fácil é abrir o site do KIARA e clicar em **Baixar KIARA para Windows**, no canto de cima: ele sempre entrega a versão mais recente. Se preferir, pegue o `KIARA-Setup-<versão>.exe` na página de [Releases](../../releases/latest).
 2. Dê dois cliques no arquivo. O instalador deixa você escolher a pasta e não pede senha de administrador.
 3. Abra o KIARA pelo atalho na Área de Trabalho e clique em **Iniciar Transmissão**.
 4. Copie o link que aparece e mande para quem vai assistir (no WhatsApp, por exemplo). A pessoa abre no navegador, sem instalar nada.
@@ -30,6 +30,7 @@ Se preferir, abra a página inicial no navegador, digite o código de 6 caracter
 - O app precisa ficar aberto no computador de quem transmite.
 - O link muda a cada vez que o app é aberto. Quando você fecha, a sala acaba.
 - Quem tiver o link e o código consegue assistir, então envie só para quem você confia.
+- O botão de baixar o app só aparece no site. Dentro do app instalado você usa o **Atualizar**.
 - No macOS, libere **Gravação de Tela e Áudio do Sistema** em Ajustes do Sistema, Privacidade e Segurança, e reabra o app.
 
 ---
@@ -59,7 +60,7 @@ Se o valor for igual ao da página da release, o arquivo é o mesmo que foi gera
 npm run share
 ```
 
-Na primeira vez ele instala as dependências, compila o site, sobe o servidor e cria um link público pela Cloudflare (grátis, sem conta). Para isso você precisa do `cloudflared`:
+Na primeira vez ele instala as dependências, compila o site, sobe o servidor e cria um link público pela Cloudflare (grátis, sem conta). Esse jeito depende do seu computador ficar ligado; se você quer um endereço que fique sempre no ar, veja [Hospedagem fixa no Render](#hospedagem-fixa-no-render-grátis-sem-depender-do-seu-pc). Para usar o `npm run share` você precisa do `cloudflared`:
 
 - macOS: `brew install cloudflared`
 - Windows: `winget install --id Cloudflare.cloudflared` (reabra o terminal depois)
@@ -85,6 +86,8 @@ cd ../client && npm install && npm run dev
 ```
 
 Depois abra http://localhost:3000 (Chrome ou Edge funcionam melhor). Copie `.env.example` para `.env` se quiser mudar portas ou o servidor TURN. O TURN do cliente (`VITE_TURN_*`) só é usado quando URL, usuário e credencial estão preenchidos juntos.
+
+O servidor escuta só em `127.0.0.1`, de propósito. Para mudar isso (numa hospedagem, por exemplo), defina `HOST=0.0.0.0`.
 
 | Serviço | Porta | Onde mudar |
 |---|---|---|
@@ -112,6 +115,8 @@ O repositório tem um [`render.yaml`](render.yaml) que publica site e servidor n
 4. Quando terminar, o endereço `https://<nome>.onrender.com` é o seu KIARA fixo. O `PUBLIC_URL` é preenchido sozinho a partir de `RENDER_EXTERNAL_URL`. Com domínio próprio, defina `PUBLIC_URL` no painel.
 
 Limites do plano Free: o serviço hiberna após 15 minutos sem tráfego (a primeira visita seguinte demora cerca de 1 minuto), e uma reinicialização derruba as salas ativas, que ficam só na memória. Para evitar a hibernação, use um monitor gratuito (por exemplo UptimeRobot) chamando `https://<nome>.onrender.com/health` a cada 5 minutos.
+
+O botão **Baixar KIARA para Windows** do site funciona por um endereço do próprio servidor, `/download/windows`. Ele pergunta ao GitHub qual é a release mais recente e redireciona para o `.exe` dela. O resultado fica guardado por 10 minutos, então uma versão recém-publicada pode demorar um pouco para aparecer no botão. Se o GitHub estiver fora do ar, o botão leva para a página de releases. O repositório consultado é `guiciriero/KIARA`; para usar outro, defina `GITHUB_REPO=dono/repositorio`.
 
 ### Docker
 
@@ -158,6 +163,7 @@ desktop/           App Electron
 shared/types/      Tipos TypeScript usados pelo servidor e pelo cliente
 scripts/           Comando `npm run share` e túnel da Cloudflare
 .github/workflows/ Gera o instalador do Windows e publica as releases
+render.yaml        Configuração da hospedagem fixa no Render
 ```
 
 ---
@@ -238,7 +244,8 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 
 ### Segurança e privacidade
 
-- Os serviços locais escutam só em `127.0.0.1`.
+- Os serviços locais escutam só em `127.0.0.1`, a não ser que você defina `HOST` (no Render, `0.0.0.0` é necessário e já vem no `render.yaml`).
+- O endereço de download só redireciona para arquivos `KIARA-Setup-*.exe` do repositório configurado. Qualquer outro link vindo do GitHub é ignorado.
 - Os contêineres rodam como usuário comum (UID 1001), a partir de imagens `registry.redhat.io/ubi9/*`.
 - O vídeo e o áudio são protegidos por DTLS 1.2 e SRTP, o padrão do WebRTC.
 - As credenciais do TURN ficam só no `.env`, nunca no código.
