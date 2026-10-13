@@ -169,6 +169,23 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): vo
       logger.debug(`Configuração de stream atualizada na sala ${roomId}`);
     });
 
+    // ── Solicitação de qualidade individual (espectador -> apresentador) ───────
+    socket.on('stream:quality-request', (data: { targetHeight?: number | null; maxBitrateKbps?: number | null; preference: string }) => {
+      const roomId = socketRoomMap.get(socket.id);
+      if (!roomId) return;
+
+      const room = roomManager.getRoom(roomId);
+      if (!room || room.hostId === socket.id) return; // Apenas espectadores enviam ao apresentador
+
+      io.to(room.hostId).emit('stream:quality-request', {
+        viewerId: socket.id,
+        targetHeight: typeof data?.targetHeight === 'number' ? data.targetHeight : null,
+        maxBitrateKbps: typeof data?.maxBitrateKbps === 'number' ? data.maxBitrateKbps : null,
+        preference: data?.preference || 'auto',
+      });
+      logger.debug(`Espectador ${socket.id} solicitou qualidade: ${data?.preference} (${data?.targetHeight}p)`);
+    });
+
     // ── Estatísticas de stream ───────────────────────────────────────────────
     socket.on('stream:stats', (stats: StreamStats) => {
       const roomId = socketRoomMap.get(socket.id);
