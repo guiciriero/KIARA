@@ -33,8 +33,6 @@ jobs:
     timeout-minutes: 45
     defaults:
       run:
-        # O projeto fica na subpasta screen-share-app/ do repositório.
-        working-directory: screen-share-app
         shell: bash
     steps:
       # Baixa o código do repositório.
@@ -48,15 +46,15 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            screen-share-app/shared/types/package-lock.json
-            screen-share-app/server/package-lock.json
-            screen-share-app/client/package-lock.json
-            screen-share-app/native/package-lock.json
-            screen-share-app/desktop/package-lock.json
+            shared/types/package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+            native/package-lock.json
+            desktop/package-lock.json
 
       # Tipos compartilhados: usados pelo servidor e pelo cliente.
       - name: shared/types - instalar e compilar
-        working-directory: screen-share-app/shared/types
+        working-directory: shared/types
         run: |
           npm ci || npm install
           npm run build
@@ -65,12 +63,12 @@ jobs:
       # único com esbuild direto do código-fonte, então NÃO rodamos o `tsc` aqui (ele falha com
       # TS6059 porque importa tipos de shared/types, que fica fora do rootDir do servidor).
       - name: server - instalar dependências
-        working-directory: screen-share-app/server
+        working-directory: server
         run: npm ci || npm install
 
       # Site (client/dist) que o app serve na mesma origem.
       - name: client - instalar e compilar
-        working-directory: screen-share-app/client
+        working-directory: client
         run: |
           npm ci || npm install
           npm run build
@@ -85,7 +83,7 @@ jobs:
       # --ignore-scripts, para o npm não disparar o `node-gyp rebuild` automático com a versão
       # antiga (o binding.gyp faz o npm rodar esse passo sozinho no install).
       - name: native - instalar e compilar addon
-        working-directory: screen-share-app/native
+        working-directory: native
         run: |
           npm ci --ignore-scripts || npm install --ignore-scripts
           npx node-gyp --version
@@ -94,14 +92,14 @@ jobs:
 
       # Dependências do app desktop (electron, electron-builder, esbuild).
       - name: desktop - instalar dependências
-        working-directory: screen-share-app/desktop
+        working-directory: desktop
         run: npm ci || npm install
 
       # Versão semver única por build (1.0.<run_number>) em builds da main/manual; em tags v*
       # a versão da tag é usada. O electron-updater compara essa versão com a instalada.
       - name: desktop - definir versão do build
         id: ver
-        working-directory: screen-share-app/desktop
+        working-directory: desktop
         env:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
@@ -117,19 +115,19 @@ jobs:
 
       # Gera desktop/build/server/server.cjs (servidor embutido).
       - name: desktop - empacotar servidor (bundle:server)
-        working-directory: screen-share-app/desktop
+        working-directory: desktop
         run: npm run bundle:server
 
       # Confere os artefatos e baixa o cloudflared.exe (com verificação de SHA-256).
       - name: desktop - preparar recursos (prepare:resources)
-        working-directory: screen-share-app/desktop
+        working-directory: desktop
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run prepare:resources
 
       # Gera o instalador NSIS (sem assinatura de código).
       - name: desktop - gerar instalador (dist:win)
-        working-directory: screen-share-app/desktop
+        working-directory: desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GITHUB_TOKEN: ${{ github.token }}
@@ -137,7 +135,7 @@ jobs:
 
       # Falha o job se o instalador não foi gerado.
       - name: Verificar instalador
-        working-directory: screen-share-app/desktop
+        working-directory: desktop
         run: |
           ls -la release
           if ! ls release/KIARA-Setup-*.exe >/dev/null 2>&1; then
@@ -150,7 +148,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: KIARA-Setup-windows
-          path: screen-share-app/desktop/release/KIARA-Setup-*.exe
+          path: desktop/release/KIARA-Setup-*.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -160,9 +158,9 @@ jobs:
         with:
           name: KIARA-update-files
           path: |
-            screen-share-app/desktop/release/KIARA-Setup-*.exe
-            screen-share-app/desktop/release/KIARA-Setup-*.exe.blockmap
-            screen-share-app/desktop/release/latest.yml
+            desktop/release/KIARA-Setup-*.exe
+            desktop/release/KIARA-Setup-*.exe.blockmap
+            desktop/release/latest.yml
           if-no-files-found: error
           retention-days: 7
     outputs:
