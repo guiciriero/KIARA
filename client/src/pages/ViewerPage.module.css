@@ -296,7 +296,34 @@
 .bottomBarRight {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+}
+
+.qualitySelectWrapper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.qualitySelect {
+  background: #111111;
+  border: 1px solid #333333;
+  color: #ededed;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition-base), background-color var(--transition-base);
+}
+
+.qualitySelect:hover {
+  background: #1a1a1a;
+  border-color: #555555;
+}
+
+.qualitySelect:focus {
+  border-color: #ffffff;
 }
 
 .iconBtn {

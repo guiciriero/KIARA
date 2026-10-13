@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCViewer } from '../services/webrtcService';
-import type { StreamStats, ConnectionState } from '@shared/index';
+import type { StreamStats, ConnectionState, ViewerQualityPreference, QualityRequestPayload } from '@shared/index';
 
 export interface ViewerState {
   remoteStream: MediaStream | null;
@@ -16,6 +16,7 @@ export interface ViewerState {
   stats: StreamStats | null;
   error: string | null;
   hostDisconnected: boolean;
+  selectedQuality: ViewerQualityPreference;
 }
 
 export function useViewer(roomCode: string | undefined) {
@@ -27,6 +28,7 @@ export function useViewer(roomCode: string | undefined) {
     remoteStream: null, viewerCount: 0,
     connectionState: 'disconnected', stats: null,
     error: null, hostDisconnected: false,
+    selectedQuality: 'auto',
   });
 
   // Escuta eventos do servidor
@@ -86,6 +88,49 @@ export function useViewer(roomCode: string | undefined) {
     };
   }, [socket, roomCode]);
 
+  /** Define a preferência de resolução individual do espectador */
+  const setQuality = useCallback(
+    (pref: ViewerQualityPreference) => {
+      setState((s) => ({ ...s, selectedQuality: pref }));
+
+      let targetHeight: number | null = null;
+      let maxBitrateKbps: number | null = null;
+
+      switch (pref) {
+        case '1080p':
+          targetHeight = 1080;
+          maxBitrateKbps = 8000;
+          break;
+        case '720p':
+          targetHeight = 720;
+          maxBitrateKbps = 4000;
+          break;
+        case '480p':
+          targetHeight = 480;
+          maxBitrateKbps = 1800;
+          break;
+        case '360p':
+          targetHeight = 360;
+          maxBitrateKbps = 1000;
+          break;
+        case 'auto':
+        default:
+          targetHeight = null;
+          maxBitrateKbps = null;
+          break;
+      }
+
+      const payload: QualityRequestPayload = {
+        targetHeight,
+        maxBitrateKbps,
+        preference: pref,
+      };
+
+      socket?.emit('stream:quality-request', payload);
+    },
+    [socket]
+  );
+
   /** Sai da sala voluntariamente */
   const leaveRoom = useCallback(() => {
     socket?.emit('room:leave');
@@ -95,8 +140,9 @@ export function useViewer(roomCode: string | undefined) {
       remoteStream: null, viewerCount: 0,
       connectionState: 'disconnected', stats: null,
       error: null, hostDisconnected: false,
+      selectedQuality: 'auto',
     });
   }, [socket]);
 
-  return { state, leaveRoom };
+  return { state, leaveRoom, setQuality };
 }

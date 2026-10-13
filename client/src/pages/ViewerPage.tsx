@@ -23,7 +23,7 @@ const ViewerPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { state, leaveRoom } = useViewer(code);
+  const { state, leaveRoom, setQuality } = useViewer(code);
   const [isMuted, setIsMuted] = useState(true);
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -291,6 +291,28 @@ const ViewerPage: React.FC = () => {
         </div>
 
         <div className={styles.bottomBarRight}>
+          {/* Seletor Individual de Resolução / Qualidade */}
+          {state.connectionState === 'connected' && (
+            <div className={styles.qualitySelectWrapper}>
+              <select
+                className={styles.qualitySelect}
+                value={state.selectedQuality}
+                onChange={(e) => {
+                  setQuality(e.target.value as any);
+                  resetHideTimer();
+                }}
+                title="Qualidade de Reprodução"
+                aria-label="Qualidade de Reprodução"
+              >
+                <option value="auto">Qualidade: Auto</option>
+                <option value="1080p">1080p (FHD)</option>
+                <option value="720p">720p (HD)</option>
+                <option value="480p">480p (SD)</option>
+                <option value="360p">360p (Economia)</option>
+              </select>
+            </div>
+          )}
+
           {/* Toggle de Telemetria */}
           {state.stats && (
             <button
