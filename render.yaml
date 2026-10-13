@@ -1,0 +1,30 @@
+# Blueprint do Render: um único Web Service (plano Free) que serve o site e a sinalização.
+services:
+  - type: web
+    name: kiara
+    runtime: node
+    plan: free
+    buildCommand: >-
+      cd shared/types && npm ci --include=dev && npm run build &&
+      cd ../../server && npm ci --include=dev && npm run build &&
+      cd ../client && npm ci --include=dev && npm run build
+    startCommand: cd server && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      # Obrigatório no Render: o proxy da plataforma precisa alcançar o processo.
+      - key: HOST
+        value: 0.0.0.0
+      # Site compilado, servido pelo próprio servidor (caminho relativo a server/).
+      - key: CLIENT_DIST_DIR
+        value: ../client/dist
+      # TURN (build do cliente). Preencha no painel do Render; sem os três, não é usado.
+      - key: VITE_TURN_URL
+        sync: false
+      - key: VITE_TURN_USER
+        sync: false
+      - key: VITE_TURN_CREDENTIAL
+        sync: false

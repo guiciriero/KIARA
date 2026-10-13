@@ -16,10 +16,11 @@ let publicUrlCache: { raw: string | undefined; value: string | undefined } | nul
 
 /**
  * Retorna PUBLIC_URL validada (apenas a origem, sem barra final) ou undefined.
+ * Sem PUBLIC_URL, usa RENDER_EXTERNAL_URL (definida automaticamente pelo Render).
  * Aceita https:, ou http: somente para localhost/127.0.0.1. Inválida → ignora e avisa.
  */
 export function getPublicUrl(): string | undefined {
-  const raw = process.env.PUBLIC_URL?.trim() || undefined;
+  const raw = process.env.PUBLIC_URL?.trim() || process.env.RENDER_EXTERNAL_URL?.trim() || undefined;
   if (publicUrlCache && publicUrlCache.raw === raw) return publicUrlCache.value;
 
   let value: string | undefined;

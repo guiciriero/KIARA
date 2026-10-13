@@ -16,6 +16,9 @@ import { logger } from './utils/logger';
 import { getAllowedOrigins, getPublicUrl, isOriginAllowed } from './utils/publicUrl';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
+// Padrão seguro: só loopback. Em hospedagem (ex.: Render) o proxy da plataforma
+// precisa alcançar o processo, então defina HOST=0.0.0.0 explicitamente.
+const HOST = process.env.HOST?.trim() || '127.0.0.1';
 
 /** Função de origem compartilhada entre cors() do Express e Socket.IO */
 const originCheck = (
@@ -95,8 +98,8 @@ const roomManager = new RoomManager();
 setupSignaling(io, roomManager);
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
-httpServer.listen(PORT, '127.0.0.1', () => {
-  logger.info(`Servidor de sinalização iniciado em http://127.0.0.1:${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  logger.info(`Servidor de sinalização iniciado em http://${HOST}:${PORT}`);
   const publicUrl = getPublicUrl();
   if (publicUrl) logger.info(`PUBLIC_URL: ${publicUrl}`);
   logger.info(`Origens permitidas: ${getAllowedOrigins(PORT).join(', ')}`);

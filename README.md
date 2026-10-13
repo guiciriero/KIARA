@@ -102,6 +102,17 @@ npm run build       # typecheck e build de produção
 npm run e2e         # WebRTC e áudio em um Chrome de verdade (veja client/e2e/README.md)
 ```
 
+### Hospedagem fixa no Render (grátis, sem depender do seu PC)
+
+O repositório tem um [`render.yaml`](render.yaml) que publica site e servidor num único Web Service do plano Free.
+
+1. Suba o repositório para o GitHub.
+2. No [Render](https://dashboard.render.com), clique em **New**, **Blueprint**, escolha o repositório e confirme.
+3. Preencha `VITE_TURN_URL`, `VITE_TURN_USER` e `VITE_TURN_CREDENTIAL` com o seu servidor TURN (os três juntos, ou deixe vazio). Depois de mudar esses valores, faça um novo deploy, porque eles entram no build do site.
+4. Quando terminar, o endereço `https://<nome>.onrender.com` é o seu KIARA fixo. O `PUBLIC_URL` é preenchido sozinho a partir de `RENDER_EXTERNAL_URL`. Com domínio próprio, defina `PUBLIC_URL` no painel.
+
+Limites do plano Free: o serviço hiberna após 15 minutos sem tráfego (a primeira visita seguinte demora cerca de 1 minuto), e uma reinicialização derruba as salas ativas, que ficam só na memória. Para evitar a hibernação, use um monitor gratuito (por exemplo UptimeRobot) chamando `https://<nome>.onrender.com/health` a cada 5 minutos.
+
 ### Docker
 
 Se não quiser instalar o Node.js:
