@@ -192,7 +192,35 @@ function reduceUpdate(state, event) {
   }
 }
 
+// ─── URL do feed de atualização ──────────────────────────────────────────────
+
+/** Só aceita feed https, sem credenciais embutidas na URL. */
+function parseFeedUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const u = new URL(value.trim());
+    return u.protocol === 'https:' && !u.username && !u.password ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decide qual feed usar.
+ *  - App empacotado: IGNORA KIARA_UPDATE_URL do ambiente do usuário (um atacante local
+ *    poderia redirecionar as atualizações); vale só a URL embutida no build (build-info.json).
+ *  - Dev: aceita KIARA_UPDATE_URL (somente https) e, na falta dela, a URL do build-info.
+ * @returns {string|null} null ⇒ usar o feed padrão do app-update.yml (GitHub Releases).
+ */
+function resolveFeedUrl({ isPackaged, envUrl, buildInfoUrl }) {
+  const embedded = parseFeedUrl(buildInfoUrl);
+  if (isPackaged) return embedded;
+  return parseFeedUrl(envUrl) || embedded;
+}
+
 module.exports = {
+  parseFeedUrl,
+  resolveFeedUrl,
   parseVersion,
   compareVersions,
   pickLatestRelease,

@@ -3,7 +3,8 @@
 /**
  * Atualização do app (processo principal). Encapsula o electron-updater e expõe estados
  * normalizados (ver updateLogic.js). Nada aqui usa token ou segredo: o feed é público
- * (GitHub Releases de repositório público) ou uma URL https "generic" (KIARA_UPDATE_URL).
+ * (GitHub Releases de repositório público) ou uma URL https "generic" embutida no build
+ * (KIARA_UPDATE_URL em tempo de build; em tempo de execução só vale em dev).
  */
 
 const fs = require('fs');

@@ -16,5 +16,8 @@
     "@types/node": "^20.14.2",
     "node-gyp": "^13.1.0"
   },
-  "gypfile": true
+  "gypfile": true,
+  "engines": {
+    "node": ">=22"
+  }
 }

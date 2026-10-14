@@ -61,6 +61,7 @@ app.on('second-instance', () => {
 // ─── Módulos de runtime ───────────────────────────────────────────────────────
 
 const { startTunnel, findCloudflared } = require('./runtime/tunnel');
+const { readExpectedCloudflaredSha } = require('./runtime/integrity');
 const { findFreePort, startServer, resolveClientDist } = require('./runtime/server');
 const { createUpdater } = require('./updater');
 
@@ -602,7 +603,10 @@ async function startEmbeddedRuntime(win) {
   if (cfBin) {
     try {
       console.log(`[desktop] Iniciando túnel cloudflared (porta ${port})…`);
-      const tunnel = await startTunnel(port, cfBin);
+      // Em app empacotado, confere o SHA-256 gravado no build (build-info.json) antes do spawn.
+      const tunnel = await startTunnel(port, cfBin, {
+        expectedSha256: app.isPackaged ? readExpectedCloudflaredSha(process.resourcesPath) : null,
+      });
       tunnelUrl = tunnel.url;
       publicUrl = tunnelUrl;
       tunnelStop = tunnel.stop;

@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isAllowedRedirectTarget } from './redirect-policy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP = path.resolve(__dirname, '..');
@@ -83,6 +84,10 @@ function httpsGet(url, { headers = {}, redirectsLeft = MAX_REDIRECTS } = {}) {
           res.resume();
           if (redirectsLeft <= 0) return reject(new Error('Redirecionamentos demais (limite 5)'));
           const next = new URL(res.headers.location, u).toString();
+          // Só segue redirecionamento para hosts oficiais do GitHub (https).
+          if (!isAllowedRedirectTarget(next)) {
+            return reject(new Error(`Redirecionamento para host não permitido: ${new URL(next).origin}`));
+          }
           // Não repassa cabeçalhos (ex.: Authorization) para o destino do redirecionamento.
           return resolve(httpsGet(next, { headers: {}, redirectsLeft: redirectsLeft - 1 }));
         }

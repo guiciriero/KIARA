@@ -15,6 +15,9 @@ files:
 
 asar: true
 
+# Hook que vira os Electron Fuses (RunAsNode, ASAR integrity etc.) antes da assinatura.
+afterPack: scripts/apply-fuses.cjs
+
 # Contrato de recursos (process.resourcesPath quando empacotado).
 # Ficam FORA do asar: o .node e o cloudflared.exe precisam ser arquivos reais.
 extraResources:

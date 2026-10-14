@@ -15,6 +15,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const { EventEmitter } = require('events');
+const { checkBinaryIntegrity } = require('./integrity');
 
 const TUNNEL_URL_RE = /https:\/\/(?!api\.)[a-z0-9-]+\.trycloudflare\.com/;
 const TUNNEL_TIMEOUT_MS = 40_000;
@@ -50,13 +51,33 @@ function findCloudflared(resourcesPath) {
 }
 
 /**
+ * Verifica o SHA-256 do cloudflared ANTES do spawn.
+ * Divergência ⇒ lança erro (o binário não é executado). Sem hash esperado
+ * (dev/sem metadado) ⇒ apenas avisa e segue com o comportamento atual.
+ *
+ * @param {string} cloudflaredBin
+ * @param {string|null|undefined} expectedSha256
+ */
+async function verifyCloudflared(cloudflaredBin, expectedSha256) {
+  const r = await checkBinaryIntegrity(cloudflaredBin, expectedSha256);
+  if (r.status === 'mismatch') throw new Error(r.message);
+  if (r.status === 'skipped') console.warn(`[runtime/tunnel] ${r.message}`);
+}
+
+/**
  * Inicia o cloudflared apontando para http://127.0.0.1:PORT.
  *
  * @param {number} port            Porta do servidor local.
  * @param {string} cloudflaredBin  Caminho absoluto para o binário cloudflared.
+ * @param {{ expectedSha256?: string|null }} [opts]  SHA-256 esperado (build-info.json).
  * @returns {Promise<{ url: string, stop: () => void, events: EventEmitter }>}
  */
-function startTunnel(port, cloudflaredBin) {
+async function startTunnel(port, cloudflaredBin, opts = {}) {
+  await verifyCloudflared(cloudflaredBin, opts.expectedSha256);
+  return spawnTunnel(port, cloudflaredBin);
+}
+
+function spawnTunnel(port, cloudflaredBin) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const events = new EventEmitter();

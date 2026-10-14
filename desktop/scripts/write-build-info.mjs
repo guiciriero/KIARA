@@ -4,12 +4,13 @@
  *
  * Variáveis de ambiente (opcionais):
  *   GITHUB_SHA         SHA do commit (CI). Fora do CI usa `git rev-parse`; sem git, "dev".
- *   KIARA_UPDATE_URL   feed https "generic" embutido como padrão (o usuário pode sobrescrever
- *                      com a mesma variável em tempo de execução).
+ *   KIARA_UPDATE_URL   feed https "generic" embutido no build. No app empacotado a variável
+ *                      do ambiente do usuário é IGNORADA em tempo de execução (só vale em dev).
  *
  * Uso: node scripts/write-build-info.mjs   (a partir de desktop/)
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -40,11 +41,25 @@ function feedUrl() {
   }
 }
 
+/**
+ * SHA-256 do cloudflared.exe (gerado por prepare-resources.mjs). Gravado aqui para o app
+ * conferir antes do spawn (ver src/runtime/integrity.js). Sem o arquivo: campo omitido.
+ */
+function cloudflaredSha() {
+  const file = path.join(DESKTOP, 'resources', 'bin', 'cloudflared.exe');
+  if (!fs.existsSync(file)) {
+    console.warn('[build-info] cloudflared.exe ausente: cloudflaredSha256 não gravado.');
+    return undefined;
+  }
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
 const pkg = JSON.parse(fs.readFileSync(path.join(DESKTOP, 'package.json'), 'utf8'));
 const info = {
   version: pkg.version,
   commit: shortSha(),
   builtAt: new Date().toISOString(),
+  ...(cloudflaredSha() ? { cloudflaredSha256: cloudflaredSha() } : {}),
   ...(feedUrl() ? { updateUrl: feedUrl() } : {}),
 };
 
