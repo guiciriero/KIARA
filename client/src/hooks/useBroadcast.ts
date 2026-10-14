@@ -12,8 +12,18 @@ import { WebRTCBroadcaster } from '../services/webrtcService';
 import { captureDisplay, stopStream } from '../services/captureService';
 import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
+import { addJoinRequest, removeJoinRequest } from '../utils/joinRequests';
 import { isCancellation, toMediaError } from '../services/mediaError';
-import type { VideoConfig, StreamStats, ConnectionState } from '@shared/index';
+import type {
+  VideoConfig,
+  StreamStats,
+  ConnectionState,
+  CreateRoomPayload,
+  RoomCreatedPayload,
+  RoomErrorPayload,
+  JoinRequestPayload,
+  RespondJoinPayload,
+} from '@shared/index';
 
 export type { AudioSelectionItem };
 
@@ -33,9 +43,15 @@ export interface BroadcastState {
   activeAudioIds: string[];
   /** Incrementa a cada falha de sincronização, para a interface reconciliar a seleção */
   audioFailures: number;
+  /** Limite de espectadores da sala (0 antes da sala existir) */
+  maxViewers: number;
+  /** O que o servidor atendeu de fato (não o que foi pedido) */
+  hasPassword: boolean;
+  requireApproval: boolean;
+  privacyMode: boolean;
+  /** Espectadores aguardando aprovação (salas com aprovação) */
+  pendingRequests: JoinRequestPayload[];
 }
-
-interface RoomData { roomId: string; code: string; inviteUrl: string }
 
 const ROOM_TIMEOUT_MS = 8000;
 
@@ -45,19 +61,21 @@ const INITIAL_STATE: BroadcastState = {
   viewerCount: 0, connectionState: 'disconnected',
   stats: null, stream: null, error: null,
   activeAudioIds: [], audioFailures: 0,
+  maxViewers: 0, hasPassword: false, requireApproval: false, privacyMode: false,
+  pendingRequests: [],
 };
 
 type AppSocket = NonNullable<ReturnType<typeof useSocket>['socket']>;
 
-function requestRoom(socket: AppSocket): Promise<RoomData> {
+function requestRoom(socket: AppSocket, options?: CreateRoomPayload): Promise<RoomCreatedPayload> {
   return new Promise((resolve, reject) => {
     const done = () => {
       clearTimeout(timer);
       socket.off('room:created', onCreated);
       socket.off('room:error', onError);
     };
-    const onCreated = (data: RoomData) => { done(); resolve(data); };
-    const onError = (e: { message: string }) => { done(); reject(new Error(e.message)); };
+    const onCreated = (data: RoomCreatedPayload) => { done(); resolve(data); };
+    const onError = (e: RoomErrorPayload) => { done(); reject(new Error(e.message)); };
     const timer = setTimeout(() => {
       done();
       reject(new Error('O servidor demorou muito para responder. Tente novamente.'));
@@ -65,7 +83,7 @@ function requestRoom(socket: AppSocket): Promise<RoomData> {
 
     socket.on('room:created', onCreated);
     socket.on('room:error', onError);
-    socket.emit('room:create');
+    socket.emit('room:create', options ?? {});
   });
 }
 
@@ -78,6 +96,8 @@ export function useBroadcast(
   audioSelection: AudioSelectionItem[],
   /** (desktop) ID da tela/janela escolhida na interface */
   captureSourceId: string | null,
+  /** Opções da sala: senha, aprovação, modo privacidade */
+  roomOptions?: CreateRoomPayload,
 ) {
   const { socket } = useSocket();
   const broadcasterRef = useRef<WebRTCBroadcaster | null>(null);
@@ -88,6 +108,8 @@ export function useBroadcast(
   const captureStreamRef = useRef<MediaStream | null>(null);
   const selectionRef = useRef(audioSelection);
   selectionRef.current = audioSelection;
+  const roomOptionsRef = useRef(roomOptions);
+  roomOptionsRef.current = roomOptions;
 
   const [state, setState] = useState<BroadcastState>(INITIAL_STATE);
 
@@ -131,14 +153,34 @@ export function useBroadcast(
 
   useEffect(() => {
     if (!socket) return;
-    const onCount = (data: { viewerCount: number }) => {
+    const onJoined = (data: { viewerCount: number }) => {
       setState((s) => ({ ...s, viewerCount: data.viewerCount }));
     };
-    socket.on('room:viewer-joined', onCount);
-    socket.on('room:viewer-left', onCount);
+    const onLeft = (data: { viewerId?: string; viewerCount: number }) => {
+      setState((s) => ({
+        ...s,
+        viewerCount: data.viewerCount,
+        pendingRequests: removeJoinRequest(s.pendingRequests, data.viewerId),
+      }));
+    };
+    const onJoinRequest = (req: JoinRequestPayload) => {
+      setState((s) => ({ ...s, pendingRequests: addJoinRequest(s.pendingRequests, req) }));
+    };
+    const onJoinCancelled = (data: { viewerId: string }) => {
+      setState((s) => ({
+        ...s,
+        pendingRequests: removeJoinRequest(s.pendingRequests, data.viewerId),
+      }));
+    };
+    socket.on('room:viewer-joined', onJoined);
+    socket.on('room:viewer-left', onLeft);
+    socket.on('room:join-request', onJoinRequest);
+    socket.on('room:join-cancelled', onJoinCancelled);
     return () => {
-      socket.off('room:viewer-joined', onCount);
-      socket.off('room:viewer-left', onCount);
+      socket.off('room:viewer-joined', onJoined);
+      socket.off('room:viewer-left', onLeft);
+      socket.off('room:join-request', onJoinRequest);
+      socket.off('room:join-cancelled', onJoinCancelled);
     };
   }, [socket]);
 
@@ -147,6 +189,16 @@ export function useBroadcast(
     release();
     setState(INITIAL_STATE);
   }, [socket, release]);
+
+  /** Aprova ou recusa um espectador que aguarda entrada */
+  const respondJoin = useCallback(
+    (viewerId: string, approved: boolean) => {
+      const payload: RespondJoinPayload = { viewerId, approved };
+      socket?.emit('room:respond-join', payload);
+      setState((s) => ({ ...s, pendingRequests: removeJoinRequest(s.pendingRequests, viewerId) }));
+    },
+    [socket],
+  );
 
   const startSharing = useCallback(async () => {
     if (!socket) {
@@ -188,18 +240,27 @@ export function useBroadcast(
         error: audioError,
       }));
 
-      const room = await requestRoom(socket);
+      const room = await requestRoom(socket, roomOptionsRef.current);
       setState((s) => ({
         ...s,
         roomId: room.roomId,
         roomCode: room.code,
         inviteUrl: room.inviteUrl,
+        maxViewers: room.maxViewers,
+        hasPassword: room.hasPassword,
+        requireApproval: room.requireApproval,
+        privacyMode: room.privacyMode,
+        pendingRequests: [],
         connectionState: 'connected',
         isSharing: true,
         isPaused: false,
       }));
 
-      const broadcaster = new WebRTCBroadcaster(socket, videoConfig);
+      const broadcaster = new WebRTCBroadcaster(socket, videoConfig, {
+        iceServers: room.iceServers,
+        privacyMode: room.privacyMode,
+        maxViewers: room.maxViewers,
+      });
       broadcaster.setLocalStream(combined);
       broadcaster.onStats((stats) => {
         setState((s) => ({ ...s, stats }));
@@ -256,5 +317,5 @@ export function useBroadcast(
     await broadcasterRef.current?.updateVideoConfig(partial);
   }, []);
 
-  return { state, startSharing, stopSharing, togglePause, changeCaptureSource, updateVideoConfig };
+  return { state, startSharing, stopSharing, togglePause, changeCaptureSource, updateVideoConfig, respondJoin };
 }

@@ -417,9 +417,9 @@ async function runAll(): Promise<ScenarioResult[]> {
 
   const videoTrackA = canvasA.track;
   const combined = new MediaStream([videoTrackA, audio.track]);
-  const broadcaster = new WebRTCBroadcaster(hostSocket as any, { ...VIDEO_CONFIG });
+  const broadcaster = new WebRTCBroadcaster(hostSocket as any, { ...VIDEO_CONFIG }, { iceServers: [], privacyMode: false, maxViewers: 0 });
   broadcaster.setLocalStream(combined);
-  const viewer = new WebRTCViewer(viewerSocket as any, 'host');
+  const viewer = new WebRTCViewer(viewerSocket as any, 'host', []);
 
   let remoteStream: MediaStream | null = null;
   viewer.onStream((s) => {

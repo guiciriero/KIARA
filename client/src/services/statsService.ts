@@ -17,6 +17,14 @@ interface StateSample {
 
 const previousSamples = new Map<string, StateSample>();
 
+/** Aviso de relatório vazio emitido no máximo uma vez por sessão (flag de módulo) */
+let warnedEmptyReport = false;
+
+/** Só para testes: rearma o aviso único de relatório sem entradas úteis */
+export function resetEmptyReportWarning(): void {
+  warnedEmptyReport = false;
+}
+
 interface RtcStatsEntry {
   id?: string;
   type?: string;
@@ -67,6 +75,16 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
         statsEntries.push(stat as RtcStatsEntry);
       }
     }
+  }
+
+  // Sem outbound-rtp, remote-inbound-rtp nem candidate-pair não há o que medir.
+  // Não lança (os valores saem zerados), mas avisa uma única vez em vez de silenciar.
+  const hasUsefulEntries = statsEntries.some(
+    (s) => s.type === 'outbound-rtp' || s.type === 'remote-inbound-rtp' || s.type === 'candidate-pair',
+  );
+  if (!hasUsefulEntries && !warnedEmptyReport) {
+    warnedEmptyReport = true;
+    console.warn('[KIARA] Relatório de estatísticas WebRTC sem entradas úteis; métricas indisponíveis.');
   }
 
   for (const stat of statsEntries) {

@@ -17,15 +17,51 @@ import puppeteer from 'puppeteer-core';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.resolve(here, '..');
 const buildDir = path.join(here, '.build');
-const DEFAULT_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const IS_CI = process.env.CI === 'true' || process.env.CI === '1';
+
+const MAC_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const LINUX_CANDIDATES = ['google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser'];
+
+/** Procura um executável no PATH */
+function findInPath(name) {
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const exts = process.platform === 'win32' ? ['.exe', ''] : [''];
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = path.join(dir, name + ext);
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch {
+        // próximo
+      }
+    }
+  }
+  return null;
+}
+
+/** CHROME_PATH / PUPPETEER_EXECUTABLE_PATH, depois PATH (Linux) e o app do macOS */
+function locateChrome() {
+  for (const envName of ['CHROME_PATH', 'PUPPETEER_EXECUTABLE_PATH']) {
+    const value = process.env[envName];
+    if (value) return { path: value, source: envName, explicit: true };
+  }
+  for (const name of LINUX_CANDIDATES) {
+    const found = findInPath(name);
+    if (found) return { path: found, source: 'PATH', explicit: false };
+  }
+  if (fs.existsSync(MAC_CHROME)) return { path: MAC_CHROME, source: 'macOS', explicit: false };
+  return null;
+}
 const GLOBAL_TIMEOUT_MS = 150_000;
 
-const chromePath = process.env.CHROME_PATH || DEFAULT_CHROME;
-if (!fs.existsSync(chromePath)) {
-  console.error(`✗ Chrome não encontrado em: ${chromePath}`);
-  console.error('  Instale o Google Chrome ou aponte o executável com CHROME_PATH=/caminho/do/chrome npm run e2e');
+const located = locateChrome();
+if (!located || !fs.existsSync(located.path)) {
+  console.error(`✗ Chrome não encontrado${located ? ` em: ${located.path} (${located.source})` : ''}`);
+  console.error('  Instale o Google Chrome/Chromium ou aponte o executável com CHROME_PATH=/caminho/do/chrome npm run e2e');
   process.exit(2);
 }
+const chromePath = located.path;
 
 const t0 = Date.now();
 let server = null;
@@ -56,7 +92,7 @@ async function main() {
     logLevel: 'warning',
     alias: { '@shared': path.resolve(clientDir, '../shared/types') }, // só tipos; apagado no bundle
     define: {
-      'import.meta.env': JSON.stringify({ BASE_URL: '/', VITE_TURN_URL: '', VITE_TURN_USER: '', VITE_TURN_CREDENTIAL: '' }),
+      'import.meta.env': JSON.stringify({ BASE_URL: '/' }),
     },
   });
 
@@ -100,6 +136,8 @@ async function main() {
       '--disable-features=WebRtcHideLocalIpsWithMdns',
       '--no-first-run',
       '--no-default-browser-check',
+      // Contêineres de CI Linux normalmente rodam como root, sem sandbox de usuário
+      ...(IS_CI ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
     ],
   });
   const version = await browser.version();

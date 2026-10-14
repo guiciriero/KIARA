@@ -8,14 +8,18 @@ troca de áudio em runtime sem renegociar o WebRTC, `replaceVideoTrack`, mute/un
 
 ```bash
 cd client
-npm run e2e                                   # usa /Applications/Google Chrome.app
+npm run e2e                                   # detecta o Chrome automaticamente
 CHROME_PATH=/caminho/do/chrome npm run e2e    # Chrome em outro lugar
 ```
+
+Ordem de busca do Chrome: `CHROME_PATH`, `PUPPETEER_EXECUTABLE_PATH`, depois no `PATH`
+`google-chrome-stable`, `google-chrome`, `chromium`, `chromium-browser`, e por fim
+`/Applications/Google Chrome.app` (macOS).
 
 - Fora do `npm test`. Duração ≈ 15–20 s.
 - Código de saída: `0` tudo certo, `1` algum cenário falhou, `2` Chrome não encontrado.
 - O bundle (esbuild) vai para `e2e/.build/` (ignorado pelo git); o servidor escuta só em `127.0.0.1`
-  e o perfil do Chrome é temporário (apagado ao final). Sem `--no-sandbox`.
+  e o perfil do Chrome é temporário (apagado ao final). `--no-sandbox` só é usado com `CI=true`.
 
 ## O que cobre
 

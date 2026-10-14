@@ -7,14 +7,36 @@
  */
 
 import type { Socket } from 'socket.io-client';
-import type { RTCIceCandidatePayload, VideoConfig, StreamStats } from '@shared/index';
+import type { RTCIceCandidatePayload, VideoConfig, StreamStats, IceServerConfig } from '@shared/index';
 import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
 import { BitrateController } from './bitrateController';
 import {
-  RTC_CONFIG,
+  buildRtcConfig,
+  iceRestartDelayMs,
   ICE_DISCONNECTED_GRACE_MS,
   MAX_ICE_RESTART_ATTEMPTS,
 } from './rtcConfig';
+
+/** Máximo de candidatos ICE guardados antes da answer (descarta os mais antigos) */
+export const MAX_ICE_CANDIDATE_BUFFER = 100;
+
+export interface BroadcasterOptions {
+  iceServers: IceServerConfig[];
+  /** true ⇒ iceTransportPolicy 'relay' (esconde o IP do apresentador) */
+  privacyMode: boolean;
+  /** Limite de espectadores (0 = sem limite no cliente; o servidor também aplica) */
+  maxViewers: number;
+  /** Chamado quando um espectador é recusado por exceder maxViewers */
+  onViewerRejected?: (viewerId: string) => void;
+}
+
+const DEFAULT_BROADCASTER_OPTIONS: BroadcasterOptions = { iceServers: [], privacyMode: false, maxViewers: 0 };
+
+/** Empilha com teto, descartando os mais antigos */
+function pushCapped<T>(list: T[], item: T, max: number): void {
+  list.push(item);
+  if (list.length > max) list.splice(0, list.length - max);
+}
 
 const DEFAULT_VIDEO_CONFIG: VideoConfig = {
   width: 1920,
@@ -37,6 +59,8 @@ interface PeerConnectionData {
   bitrateController: BitrateController;
   iceRestartAttempts: number;
   iceGraceTimer: ReturnType<typeof setTimeout> | null;
+  /** Timer do backoff exponencial antes de cada ICE restart */
+  iceRestartTimer: ReturnType<typeof setTimeout> | null;
   iceFailureHandled: boolean;
   iceCandidateBuffer: RTCIceCandidatePayload[];
   qualityPreference?: {
@@ -92,10 +116,17 @@ export class WebRTCBroadcaster {
   private videoConfig: VideoConfig;
   private statsCallback?: (stats: StreamStats) => void;
   private statsInterval: ReturnType<typeof setInterval> | null = null;
+  private options: BroadcasterOptions;
+  private destroyed = false;
 
-  constructor(socket: Socket, videoConfig: VideoConfig = DEFAULT_VIDEO_CONFIG) {
+  constructor(
+    socket: Socket,
+    videoConfig: VideoConfig = DEFAULT_VIDEO_CONFIG,
+    options: BroadcasterOptions = DEFAULT_BROADCASTER_OPTIONS,
+  ) {
     this.socket = socket;
     this.videoConfig = { ...DEFAULT_VIDEO_CONFIG, ...videoConfig };
+    this.options = options;
     this.setupSocketListeners();
   }
 
@@ -179,9 +210,25 @@ export class WebRTCBroadcaster {
         delete params.encodings[0].scaleResolutionDownBy;
       }
 
+      // scalabilityMode é tratado na etapa separada abaixo; não reenviar aqui
+      delete (params.encodings[0] as RTCRtpEncodingParameters & { scalabilityMode?: string }).scalabilityMode;
       await sender.setParameters(params);
     } catch (err) {
       console.warn('[KIARA] Falha ao aplicar parâmetros no sender:', err);
+      return;
+    }
+
+    // SVC opcional (AV1/VP9): tentativa separada, nunca impede o envio
+    if (config?.codec === 'AV1' || config?.codec === 'VP9') {
+      try {
+        const params = sender.getParameters();
+        if (params.encodings && params.encodings[0]) {
+          (params.encodings[0] as RTCRtpEncodingParameters & { scalabilityMode?: string }).scalabilityMode = 'L1T3';
+          await sender.setParameters(params);
+        }
+      } catch {
+        // Navegador rejeitou scalabilityMode: segue sem SVC
+      }
     }
   }
 
@@ -336,7 +383,7 @@ export class WebRTCBroadcaster {
         // Candidato descartado
       }
     } else {
-      peerData.iceCandidateBuffer.push(candidate);
+      pushCapped(peerData.iceCandidateBuffer, candidate, MAX_ICE_CANDIDATE_BUFFER);
     }
   };
 
@@ -357,14 +404,24 @@ export class WebRTCBroadcaster {
   }
 
   private async initiateConnection(viewerId: string): Promise<void> {
-    if (this.peers.has(viewerId)) return;
+    if (this.destroyed || this.peers.has(viewerId)) return;
 
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    // Defesa em profundidade: o servidor já aplica o limite
+    if (this.options.maxViewers > 0 && this.peers.size >= this.options.maxViewers) {
+      console.warn(`[KIARA] Limite de ${this.options.maxViewers} espectadores atingido; recusando ${viewerId}.`);
+      this.options.onViewerRejected?.(viewerId);
+      return;
+    }
+
+    const pc = new RTCPeerConnection(
+      buildRtcConfig(this.options.iceServers, { relayOnly: this.options.privacyMode }),
+    );
     const peerData: PeerConnectionData = {
       pc,
       bitrateController: new BitrateController(this.videoConfig.bitrate),
       iceRestartAttempts: 0,
       iceGraceTimer: null,
+      iceRestartTimer: null,
       iceFailureHandled: false,
       iceCandidateBuffer: [],
     };
@@ -475,27 +532,39 @@ export class WebRTCBroadcaster {
 
   private async triggerIceRestart(viewerId: string): Promise<void> {
     const peerData = this.peers.get(viewerId);
-    if (!peerData) return;
+    if (!peerData || this.destroyed) return;
+    if (peerData.iceRestartTimer) return; // já há um restart agendado
 
     if (peerData.iceRestartAttempts < MAX_ICE_RESTART_ATTEMPTS) {
       peerData.iceRestartAttempts += 1;
-      try {
-        if (typeof peerData.pc.restartIce === 'function') {
-          peerData.pc.restartIce();
-        }
-        const offer = await peerData.pc.createOffer({ iceRestart: true });
-        await peerData.pc.setLocalDescription(offer);
-        this.socket.emit('webrtc:offer', {
-          targetId: viewerId,
-          offer: { sdp: offer.sdp, type: offer.type },
-        });
-      } catch (err) {
-        console.warn(`[KIARA] Falha na tentativa ${peerData.iceRestartAttempts} de ICE restart:`, err);
-      }
+      // Backoff exponencial (1 s, 2 s, 4 s…) com timer cancelável em cleanupPeer/destroy
+      const delay = iceRestartDelayMs(peerData.iceRestartAttempts);
+      peerData.iceRestartTimer = setTimeout(() => {
+        peerData.iceRestartTimer = null;
+        if (this.destroyed || this.peers.get(viewerId) !== peerData) return;
+        void this.runIceRestart(viewerId, peerData);
+      }, delay);
     } else {
       console.warn(`[KIARA] ICE restart esgotado para o espectador ${viewerId}. Recriando conexão.`);
       this.cleanupPeer(viewerId);
       void this.initiateConnection(viewerId);
+    }
+  }
+
+  private async runIceRestart(viewerId: string, peerData: PeerConnectionData): Promise<void> {
+    try {
+      if (typeof peerData.pc.restartIce === 'function') {
+        peerData.pc.restartIce();
+      }
+      const offer = await peerData.pc.createOffer({ iceRestart: true });
+      await peerData.pc.setLocalDescription(offer);
+      if (this.destroyed || this.peers.get(viewerId) !== peerData) return;
+      this.socket.emit('webrtc:offer', {
+        targetId: viewerId,
+        offer: { sdp: offer.sdp, type: offer.type },
+      });
+    } catch (err) {
+      console.warn(`[KIARA] Falha na tentativa ${peerData.iceRestartAttempts} de ICE restart:`, err);
     }
   }
 
@@ -524,6 +593,10 @@ export class WebRTCBroadcaster {
         clearTimeout(peerData.iceGraceTimer);
         peerData.iceGraceTimer = null;
       }
+      if (peerData.iceRestartTimer) {
+        clearTimeout(peerData.iceRestartTimer);
+        peerData.iceRestartTimer = null;
+      }
       clearPeerSample(peerId);
       peerData.pc.close();
       this.peers.delete(peerId);
@@ -531,7 +604,8 @@ export class WebRTCBroadcaster {
   }
 
   destroy(): void {
-    for (const [id] of this.peers) {
+    this.destroyed = true;
+    for (const id of [...this.peers.keys()]) {
       this.cleanupPeer(id);
     }
     if (this.statsInterval) {
@@ -555,10 +629,13 @@ export class WebRTCViewer {
   private hostId: string;
   private onRemoteStream?: (stream: MediaStream) => void;
   private pendingCandidates: RTCIceCandidatePayload[] = [];
+  private iceServers: IceServerConfig[];
+  private destroyed = false;
 
-  constructor(socket: Socket, hostId: string) {
+  constructor(socket: Socket, hostId: string, iceServers: IceServerConfig[] = []) {
     this.socket = socket;
     this.hostId = hostId;
+    this.iceServers = iceServers;
     this.setupSocketListeners();
   }
 
@@ -567,10 +644,10 @@ export class WebRTCViewer {
   }
 
   private handleOffer = async ({ senderId, offer }: { senderId: string; offer: RTCSessionDescriptionInit }) => {
-    if (senderId !== this.hostId) return;
+    if (senderId !== this.hostId || this.destroyed) return;
 
     if (!this.pc) {
-      this.pc = new RTCPeerConnection(RTC_CONFIG);
+      this.pc = new RTCPeerConnection(buildRtcConfig(this.iceServers));
 
       this.pc.ontrack = (event) => {
         if (event.streams[0] && this.onRemoteStream) {
@@ -620,7 +697,7 @@ export class WebRTCViewer {
         // Ignora candidatos obsoletos
       }
     } else {
-      this.pendingCandidates.push(candidate);
+      pushCapped(this.pendingCandidates, candidate, MAX_ICE_CANDIDATE_BUFFER);
     }
   };
 
@@ -630,6 +707,7 @@ export class WebRTCViewer {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.pendingCandidates = [];
     this.pc?.close();
     this.pc = null;

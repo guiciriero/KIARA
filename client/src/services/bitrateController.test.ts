@@ -60,6 +60,43 @@ describe('BitrateController', () => {
     expect(bitrate).toBe(4250000);
   });
 
+  it('amostra intermediária só decrementa em 1 o contador de saudáveis (não o zera)', () => {
+    const controller = new BitrateController(5000);
+    controller.onSample({ lossPercent: 10, rttMs: 100 });
+    controller.onSample({ lossPercent: 10, rttMs: 100 }); // 3_750_000
+
+    // 4 saudáveis, 1 intermediária (RTT 200 ms) => contador 4 -> 3
+    for (let i = 0; i < 4; i++) controller.onSample({ lossPercent: 0, rttMs: 40 });
+    controller.onSample({ lossPercent: 2, rttMs: 200 });
+    expect(controller.getCurrentBitrateBps()).toBe(3750000);
+
+    // Precisa de mais 2 saudáveis (3 -> 5); a 1ª ainda não sobe, a 2ª sobe
+    expect(controller.onSample({ lossPercent: 0, rttMs: 40 })).toBe(3750000);
+    expect(controller.onSample({ lossPercent: 0, rttMs: 40 })).toBe(4250000);
+  });
+
+  it('amostra congestionada zera o progresso de saudáveis', () => {
+    const controller = new BitrateController(5000);
+    controller.onSample({ lossPercent: 10, rttMs: 100 });
+    controller.onSample({ lossPercent: 10, rttMs: 100 }); // 3_750_000
+    for (let i = 0; i < 4; i++) controller.onSample({ lossPercent: 0, rttMs: 40 });
+    controller.onSample({ lossPercent: 10, rttMs: 100 }); // zera saudáveis
+
+    // 4 saudáveis não bastam (precisaria de 5)
+    for (let i = 0; i < 4; i++) controller.onSample({ lossPercent: 0, rttMs: 40 });
+    expect(controller.getCurrentBitrateBps()).toBe(3750000);
+  });
+
+  it('contador de saudáveis nunca fica negativo', () => {
+    const controller = new BitrateController(5000);
+    controller.onSample({ lossPercent: 10, rttMs: 100 });
+    controller.onSample({ lossPercent: 10, rttMs: 100 }); // 3_750_000
+    for (let i = 0; i < 5; i++) controller.onSample({ lossPercent: 2, rttMs: 200 });
+    for (let i = 0; i < 4; i++) controller.onSample({ lossPercent: 0, rttMs: 40 });
+    expect(controller.getCurrentBitrateBps()).toBe(3750000);
+    expect(controller.onSample({ lossPercent: 0, rttMs: 40 })).toBe(4250000);
+  });
+
   it('não ultrapassa o teto do alvo configurado', () => {
     const controller = new BitrateController(5000);
     for (let i = 0; i < 15; i++) {

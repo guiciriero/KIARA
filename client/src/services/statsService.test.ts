@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
+import { parseRTCStats, classifyQuality, clearPeerSample, resetEmptyReportWarning } from './statsService';
 import { createMockStatsReport, installRtcGlobals } from '../test/rtcFakes';
 
 describe('statsService', () => {
@@ -138,6 +138,37 @@ describe('statsService', () => {
       expect(stats2.qualityLimitation).toBe('bandwidth');
 
       vi.useRealTimers();
+    });
+  });
+
+  describe('relatório sem entradas úteis', () => {
+    it('não lança, devolve métricas zeradas e avisa uma única vez por sessão', () => {
+      resetEmptyReportWarning();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const empty = createMockStatsReport([]);
+      const first = parseRTCStats(empty, 'peer-1');
+      const second = parseRTCStats(empty, 'peer-1');
+
+      expect(first.fps).toBe(0);
+      expect(first.latencyMs).toBe(0);
+      expect(second.videoBitrate).toBe(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+
+      warn.mockRestore();
+    });
+
+    it('não avisa quando há entradas úteis', () => {
+      resetEmptyReportWarning();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      parseRTCStats(
+        createMockStatsReport([{ id: 'v', type: 'outbound-rtp', kind: 'video', framesPerSecond: 30 }]),
+        'peer-2',
+      );
+      expect(warn).not.toHaveBeenCalled();
+
+      warn.mockRestore();
     });
   });
 });

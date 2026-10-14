@@ -35,6 +35,10 @@ export class BitrateController {
   /**
    * Processa uma nova amostra de rede e calcula a nova taxa de bits máxima em bps.
    * Amostras com dados inválidos ou ausentes são ignoradas mantendo a taxa atual.
+   *
+   * AIMD: congestionado (perda > 5% ou RTT > 300 ms) ×2 seguidas ⇒ ×0,75; saudável
+   * (perda < 1% e RTT < 150 ms) ×5 ⇒ +10% do alvo. Amostra intermediária decrementa em 1
+   * o contador de saudáveis (não o zera) e zera o de congestionadas.
    */
   onSample(sample: NetworkSample): number {
     const { lossPercent, rttMs } = sample;
@@ -72,9 +76,9 @@ export class BitrateController {
         this.consecutiveHealthy = 0;
       }
     } else {
-      // Estado intermediário: zera contagens para exigir sequência contínua
+      // Estado intermediário: zera congestionamento e só decrementa 1 do contador de saudáveis
       this.consecutiveCongested = 0;
-      this.consecutiveHealthy = 0;
+      this.consecutiveHealthy = Math.max(0, this.consecutiveHealthy - 1);
     }
 
     return this.currentBitrateBps;

@@ -144,41 +144,89 @@ describe('webrtcService', () => {
       broadcaster.destroy();
     });
 
-    it('dispara ICE restart imediatamente quando a conexão atinge estado failed', async () => {
+    it('dispara ICE restart após o backoff base (1 s) quando a conexão atinge estado failed', async () => {
+      vi.useFakeTimers();
       const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
       socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-failed' });
-
-      await vi.waitFor(() => {
-        expect(FakeRTCPeerConnection.instances.length).toBe(1);
-      });
+      await vi.advanceTimersByTimeAsync(10);
 
       const pc = FakeRTCPeerConnection.instances[0];
       pc.simulateConnectionState('failed');
 
-      await vi.waitFor(() => {
-        expect(pc.restartIceCount).toBe(1);
-        const offers = socket.getEmissions('webrtc:offer');
-        expect(offers.length).toBe(2);
-      });
+      await vi.advanceTimersByTimeAsync(900);
+      expect(pc.restartIceCount).toBe(0);
 
+      await vi.advanceTimersByTimeAsync(200);
+      expect(pc.restartIceCount).toBe(1);
+      expect(socket.getEmissions('webrtc:offer').length).toBe(2);
+
+      vi.useRealTimers();
       broadcaster.destroy();
     });
 
     it('ignora o segundo evento failed (connectionState + iceConnectionState) e envia só um restart', async () => {
+      vi.useFakeTimers();
       const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
       socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-dup' });
-      await vi.waitFor(() => expect(FakeRTCPeerConnection.instances.length).toBe(1));
+      await vi.advanceTimersByTimeAsync(10);
 
       const pc = FakeRTCPeerConnection.instances[0];
       pc.simulateConnectionState('failed');
       pc.simulateIceConnectionState('failed');
 
-      await vi.waitFor(() => expect(socket.getEmissions('webrtc:offer').length).toBe(2));
-      await new Promise((r) => setTimeout(r, 20));
+      await vi.advanceTimersByTimeAsync(1500);
       expect(pc.restartIceCount).toBe(1);
       expect(socket.getEmissions('webrtc:offer').length).toBe(2);
 
+      vi.useRealTimers();
       broadcaster.destroy();
+    });
+
+    it('aplica backoff exponencial (1 s, 2 s, 4 s) entre tentativas de ICE restart', async () => {
+      vi.useFakeTimers();
+      const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-backoff' });
+      await vi.advanceTimersByTimeAsync(10);
+      const pc = FakeRTCPeerConnection.instances[0];
+
+      pc.simulateConnectionState('failed');
+      await vi.advanceTimersByTimeAsync(999);
+      expect(pc.restartIceCount).toBe(0);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(pc.restartIceCount).toBe(1);
+
+      pc.simulateConnectionState('connecting');
+      pc.simulateConnectionState('failed');
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(pc.restartIceCount).toBe(1);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(pc.restartIceCount).toBe(2);
+
+      pc.simulateConnectionState('connecting');
+      pc.simulateConnectionState('failed');
+      await vi.advanceTimersByTimeAsync(3999);
+      expect(pc.restartIceCount).toBe(2);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(pc.restartIceCount).toBe(3);
+
+      vi.useRealTimers();
+      broadcaster.destroy();
+    });
+
+    it('destroy cancela o timer de backoff pendente', async () => {
+      vi.useFakeTimers();
+      const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-cancel' });
+      await vi.advanceTimersByTimeAsync(10);
+      const pc = FakeRTCPeerConnection.instances[0];
+
+      pc.simulateConnectionState('failed');
+      broadcaster.destroy();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(pc.restartIceCount).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+
+      vi.useRealTimers();
     });
 
     it('dispara ICE restart em disconnected apenas após o período de grace (3000ms)', async () => {
@@ -198,8 +246,10 @@ describe('webrtcService', () => {
       await vi.advanceTimersByTimeAsync(2000);
       expect(pc.restartIceCount).toBe(0);
 
-      // Avança mais 1500ms (total > 3000ms) -> dispara ICE restart
+      // Avança mais 1500ms (total > 3000ms) -> agenda o restart com backoff de 1 s
       await vi.advanceTimersByTimeAsync(1500);
+      expect(pc.restartIceCount).toBe(0);
+      await vi.advanceTimersByTimeAsync(1000);
       expect(pc.restartIceCount).toBe(1);
 
       vi.useRealTimers();
@@ -229,34 +279,114 @@ describe('webrtcService', () => {
     });
 
     it('recria o peer do zero após esgotar o limite máximo de tentativas de ICE restart (3x)', async () => {
+      vi.useFakeTimers();
       const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
       socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-max-restart' });
-
-      await vi.waitFor(() => {
-        expect(FakeRTCPeerConnection.instances.length).toBe(1);
-      });
+      await vi.advanceTimersByTimeAsync(10);
 
       const initialPc = FakeRTCPeerConnection.instances[0];
 
-      // 3 tentativas de restart
-      initialPc.simulateConnectionState('failed');
-      await vi.waitFor(() => expect(initialPc.restartIceCount).toBe(1));
+      // 3 tentativas de restart (backoff 1 s, 2 s, 4 s)
+      for (const [i, wait] of [1000, 2000, 4000].entries()) {
+        initialPc.simulateConnectionState('connecting');
+        initialPc.simulateConnectionState('failed');
+        await vi.advanceTimersByTimeAsync(wait + 10);
+        expect(initialPc.restartIceCount).toBe(i + 1);
+      }
 
+      // 4ª falha -> deve fechar o peer antigo e criar um novo (sem espera)
       initialPc.simulateConnectionState('connecting');
       initialPc.simulateConnectionState('failed');
-      await vi.waitFor(() => expect(initialPc.restartIceCount).toBe(2));
+      await vi.advanceTimersByTimeAsync(10);
+      expect(initialPc.isClosed).toBe(true);
+      expect(FakeRTCPeerConnection.instances.length).toBe(2);
 
-      initialPc.simulateConnectionState('connecting');
-      initialPc.simulateConnectionState('failed');
-      await vi.waitFor(() => expect(initialPc.restartIceCount).toBe(3));
+      vi.useRealTimers();
+      broadcaster.destroy();
+    });
 
-      // 4ª falha -> deve fechar o peer antigo e criar um novo
-      initialPc.simulateConnectionState('connecting');
-      initialPc.simulateConnectionState('failed');
-      await vi.waitFor(() => {
-        expect(initialPc.isClosed).toBe(true);
-        expect(FakeRTCPeerConnection.instances.length).toBe(2);
+    it('recusa espectadores acima de maxViewers e chama onViewerRejected', async () => {
+      const rejected: string[] = [];
+      const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig, {
+        iceServers: [],
+        privacyMode: false,
+        maxViewers: 1,
+        onViewerRejected: (id) => rejected.push(id),
       });
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'v1' });
+      await vi.waitFor(() => expect(FakeRTCPeerConnection.instances.length).toBe(1));
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'v2' });
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(FakeRTCPeerConnection.instances.length).toBe(1);
+      expect(rejected).toEqual(['v2']);
+
+      warn.mockRestore();
+      broadcaster.destroy();
+    });
+
+    it('usa iceTransportPolicy relay no modo privacidade e os iceServers recebidos', async () => {
+      const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig, {
+        iceServers: [{ urls: 'turn:turn.exemplo.com:3478', username: 'u', credential: 'c' }],
+        privacyMode: true,
+        maxViewers: 0,
+      });
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'v1' });
+      await vi.waitFor(() => expect(FakeRTCPeerConnection.instances.length).toBe(1));
+
+      const cfg = FakeRTCPeerConnection.instances[0].config;
+      expect(cfg.iceTransportPolicy).toBe('relay');
+      expect(cfg.iceServers?.[0].urls).toBe('turn:turn.exemplo.com:3478');
+
+      broadcaster.destroy();
+    });
+
+    it('limita o buffer de candidatos ICE a 100, descartando os mais antigos', async () => {
+      const broadcaster = new WebRTCBroadcaster(socket as unknown as never, mockVideoConfig);
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-cap' });
+      await vi.waitFor(() => expect(FakeRTCPeerConnection.instances.length).toBe(1));
+      const pc = FakeRTCPeerConnection.instances[0];
+
+      for (let i = 0; i < 150; i++) {
+        socket.simulateEvent('webrtc:ice-candidate', {
+          senderId: 'viewer-cap',
+          candidate: { candidate: `candidate:${i}`, sdpMid: '0', sdpMLineIndex: 0 },
+        });
+      }
+      socket.simulateEvent('webrtc:answer', {
+        senderId: 'viewer-cap',
+        answer: { type: 'answer', sdp: 'v=0\r\n' },
+      });
+
+      await vi.waitFor(() => expect(pc.appliedIceCandidates.length).toBe(100));
+      expect(pc.appliedIceCandidates[0].candidate).toBe('candidate:50');
+
+      broadcaster.destroy();
+    });
+
+    it('tenta scalabilityMode L1T3 em VP9/AV1 e ignora rejeição do navegador', async () => {
+      const broadcaster = new WebRTCBroadcaster(socket as unknown as never, { ...mockVideoConfig, codec: 'VP9' });
+      broadcaster.setLocalStream(new FakeMediaStream([new FakeMediaStreamTrack('video')]) as unknown as MediaStream);
+      socket.simulateEvent('room:viewer-joined', { viewerId: 'viewer-svc' });
+      await vi.waitFor(() => expect(FakeRTCPeerConnection.instances.length).toBe(1));
+
+      const sender = FakeRTCPeerConnection.instances[0].senders.find((s) => s.track?.kind === 'video')!;
+      await vi.waitFor(() => {
+        expect((sender.parameters.encodings[0] as { scalabilityMode?: string }).scalabilityMode).toBe('L1T3');
+      });
+
+      // Navegador que rejeita scalabilityMode: updateVideoConfig não lança e mantém bitrate
+      const original = sender.setParameters.bind(sender);
+      sender.setParameters = async (p) => {
+        if ((p.encodings?.[0] as { scalabilityMode?: string } | undefined)?.scalabilityMode) {
+          throw new Error('scalabilityMode não suportado');
+        }
+        return original(p);
+      };
+      await expect(broadcaster.updateVideoConfig({ bitrate: 3000 })).resolves.toBeUndefined();
+      expect(sender.parameters.encodings[0].maxBitrate).toBe(3000000);
 
       broadcaster.destroy();
     });

@@ -1,148 +1,206 @@
 /**
  * useViewer.ts
  * Hook para o modo espectador.
- * Gerencia: entrada na sala → WebRTC → recebimento do stream → reconexão automática.
+ * Gerencia: entrada na sala (senha/aprovação) → WebRTC → stream → reconexão automática.
+ * A lógica de estados fica em viewerReducer.ts e o backoff em utils/reconnector.ts.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useReducer, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCViewer } from '../services/webrtcService';
-import type { StreamStats, ConnectionState, ViewerQualityPreference, QualityRequestPayload } from '@shared/index';
+import { createReconnector } from '../utils/reconnector';
+import type { Reconnector } from '../utils/reconnector';
+import { viewerReducer, INITIAL_VIEWER_STATE, isPasswordError } from './viewerReducer';
+import type {
+  StreamStats,
+  ViewerQualityPreference,
+  QualityRequestPayload,
+  JoinRoomPayload,
+  RoomJoinedPayload,
+  RoomErrorPayload,
+} from '@shared/index';
 
-export interface ViewerState {
-  remoteStream: MediaStream | null;
-  viewerCount: number;
-  connectionState: ConnectionState;
-  stats: StreamStats | null;
-  error: string | null;
-  hostDisconnected: boolean;
-  selectedQuality: ViewerQualityPreference;
+export type { ViewerState } from './viewerReducer';
+
+const NAME_STORAGE_KEY = 'kiara:name';
+
+export interface JoinOptions {
+  password?: string;
+  name?: string;
+}
+
+function readStoredName(): string | undefined {
+  try {
+    return localStorage.getItem(NAME_STORAGE_KEY) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function storeName(name: string): void {
+  try {
+    localStorage.setItem(NAME_STORAGE_KEY, name);
+  } catch {
+    // armazenamento indisponível: o nome vale só para esta sessão
+  }
+}
+
+/** Alvo de altura e bitrate de cada preferência de qualidade */
+function qualityLimits(pref: ViewerQualityPreference): { targetHeight: number | null; maxBitrateKbps: number | null } {
+  switch (pref) {
+    case '1080p': return { targetHeight: 1080, maxBitrateKbps: 8000 };
+    case '720p':  return { targetHeight: 720, maxBitrateKbps: 4000 };
+    case '480p':  return { targetHeight: 480, maxBitrateKbps: 1800 };
+    case '360p':  return { targetHeight: 360, maxBitrateKbps: 1000 };
+    case 'auto':
+    default:      return { targetHeight: null, maxBitrateKbps: null };
+  }
 }
 
 export function useViewer(roomCode: string | undefined) {
   const { socket } = useSocket();
-  const viewerRef  = useRef<WebRTCViewer | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [state, dispatch] = useReducer(viewerReducer, INITIAL_VIEWER_STATE);
 
-  const [state, setState] = useState<ViewerState>({
-    remoteStream: null, viewerCount: 0,
-    connectionState: 'disconnected', stats: null,
-    error: null, hostDisconnected: false,
-    selectedQuality: 'auto',
-  });
+  const viewerRef = useRef<WebRTCViewer | null>(null);
+  const reconnectorRef = useRef<Reconnector | null>(null);
+  /** Senha/nome já informados, reutilizados nas reconexões */
+  const credsRef = useRef<JoinOptions>({});
+  /** true entre o primeiro room:join e o leaveRoom/cleanup */
+  const sessionRef = useRef(false);
+  /** Envia room:join com as credenciais atuais (definida pelo efeito) */
+  const sendJoinRef = useRef<(() => void) | null>(null);
 
-  // Escuta eventos do servidor
-  // Roda quando socket ou roomCode mudar — socket pode chegar async após montagem
+  const destroyViewer = useCallback(() => {
+    viewerRef.current?.destroy();
+    viewerRef.current = null;
+  }, []);
+
   useEffect(() => {
     if (!socket || !roomCode) return;
+    let wasDisconnected = false;
 
-    setState((s) => ({ ...s, connectionState: 'connecting', error: null }));
+    const sendJoin = () => {
+      const payload: JoinRoomPayload = { code: roomCode };
+      if (credsRef.current.password) payload.password = credsRef.current.password;
+      if (credsRef.current.name) payload.name = credsRef.current.name;
+      socket.emit('room:join', payload);
+    };
+    sendJoinRef.current = sendJoin;
 
-    // Solicita entrada na sala assim que o socket estiver pronto
-    socket.emit('room:join', { code: roomCode });
+    const reconnector = createReconnector({
+      // Com o socket fora do ar o emit só ficaria no buffer; o 'connect' reenvia
+      send: () => { if (socket.connected) sendJoin(); },
+      onExhausted: () => {
+        destroyViewer();
+        dispatch({ type: 'reconnect-exhausted' });
+      },
+    });
+    reconnectorRef.current = reconnector;
 
-    socket.on('room:joined', (data: { roomId: string; hostId: string; viewerCount: number }) => {
-      setState((s) => ({
-        ...s, viewerCount: data.viewerCount, connectionState: 'connecting',
-      }));
+    const onJoined = (data: RoomJoinedPayload) => {
+      reconnector.reset();
+      dispatch({ type: 'joined', viewerCount: data.viewerCount });
 
-      // Inicializa o WebRTC viewer aguardando offer do apresentador
-      const viewer = new WebRTCViewer(socket, data.hostId);
-      viewer.onStream((stream) => {
-        setState((s) => ({ ...s, remoteStream: stream, connectionState: 'connected' }));
-      });
+      // Nunca dois WebRTCViewer ao mesmo tempo
+      destroyViewer();
+      const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers);
+      viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
       viewerRef.current = viewer;
-    });
+    };
 
-    socket.on('room:error', (data: { message: string }) => {
-      setState((s) => ({ ...s, error: data.message, connectionState: 'failed' }));
-    });
+    const onPendingApproval = () => dispatch({ type: 'pending-approval' });
 
-    socket.on('room:host-disconnected', () => {
-      setState((s) => ({ ...s, hostDisconnected: true, connectionState: 'disconnected' }));
-      viewerRef.current?.destroy();
-    });
+    const onError = (data: RoomErrorPayload) => {
+      // Qualquer erro encerra o ciclo de reconexão; senha apenas espera o usuário
+      reconnector.cancel();
+      if (!isPasswordError(data.code)) destroyViewer();
+      dispatch({ type: 'error', message: data.message, code: data.code });
+    };
 
-    // Estatísticas vindas do apresentador via servidor
-    socket.on('stream:stats', (stats: StreamStats) => {
-      setState((s) => ({ ...s, stats }));
-    });
+    const onHostDisconnected = () => {
+      reconnector.cancel();
+      sessionRef.current = false;
+      destroyViewer();
+      dispatch({ type: 'host-disconnected' });
+    };
 
-    // Reconexão automática em caso de desconexão do socket
-    socket.on('disconnect', () => {
-      setState((s) => ({ ...s, connectionState: 'reconnecting' }));
-      // Tenta reconectar após 3 segundos
-      reconnectTimerRef.current = setTimeout(() => {
-        if (roomCode) socket.emit('room:join', { code: roomCode });
-      }, 3000);
-    });
+    const onStats = (stats: StreamStats) => dispatch({ type: 'stats', stats });
+
+    const onDisconnect = () => {
+      if (!sessionRef.current) return;
+      wasDisconnected = true;
+      dispatch({ type: 'socket-disconnected' });
+      reconnector.onDisconnect();
+    };
+
+    const onConnect = () => {
+      // O 'connect' inicial não conta: o join do mount já está no buffer do socket
+      if (!wasDisconnected || !sessionRef.current) return;
+      wasDisconnected = false;
+      reconnector.onConnect();
+    };
+
+    socket.on('room:joined', onJoined);
+    socket.on('room:pending-approval', onPendingApproval);
+    socket.on('room:error', onError);
+    socket.on('room:host-disconnected', onHostDisconnected);
+    socket.on('stream:stats', onStats);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect', onConnect);
+
+    // Entrada automática, com o apelido salvo (se houver)
+    credsRef.current = { name: readStoredName() };
+    sessionRef.current = true;
+    dispatch({ type: 'joining' });
+    sendJoin();
 
     return () => {
-      socket.off('room:joined');
-      socket.off('room:error');
-      socket.off('room:host-disconnected');
-      socket.off('stream:stats');
-      socket.off('disconnect');
-      viewerRef.current?.destroy();
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      socket.off('room:joined', onJoined);
+      socket.off('room:pending-approval', onPendingApproval);
+      socket.off('room:error', onError);
+      socket.off('room:host-disconnected', onHostDisconnected);
+      socket.off('stream:stats', onStats);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect', onConnect);
+      reconnector.cancel();
+      reconnectorRef.current = null;
+      sendJoinRef.current = null;
+      sessionRef.current = false;
+      destroyViewer();
     };
-  }, [socket, roomCode]);
+  }, [socket, roomCode, destroyViewer]);
+
+  /** (Re)envia a entrada na sala, p. ex. com a senha digitada pelo espectador */
+  const join = useCallback((opts: JoinOptions = {}) => {
+    if (!sendJoinRef.current) return;
+    if (opts.password !== undefined) credsRef.current.password = opts.password;
+    if (opts.name !== undefined) {
+      credsRef.current.name = opts.name;
+      storeName(opts.name);
+    }
+    sessionRef.current = true;
+    dispatch({ type: 'joining' });
+    sendJoinRef.current();
+  }, []);
 
   /** Define a preferência de resolução individual do espectador */
   const setQuality = useCallback(
     (pref: ViewerQualityPreference) => {
-      setState((s) => ({ ...s, selectedQuality: pref }));
-
-      let targetHeight: number | null = null;
-      let maxBitrateKbps: number | null = null;
-
-      switch (pref) {
-        case '1080p':
-          targetHeight = 1080;
-          maxBitrateKbps = 8000;
-          break;
-        case '720p':
-          targetHeight = 720;
-          maxBitrateKbps = 4000;
-          break;
-        case '480p':
-          targetHeight = 480;
-          maxBitrateKbps = 1800;
-          break;
-        case '360p':
-          targetHeight = 360;
-          maxBitrateKbps = 1000;
-          break;
-        case 'auto':
-        default:
-          targetHeight = null;
-          maxBitrateKbps = null;
-          break;
-      }
-
-      const payload: QualityRequestPayload = {
-        targetHeight,
-        maxBitrateKbps,
-        preference: pref,
-      };
-
+      dispatch({ type: 'quality', preference: pref });
+      const payload: QualityRequestPayload = { ...qualityLimits(pref), preference: pref };
       socket?.emit('stream:quality-request', payload);
     },
-    [socket]
+    [socket],
   );
 
   /** Sai da sala voluntariamente */
   const leaveRoom = useCallback(() => {
+    sessionRef.current = false;
+    reconnectorRef.current?.cancel();
     socket?.emit('room:leave');
-    viewerRef.current?.destroy();
-    viewerRef.current = null;
-    setState({
-      remoteStream: null, viewerCount: 0,
-      connectionState: 'disconnected', stats: null,
-      error: null, hostDisconnected: false,
-      selectedQuality: 'auto',
-    });
-  }, [socket]);
+    destroyViewer();
+    dispatch({ type: 'reset' });
+  }, [socket, destroyViewer]);
 
-  return { state, leaveRoom, setQuality };
+  return { state, leaveRoom, setQuality, join };
 }
