@@ -1,0 +1,117 @@
+.container {
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--kiara-border);
+}
+
+.icon {
+  color: var(--kiara-text-secondary);
+}
+
+.title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--kiara-text);
+  flex: 1;
+}
+
+.lockedBadge {
+  font-size: 0.65rem;
+  color: var(--kiara-text-secondary);
+  border: 1px solid var(--kiara-border-active);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--kiara-text-secondary);
+}
+
+.input {
+  width: 100%;
+  min-height: 44px;
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border-input);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-text);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--kiara-border-input-hover);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--kiara-danger);
+}
+
+.input:disabled {
+  color: var(--kiara-text-disabled);
+  cursor: not-allowed;
+}
+
+.hint {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--kiara-text-muted);
+}
+
+.hintError {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--kiara-danger-hover);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: #ffffff;
+  cursor: pointer;
+}
+
+.toggleText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggleTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--kiara-text);
+}

@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBroadcast } from '../hooks/useBroadcast';
 import { useAudioSources } from '../hooks/useAudioSources';
+import { useChat } from '../hooks/useChat';
+import { useSocket } from '../services/SocketContext';
 import {
   KiaraLogo,
   IconArrowLeft,
@@ -13,11 +15,18 @@ import StreamControls from '../components/Controls/StreamControls';
 import AudioSourceList from '../components/Controls/AudioSourceList';
 import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
 import VideoConfigPanel from '../components/Controls/VideoConfigPanel';
+import RoomOptionsPanel, {
+  isRoomPasswordValid,
+  type RoomOptionsValue,
+} from '../components/Controls/RoomOptionsPanel';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import InviteCode from '../components/UI/InviteCode';
+import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
+import UploadEstimate from '../components/UI/UploadEstimate';
+import ChatPanel, { ReactionOverlay } from '../components/UI/ChatPanel';
 import styles from './BroadcastPage.module.css';
-import type { VideoConfig as VideoConfigType } from '@shared/index';
+import type { VideoConfig as VideoConfigType, CreateRoomPayload } from '@shared/index';
 
 const BroadcastPage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,6 +40,19 @@ const BroadcastPage: React.FC = () => {
     bitrate: 5000,
     quality: 'high',
   });
+
+  const [roomOptions, setRoomOptions] = useState<RoomOptionsValue>({
+    password: '',
+    requireApproval: false,
+    privacyMode: false,
+  });
+  const createRoomOptions = useMemo<CreateRoomPayload>(() => {
+    const options: CreateRoomPayload = {};
+    if (roomOptions.password) options.password = roomOptions.password;
+    if (roomOptions.requireApproval) options.requireApproval = true;
+    if (roomOptions.privacyMode) options.privacyMode = true;
+    return options;
+  }, [roomOptions]);
 
   const audioHook = useAudioSources();
   const { setPaused: setAudioPollingPaused } = audioHook;
@@ -63,7 +85,18 @@ const BroadcastPage: React.FC = () => {
     togglePause,
     changeCaptureSource,
     updateVideoConfig,
-  } = useBroadcast(videoConfig, audioSelection, captureSourceId);
+    respondJoin,
+  } = useBroadcast(videoConfig, audioSelection, captureSourceId, createRoomOptions);
+
+  const { socket } = useSocket();
+  const chat = useChat();
+  const passwordValid = isRoomPasswordValid(roomOptions.password);
+  const privacyIgnored = state.isSharing && roomOptions.privacyMode && !state.privacyMode;
+
+  const handleStart = () => {
+    if (!passwordValid) return;
+    void startSharing();
+  };
 
   const handleVideoConfigChange = (newConfig: VideoConfigType) => {
     setVideoConfig(newConfig);
@@ -130,7 +163,9 @@ const BroadcastPage: React.FC = () => {
             <div className={styles.viewersCountPill}>
               <IconUsers size={15} />
               <span>
-                <strong>{state.viewerCount}</strong> espectador{state.viewerCount !== 1 ? 'es' : ''}
+                <strong>{state.viewerCount}</strong>
+                {state.maxViewers > 0 ? ` de ${state.maxViewers}` : ''}{' '}
+                espectador{state.viewerCount !== 1 ? 'es' : ''}
               </span>
             </div>
           )}
@@ -145,10 +180,17 @@ const BroadcastPage: React.FC = () => {
             <StreamControls
               isSharing={state.isSharing}
               isPaused={state.isPaused}
-              onStart={startSharing}
+              onStart={handleStart}
               onStop={stopSharing}
               onTogglePause={togglePause}
             />
+
+            {!passwordValid && !state.isSharing && (
+              <div className={styles.errorBox} role="alert">
+                <IconAlertTriangle size={16} className={styles.errorIcon} />
+                <span>Corrija a senha da sala antes de iniciar.</span>
+              </div>
+            )}
 
             {state.error && (
               <div className={styles.errorBox} role="alert">
@@ -157,6 +199,20 @@ const BroadcastPage: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Acesso à sala: senha, aprovação, privacidade */}
+          <RoomOptionsPanel
+            value={roomOptions}
+            onChange={setRoomOptions}
+            disabled={state.isSharing}
+          />
+
+          {/* Estimativa de upload */}
+          <UploadEstimate
+            bitrateKbps={videoConfig.bitrate}
+            viewers={state.isSharing ? state.viewerCount : 1}
+            maxViewers={state.isSharing ? state.maxViewers : 0}
+          />
 
           {/* Configurações de Qualidade */}
           <VideoConfigPanel
@@ -227,6 +283,7 @@ const BroadcastPage: React.FC = () => {
                 </div>
 
                 {state.stats && <StatsOverlay stats={state.stats} />}
+                <ReactionOverlay reactions={chat.reactions} />
               </>
             ) : (
               <div className={styles.placeholderState}>
@@ -256,9 +313,30 @@ const BroadcastPage: React.FC = () => {
             )}
           </div>
 
+          {/* Pedidos de entrada aguardando aprovação */}
+          {state.isSharing && (
+            <JoinRequestsPanel requests={state.pendingRequests} onRespond={respondJoin} />
+          )}
+
           {/* Card de Compartilhamento da Sala */}
           {state.isSharing && state.roomCode && (
             <div className={styles.roomShareSection}>
+              <div className={styles.roomBadges}>
+                <span className={styles.roomBadge}>
+                  {state.hasPassword ? 'Protegida por senha' : 'Sem senha'}
+                </span>
+                {state.requireApproval && <span className={styles.roomBadge}>Entrada com aprovação</span>}
+                {state.privacyMode && <span className={styles.roomBadge}>Modo privacidade ativo</span>}
+              </div>
+              {privacyIgnored && (
+                <div className={styles.tunnelWarning} role="status">
+                  <IconAlertTriangle size={16} />
+                  <span>
+                    O modo privacidade não foi ativado: o servidor não tem TURN configurado. Seu IP
+                    pode ficar visível aos espectadores.
+                  </span>
+                </div>
+              )}
               {tunnelDown && (
                 <div className={styles.tunnelWarning} role="status">
                   <IconAlertTriangle size={16} />
@@ -269,6 +347,20 @@ const BroadcastPage: React.FC = () => {
                 </div>
               )}
               <InviteCode code={state.roomCode} url={state.inviteUrl ?? ''} />
+            </div>
+          )}
+
+          {state.isSharing && (
+            <div className={styles.chatDock}>
+              <ChatPanel
+                messages={chat.messages}
+                reactions={chat.reactions}
+                unreadCount={chat.unreadCount}
+                onSend={chat.sendMessage}
+                onReact={chat.sendReaction}
+                onMarkRead={chat.markRead}
+                selfId={socket?.id}
+              />
             </div>
           )}
         </main>

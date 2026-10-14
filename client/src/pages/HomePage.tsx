@@ -145,6 +145,9 @@ const HomePage: React.FC = () => {
               <div className={styles.inputWrapper}>
                 <input
                   type="text"
+                  id="kiara-join-input"
+                  aria-invalid={codeError !== ''}
+                  aria-describedby={codeError ? 'kiara-join-error' : undefined}
                   aria-label={isInstalledApp ? 'Link da transmissão' : 'Código ou link da transmissão'}
                   placeholder={isInstalledApp ? 'Cole o link' : 'Código ou link'}
                   maxLength={MAX_INPUT_LENGTH}
@@ -155,6 +158,15 @@ const HomePage: React.FC = () => {
                     setCode(e.target.value);
                     setCodeError('');
                     setCodeInfo('');
+                  }}
+                  onBlur={() => {
+                    if (code.trim() !== '' && parseViewerInput(code).kind === 'invalid') {
+                      setCodeError(
+                        isInstalledApp
+                          ? 'Insira o link completo enviado pelo apresentador.'
+                          : 'Insira o código de 6 caracteres ou o link completo da transmissão.',
+                      );
+                    }
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && void handleJoin()}
                   className={styles.input}
@@ -169,7 +181,7 @@ const HomePage: React.FC = () => {
                 </button>
               </div>
 
-              {codeError && <p className={styles.error} role="alert">{codeError}</p>}
+              {codeError && <p id="kiara-join-error" className={styles.error} role="alert">{codeError}</p>}
               {codeInfo && <p className={styles.info} role="status">{codeInfo}</p>}
             </div>
           </div>

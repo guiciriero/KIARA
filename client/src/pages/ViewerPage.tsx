@@ -1,6 +1,10 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useViewer } from '../hooks/useViewer';
+import { useChat } from '../hooks/useChat';
+import { useSocket } from '../services/SocketContext';
+import { isValidRoomCode } from '../utils/viewerLink';
+import type { ViewerQualityPreference } from '@shared/index';
 import {
   KiaraLogo,
   IconArrowLeft,
@@ -12,9 +16,11 @@ import {
   IconUsers,
   IconAlertTriangle,
   IconSparkles,
+  IconLock,
 } from '../components/UI/Icons';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
+import ChatPanel, { ReactionOverlay } from '../components/UI/ChatPanel';
 import styles from './ViewerPage.module.css';
 
 const ViewerPage: React.FC = () => {
@@ -23,7 +29,17 @@ const ViewerPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { state, leaveRoom, setQuality } = useViewer(code);
+  const { state, leaveRoom, setQuality, join } = useViewer(code);
+  const { socket } = useSocket();
+  const chat = useChat();
+  const [passwordInput, setPasswordInput] = useState('');
+  const [nameInput, setNameInput] = useState(() => {
+    try {
+      return localStorage.getItem('kiara:name') ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [isMuted, setIsMuted] = useState(true);
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -127,19 +143,44 @@ const ViewerPage: React.FC = () => {
     navigate('/');
   };
 
-  // ── Estado: Apresentador encerrou a transmissão ─────────────────────────
-  if (state.hostDisconnected) {
+  const handleSubmitPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput.length === 0) return;
+    join({ password: passwordInput, name: nameInput.trim() || undefined });
+  };
+
+  // Atalhos: F = tela cheia, M = mutar (ignorados enquanto se digita em campos)
+  const shortcutsRef = useRef({ fullscreen: handleToggleFullscreen, mute: handleToggleMute });
+  shortcutsRef.current = { fullscreen: handleToggleFullscreen, mute: handleToggleMute };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+      const key = e.key.toLowerCase();
+      if (key === 'f') {
+        e.preventDefault();
+        void shortcutsRef.current.fullscreen();
+      } else if (key === 'm') {
+        e.preventDefault();
+        shortcutsRef.current.mute();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // ── Estado: código inválido na URL ─────────────────────────────────────
+  if (!code || !isValidRoomCode(code.toUpperCase())) {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard}>
-          <div className={styles.messageIconWrap}>
-            <IconSparkles size={36} />
+          <div className={`${styles.messageIconWrap} ${styles.errorIconWrap}`}>
+            <IconAlertTriangle size={36} />
           </div>
-          <h2>Transmissão Finalizada</h2>
-          <p>
-            O apresentador encerrou o compartilhamento de tela. Esperamos que a experiência tenha
-            sido excelente!
-          </p>
+          <h2>Código inválido</h2>
+          <p>O código deve ter 6 caracteres (letras e números). Confira o link recebido.</p>
           <button type="button" className={styles.btnPrimary} onClick={() => navigate('/')}>
             <span>Voltar à Página Inicial</span>
           </button>
@@ -148,18 +189,131 @@ const ViewerPage: React.FC = () => {
     );
   }
 
-  // ── Estado: Erro ao conectar na sala ────────────────────────────────────
-  if (state.error) {
+  // ── Estado: Apresentador encerrou a transmissão ou reconexão esgotada ──
+  if (state.roomClosed) {
     return (
       <div className={styles.centeredPage}>
-        <div className={styles.messageCard}>
+        <div className={styles.messageCard} role="alert">
+          <div className={styles.messageIconWrap}>
+            <IconSparkles size={36} />
+          </div>
+          <h2>{state.hostDisconnected ? 'Transmissão finalizada' : 'Sala indisponível'}</h2>
+          <p>
+            {state.hostDisconnected
+              ? 'O apresentador encerrou o compartilhamento de tela.'
+              : 'Não foi possível reconectar à sala. Ela pode ter sido encerrada.'}
+          </p>
+          <button type="button" className={styles.btnPrimary} onClick={handleLeave}>
+            <span>Voltar à Página Inicial</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Estado: pedir senha (e apelido) ─────────────────────────────────────
+  if (state.needsPassword) {
+    return (
+      <div className={styles.centeredPage}>
+        <form className={styles.messageCard} onSubmit={handleSubmitPassword}>
+          <div className={styles.messageIconWrap}>
+            <IconLock size={32} />
+          </div>
+          <h2>Sala protegida</h2>
+          <p>Digite a senha enviada pelo apresentador.</p>
+          <label htmlFor="kiara-viewer-name" className={styles.fieldLabel}>Seu apelido (opcional)</label>
+          <input
+            id="kiara-viewer-name"
+            className={styles.textInput}
+            type="text"
+            maxLength={30}
+            autoComplete="nickname"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+          />
+          <label htmlFor="kiara-viewer-password" className={styles.fieldLabel}>Senha</label>
+          <input
+            id="kiara-viewer-password"
+            className={styles.textInput}
+            type="password"
+            autoComplete="current-password"
+            autoFocus
+            value={passwordInput}
+            aria-invalid={state.wrongPassword}
+            aria-describedby={state.error ? 'kiara-viewer-password-error' : undefined}
+            onChange={(e) => setPasswordInput(e.target.value)}
+          />
+          {state.wrongPassword && (
+            <p id="kiara-viewer-password-error" className={styles.fieldError} role="alert">
+              {state.error ?? 'Senha incorreta.'}
+            </p>
+          )}
+          <button type="submit" className={styles.btnPrimary} disabled={passwordInput.length === 0}>
+            <span>Entrar</span>
+          </button>
+          <button type="button" className={styles.btnSecondary} onClick={handleLeave}>
+            <span>Voltar</span>
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  // ── Estado: aguardando aprovação do apresentador ────────────────────────
+  if (state.pendingApproval) {
+    return (
+      <div className={styles.centeredPage}>
+        <div className={styles.messageCard} role="status" aria-live="polite">
+          <div className={styles.spinner} />
+          <h2>Aguardando aprovação</h2>
+          <p>O apresentador precisa aceitar a sua entrada. Mantenha esta página aberta.</p>
+          <button type="button" className={styles.btnSecondary} onClick={handleLeave}>
+            <span>Cancelar</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Estado: erro ao conectar na sala ────────────────────────────────────
+  if (state.error) {
+    const messages: Partial<Record<string, { title: string; text: string }>> = {
+      'room-full': {
+        title: 'Sala cheia',
+        text: 'A sala atingiu o limite de espectadores. Peça ao apresentador para liberar uma vaga.',
+      },
+      denied: {
+        title: 'Entrada não autorizada',
+        text: 'O apresentador não aprovou a sua entrada (ou não respondeu a tempo).',
+      },
+      'not-found': {
+        title: 'Sala não encontrada',
+        text: 'Confira o código. A sala pode já ter sido encerrada.',
+      },
+      closed: { title: 'Sala encerrada', text: 'Esta sala já foi encerrada pelo apresentador.' },
+      'rate-limited': {
+        title: 'Muitas tentativas',
+        text: 'Aguarde um minuto antes de tentar entrar de novo.',
+      },
+      'server-busy': {
+        title: 'Servidor ocupado',
+        text: 'O servidor está no limite agora. Tente novamente em alguns minutos.',
+      },
+    };
+    const info = (state.errorCode && messages[state.errorCode]) || {
+      title: 'Não foi possível entrar na sala',
+      text: state.error,
+    };
+    return (
+      <div className={styles.centeredPage}>
+        <div className={styles.messageCard} role="alert">
           <div className={`${styles.messageIconWrap} ${styles.errorIconWrap}`}>
             <IconAlertTriangle size={36} />
           </div>
-          <h2>Não foi possível entrar na sala</h2>
-          <p>{state.error}</p>
-          <button type="button" className={styles.btnPrimary} onClick={() => navigate('/')}>
-            <span>Voltar e Conferir Código</span>
+          <h2>{info.title}</h2>
+          <p>{info.text}</p>
+          <button type="button" className={styles.btnPrimary} onClick={handleLeave}>
+            <span>Voltar e conferir o código</span>
           </button>
         </div>
       </div>
@@ -210,7 +364,7 @@ const ViewerPage: React.FC = () => {
       <div className={styles.videoViewport}>
         {/* Loading / Reconectando */}
         {state.connectionState !== 'connected' && (
-          <div className={styles.loadingOverlay}>
+          <div className={styles.loadingOverlay} role="status" aria-live="polite">
             <div className={styles.spinner} />
             <h3>
               {state.connectionState === 'reconnecting'
@@ -250,6 +404,8 @@ const ViewerPage: React.FC = () => {
           </div>
         )}
 
+        <ReactionOverlay reactions={chat.reactions} />
+
         {/* Telemetria de Estatísticas */}
         {showStats && state.stats && <StatsOverlay stats={state.stats} />}
       </div>
@@ -268,8 +424,9 @@ const ViewerPage: React.FC = () => {
               type="button"
               className={styles.iconBtn}
               onClick={handleToggleMute}
-              title={isMuted ? 'Desmutar áudio' : 'Mutar áudio'}
+              title={isMuted ? 'Desmutar áudio (M)' : 'Mutar áudio (M)'}
               aria-label={isMuted ? 'Desmutar áudio' : 'Mutar áudio'}
+              aria-keyshortcuts="M"
             >
               {isMuted || localVolume === 0 ? (
                 <IconVolumeMute size={18} />
@@ -291,6 +448,17 @@ const ViewerPage: React.FC = () => {
         </div>
 
         <div className={styles.bottomBarRight}>
+          {state.connectionState === 'connected' && (
+            <ChatPanel
+              messages={chat.messages}
+              reactions={chat.reactions}
+              unreadCount={chat.unreadCount}
+              onSend={chat.sendMessage}
+              onReact={chat.sendReaction}
+              onMarkRead={chat.markRead}
+              selfId={socket?.id}
+            />
+          )}
           {/* Seletor Individual de Resolução / Qualidade */}
           {state.connectionState === 'connected' && (
             <div className={styles.qualitySelectWrapper}>
@@ -298,7 +466,7 @@ const ViewerPage: React.FC = () => {
                 className={styles.qualitySelect}
                 value={state.selectedQuality}
                 onChange={(e) => {
-                  setQuality(e.target.value as any);
+                  setQuality(e.target.value as ViewerQualityPreference);
                   resetHideTimer();
                 }}
                 title="Qualidade de Reprodução"
@@ -334,8 +502,9 @@ const ViewerPage: React.FC = () => {
             type="button"
             className={styles.iconBtn}
             onClick={handleToggleFullscreen}
-            title={isFullscreen ? 'Sair de tela cheia' : 'Tela cheia'}
+            title={isFullscreen ? 'Sair de tela cheia (F)' : 'Tela cheia (F)'}
             aria-label={isFullscreen ? 'Sair de tela cheia' : 'Tela cheia'}
+            aria-keyshortcuts="F"
           >
             {isFullscreen ? <IconExitFullscreen size={18} /> : <IconFullscreen size={18} />}
           </button>

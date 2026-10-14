@@ -1,0 +1,80 @@
+.container {
+  background: var(--kiara-warning-subtle);
+  border: 1px solid var(--kiara-warning);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--kiara-warning);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-sm);
+  padding: 6px 6px 6px 10px;
+}
+
+.name {
+  font-size: 0.84rem;
+  color: var(--kiara-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btnApprove,
+.btnDeny {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.btnApprove {
+  background: #ffffff;
+  color: #000000;
+}
+
+.btnApprove:hover {
+  background: var(--kiara-accent-hover);
+}
+
+.btnDeny {
+  background: transparent;
+  color: var(--kiara-text);
+  border: 1px solid var(--kiara-border-input);
+}
+
+.btnDeny:hover {
+  background: var(--kiara-surface-hover);
+}

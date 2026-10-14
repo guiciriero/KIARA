@@ -312,3 +312,23 @@
     max-height: 45vh;
   }
 }
+
+/* ── Selos da sala e dock do chat ───────────────────────────────── */
+.roomBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roomBadge {
+  font-size: 0.7rem;
+  color: var(--kiara-text-secondary);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-full);
+  padding: 2px 10px;
+}
+
+.chatDock {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -1,0 +1,49 @@
+.container {
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  background: var(--kiara-surface);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kiara-text-secondary);
+}
+
+.row strong {
+  color: var(--kiara-text);
+}
+
+.note {
+  color: var(--kiara-text-secondary);
+  font-size: 0.72rem;
+}
+
+.ok {
+  border-color: var(--kiara-border);
+}
+
+.warning {
+  border-color: var(--kiara-warning);
+  background: var(--kiara-warning-subtle);
+}
+
+.warning .row {
+  color: var(--kiara-warning);
+}
+
+.danger {
+  border-color: var(--kiara-danger);
+  background: var(--kiara-danger-subtle);
+}
+
+.danger .row {
+  color: var(--kiara-danger-hover);
+}

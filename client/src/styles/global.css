@@ -19,12 +19,15 @@
   --kiara-border-subtle:   #111111;
   --kiara-border-active:   #2d2d2d;
   --kiara-border-focus:    #ffffff;
+  /* Borda de campos de formulário: ≥3:1 contra o fundo (WCAG 1.4.11) */
+  --kiara-border-input:    #6b6b6b;
+  --kiara-border-input-hover: #8a8a8a;
 
   /* ── Tipografia e Cores de Texto de Alto Contraste ───────────── */
   --kiara-text:            #ededed;
-  --kiara-text-secondary:  #888888;
-  --kiara-text-muted:      #555555;
-  --kiara-text-disabled:   #333333;
+  --kiara-text-secondary:  #a3a3a3;
+  --kiara-text-muted:      #8a8a8a;
+  --kiara-text-disabled:   #6b6b6b;
 
   /* ── Acentos Minimalistas Monocromáticos ──────────────────────── */
   --kiara-accent:          #ffffff;
@@ -124,7 +127,6 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  outline: none;
   user-select: none;
 }
 
@@ -132,26 +134,44 @@ button:active:not(:disabled) {
   transform: translateY(1px) scale(0.985);
 }
 
-button:focus-visible {
-  outline: 2px solid var(--kiara-accent);
+/* ── Foco visível global (alto contraste, WCAG 2.4.7/1.4.11) ───── */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--kiara-border-focus);
   outline-offset: 2px;
 }
 
+@media (forced-colors: active) {
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 3px solid Highlight;
+  }
+}
+
 /* ── Campos de Entrada Globais ─────────────────────────────────── */
-input, select {
+input, select, textarea {
   font-family: inherit;
   background: var(--kiara-surface-raised);
-  border: 1px solid var(--kiara-border);
+  border: 1px solid var(--kiara-border-input);
   border-radius: var(--radius-md);
   color: var(--kiara-text);
   padding: 10px 14px;
   font-size: 0.9rem;
-  outline: none;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-input:hover:not(:disabled), select:hover:not(:disabled) {
-  border-color: var(--kiara-border-active);
+input:hover:not(:disabled), select:hover:not(:disabled), textarea:hover:not(:disabled) {
+  border-color: var(--kiara-border-input-hover);
 }
 
 input:focus, select:focus {

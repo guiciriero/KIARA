@@ -45,7 +45,7 @@
   align-items: center;
   gap: 5px;
   background: #111111;
-  border: 1px solid #222222;
+  border: 1px solid var(--kiara-border-active);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
 }
@@ -89,10 +89,11 @@
 
 .leaveBtn {
   background: transparent;
-  border: 1px solid var(--kiara-border);
+  border: 1px solid var(--kiara-border-input);
   color: var(--kiara-text-secondary);
-  padding: 4px 10px;
-  font-size: 0.75rem;
+  padding: 4px 12px;
+  min-height: 44px;
+  font-size: 0.78rem;
   font-weight: 500;
   border-radius: var(--radius-sm);
 }
@@ -100,7 +101,7 @@
 .leaveBtn:hover {
   background: #1a1a1a;
   color: #ffffff;
-  border-color: #333333;
+  border-color: var(--kiara-border-input-hover);
 }
 
 /* ── Viewport do Vídeo ──────────────────────────────────────────── */
@@ -275,10 +276,9 @@
   width: 64px;
   -webkit-appearance: none;
   appearance: none;
-  height: 3px;
-  background: #222222;
+  height: 4px;
+  background: var(--kiara-border-input);
   border-radius: var(--radius-full);
-  outline: none;
   border: none;
   padding: 0;
   cursor: pointer;
@@ -306,23 +306,23 @@
 
 .qualitySelect {
   background: #111111;
-  border: 1px solid #333333;
+  border: 1px solid var(--kiara-border-input);
   color: #ededed;
+  min-height: 44px;
   font-size: 0.72rem;
   font-weight: 500;
   border-radius: var(--radius-sm);
   padding: 3px 6px;
   cursor: pointer;
-  outline: none;
   transition: border-color var(--transition-base), background-color var(--transition-base);
 }
 
 .qualitySelect:hover {
   background: #1a1a1a;
-  border-color: #555555;
+  border-color: var(--kiara-border-input-hover);
 }
 
-.qualitySelect:focus {
+.qualitySelect:focus-visible {
   border-color: #ffffff;
 }
 
@@ -330,10 +330,13 @@
   background: transparent;
   border: 1px solid transparent;
   color: var(--kiara-text-secondary);
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-sm);
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .iconBtn:hover {
@@ -414,4 +417,58 @@
 
 .btnPrimary:hover {
   opacity: 0.9;
+}
+
+/* ── Formulário de senha e botão secundário ─────────────────────── */
+.fieldLabel {
+  align-self: flex-start;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--kiara-text-secondary);
+}
+
+.textInput {
+  width: 100%;
+  min-height: 44px;
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border-input);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-text);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.textInput[aria-invalid='true'] {
+  border-color: var(--kiara-danger);
+}
+
+.fieldError {
+  align-self: flex-start;
+  color: var(--kiara-danger-hover);
+  font-size: 0.78rem;
+}
+
+.btnPrimary {
+  min-height: 44px;
+}
+
+.btnPrimary:disabled {
+  background: var(--kiara-surface-active);
+  color: var(--kiara-text-disabled);
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  min-height: 44px;
+  width: 100%;
+  background: transparent;
+  color: var(--kiara-text);
+  border: 1px solid var(--kiara-border-input);
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.btnSecondary:hover {
+  background: var(--kiara-surface-hover);
 }
