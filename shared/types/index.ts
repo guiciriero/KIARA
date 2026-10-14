@@ -142,9 +142,15 @@ export type SignalingEvent =
   | 'room:error'
   | 'room:created'
   | 'room:joined'
+  | 'room:pending-approval'
+  | 'room:join-request'
+  | 'room:respond-join'
   | 'room:viewer-joined'
   | 'room:viewer-left'
+  | 'room:join-cancelled'
   | 'room:host-disconnected'
+  | 'chat:message'
+  | 'chat:reaction'
   | 'webrtc:offer'
   | 'webrtc:answer'
   | 'webrtc:ice-candidate'
@@ -160,6 +166,123 @@ export interface SignalingMessage<T = unknown> {
   targetId?: string;      // ID do destinatário específico (se peer-to-peer)
   payload: T;
 }
+// ─── Salas: payloads do protocolo (Socket.IO) ────────────────────────────────
+
+/** Servidor ICE entregue pelo servidor de sinalização (TURN com credencial efêmera). */
+export interface IceServerConfig {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+/** Códigos de erro estáveis de `room:error` (a interface decide o que fazer com cada um). */
+export type RoomErrorCode =
+  | 'invalid-request'
+  | 'invalid-code'
+  | 'not-found'
+  | 'closed'
+  | 'room-full'
+  | 'password-required'
+  | 'wrong-password'
+  | 'denied'
+  | 'rate-limited'
+  | 'server-busy'
+  | 'internal';
+
+export interface RoomErrorPayload {
+  message: string;
+  code: RoomErrorCode;
+}
+
+/** C→S `room:create` (o payload inteiro é opcional) */
+export interface CreateRoomPayload {
+  /** Senha da sala (4 a 64 caracteres). Ausente = sala sem senha. */
+  password?: string;
+  /** Se true, cada espectador só entra depois que o apresentador aprovar. */
+  requireApproval?: boolean;
+  /** Pede conexão somente via relay TURN (esconde o IP do apresentador). */
+  privacyMode?: boolean;
+}
+
+/** S→C `room:created` */
+export interface RoomCreatedPayload {
+  roomId: string;
+  code: string;
+  inviteUrl: string;
+  iceServers: IceServerConfig[];
+  /** Limite de espectadores simultâneos desta sala */
+  maxViewers: number;
+  hasPassword: boolean;
+  requireApproval: boolean;
+  /** true somente se o pedido foi atendido (exige TURN configurado no servidor) */
+  privacyMode: boolean;
+}
+
+/** C→S `room:join` */
+export interface JoinRoomPayload {
+  code: string;
+  password?: string;
+  /** Apelido exibido no chat (até 24 caracteres) */
+  name?: string;
+}
+
+/** S→C `room:joined` (só depois de senha e aprovação) */
+export interface RoomJoinedPayload {
+  roomId: string;
+  hostId: string;
+  viewerCount: number;
+  iceServers: IceServerConfig[];
+}
+
+/** S→host `room:join-request` (sala com aprovação) */
+export interface JoinRequestPayload {
+  viewerId: string;
+  name: string;
+}
+
+/** C(host)→S `room:respond-join` */
+export interface RespondJoinPayload {
+  viewerId: string;
+  approved: boolean;
+}
+
+/** S→host `room:join-cancelled` (quando espectador pendente desconecta) */
+export interface JoinCancelledPayload {
+  viewerId: string;
+}
+
+/** S→sala `chat:message` (inclui o remetente) */
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  name: string;
+  text: string;
+  fromHost: boolean;
+  timestamp: number;
+}
+
+/** C→S `chat:message` */
+export interface SendChatPayload {
+  text: string; // 1 a 500 caracteres
+}
+
+/** Reações permitidas (cada lado mantém sua lista em runtime; aqui só o tipo). */
+export type ReactionEmoji = '👍' | '❤️' | '😂' | '😮' | '👏' | '🔥';
+
+/** C→S `chat:reaction` */
+export interface SendReactionPayload {
+  emoji: ReactionEmoji;
+}
+
+/** S→sala `chat:reaction` */
+export interface ReactionEvent {
+  senderId: string;
+  name: string;
+  emoji: ReactionEmoji;
+  timestamp: number;
+}
+
+
 
 // ─── WebRTC ──────────────────────────────────────────────────────────────────
 

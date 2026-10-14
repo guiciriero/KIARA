@@ -31,17 +31,38 @@ interface GithubAsset {
 
 let cache: { url: string; expiresAt: number } | null = null;
 
+/** Zera o cache (uso em testes) */
+export function resetLatestReleaseCache(): void {
+  cache = null;
+}
+
+/** Hosts permitidos: API consultada e destino final do download */
+const API_HOST = 'api.github.com';
+const DOWNLOAD_HOST = 'github.com';
+
+/** true se a URL é https, sem credenciais, no host exato esperado */
+function isUrlOnHost(value: string, host: string, pathPrefix?: string): boolean {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== 'https:' || u.hostname !== host || u.username || u.password) return false;
+    if (u.port && u.port !== '443') return false;
+    return pathPrefix === undefined || u.pathname.startsWith(pathPrefix);
+  } catch {
+    return false;
+  }
+}
+
 /** Escolhe o instalador .exe (ignora .blockmap) e valida que o link é do repositório esperado */
 function pickInstallerUrl(assets: unknown, repo: string): string | undefined {
   if (!Array.isArray(assets)) return undefined;
-  const prefix = `https://github.com/${repo}/releases/download/`;
+  const pathPrefix = `/${repo}/releases/download/`;
   for (const asset of assets as GithubAsset[]) {
     const { name, browser_download_url: url } = asset;
     if (
       typeof name === 'string' &&
       typeof url === 'string' &&
       /^KIARA-Setup-.+\.exe$/.test(name) &&
-      url.startsWith(prefix)
+      isUrlOnHost(url, DOWNLOAD_HOST, pathPrefix)
     ) {
       return url;
     }
@@ -55,10 +76,15 @@ export async function getLatestWindowsInstallerUrl(): Promise<string | undefined
 
   const repo = getReleaseRepo();
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+    const res = await fetch(`https://${API_HOST}/repos/${repo}/releases/latest`, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'kiara-server' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
+    // Se houve redirecionamento, a resposta final ainda precisa ser da API do GitHub
+    if (res.url && !isUrlOnHost(res.url, API_HOST)) {
+      logger.warn('Resposta da consulta de release veio de host inesperado; ignorada.');
+      return cache?.url;
+    }
     if (!res.ok) {
       logger.warn(`GitHub respondeu ${res.status} ao buscar a última release.`);
       return cache?.url;
@@ -72,7 +98,9 @@ export async function getLatestWindowsInstallerUrl(): Promise<string | undefined
     cache = { url, expiresAt: Date.now() + CACHE_TTL_MS };
     return url;
   } catch (err) {
-    logger.warn('Falha ao consultar a última release no GitHub.', { error: String(err) });
+    logger.warn('Falha ao consultar a última release no GitHub.', {
+      error: err instanceof Error ? err.name : 'erro',
+    });
     return cache?.url;
   }
 }

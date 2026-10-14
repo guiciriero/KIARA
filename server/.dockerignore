@@ -1,0 +1,12 @@
+node_modules
+src
+logs
+coverage
+*.log
+*.test.ts
+vitest.config.ts
+tsconfig*.json
+Dockerfile
+.dockerignore
+.env
+.env.*

@@ -1,0 +1,447 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { Socket } from 'socket.io-client';
+import { createTestServer, sleep, waitForEvent, type TestServer } from '../test/helpers';
+import { resetIceServersCache } from '../utils/iceServers';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+let server: TestServer;
+
+beforeEach(async () => {
+  process.env.JOIN_APPROVAL_TIMEOUT_MS = '300';
+  delete process.env.TURN_URLS;
+  delete process.env.TURN_SECRET;
+  delete process.env.CLOUDFLARE_TURN_KEY_ID;
+  delete process.env.CLOUDFLARE_TURN_API_TOKEN;
+  resetIceServersCache();
+  server = await createTestServer();
+});
+
+afterEach(async () => {
+  await server.close();
+  delete process.env.JOIN_APPROVAL_TIMEOUT_MS;
+  delete process.env.MAX_VIEWERS_PER_ROOM;
+  delete process.env.MAX_ROOMS;
+  delete process.env.TURN_URLS;
+  delete process.env.TURN_SECRET;
+  resetIceServersCache();
+});
+
+async function createRoom(host: Socket, payload?: unknown): Promise<any> {
+  const created = waitForEvent<any>(host, 'room:created');
+  host.emit('room:create', payload);
+  return created;
+}
+
+async function joinRoom(viewer: Socket, payload: unknown): Promise<any> {
+  const joined = waitForEvent<any>(viewer, 'room:joined');
+  viewer.emit('room:join', payload);
+  return joined;
+}
+
+async function expectError(viewer: Socket, trigger: () => void): Promise<any> {
+  const err = waitForEvent<any>(viewer, 'room:error');
+  trigger();
+  return err;
+}
+
+describe('criação e entrada em sala', () => {
+  it('cria sala sem payload e entra como espectador', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+
+    const created = await createRoom(host);
+    expect(created.code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+    expect(created.hasPassword).toBe(false);
+    expect(created.requireApproval).toBe(false);
+    expect(Array.isArray(created.iceServers)).toBe(true);
+
+    const viewerJoinedOnHost = waitForEvent<any>(host, 'room:viewer-joined');
+    const joined = await joinRoom(viewer, { code: created.code, name: 'Maria' });
+    expect(joined.roomId).toBe(created.roomId);
+    expect(joined.hostId).toBe(host.id);
+    expect((await viewerJoinedOnHost).viewerId).toBe(viewer.id);
+  });
+
+  it('rejeita código inexistente e código malformado', async () => {
+    const viewer = await server.createClient();
+    const notFound = await expectError(viewer, () => viewer.emit('room:join', { code: 'ABCDEF' }));
+    expect(notFound.code).toBe('not-found');
+    const invalid = await expectError(viewer, () => viewer.emit('room:join', { code: '!!' }));
+    expect(invalid.code).toBe('invalid-code');
+  });
+
+  it('cria sala com payload inválido retorna invalid-request', async () => {
+    const host = await server.createClient();
+    const err = await expectError(host, () => host.emit('room:create', { password: 'abc' }));
+    expect(err.code).toBe('invalid-request');
+  });
+
+  it('encerra a sala quando o apresentador desconecta', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+
+    const closed = waitForEvent(viewer, 'room:host-disconnected');
+    host.disconnect();
+    await closed;
+
+    const late = await server.createClient();
+    const err = await expectError(late, () => late.emit('room:join', { code: created.code }));
+    expect(err.code).toBe('not-found');
+  });
+});
+
+describe('senha', () => {
+  it('exige senha e rejeita senha errada', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { password: 'segredo123' });
+    expect(created.hasPassword).toBe(true);
+
+    const noPass = await expectError(viewer, () => viewer.emit('room:join', { code: created.code }));
+    expect(noPass.code).toBe('password-required');
+
+    const wrong = await expectError(viewer, () =>
+      viewer.emit('room:join', { code: created.code, password: 'errada123' }),
+    );
+    expect(wrong.code).toBe('wrong-password');
+
+    const joined = await joinRoom(viewer, { code: created.code, password: 'segredo123' });
+    expect(joined.roomId).toBe(created.roomId);
+  });
+
+  it('não vaza a senha ou o hash em nenhum payload', async () => {
+    const host = await server.createClient();
+    const created = await createRoom(host, { password: 'segredo123' });
+    expect(JSON.stringify(created)).not.toContain('segredo123');
+    expect(created).not.toHaveProperty('passwordHash');
+  });
+
+  it('bloqueia tentativas excessivas com rate-limited', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { password: 'segredo123' });
+
+    for (let i = 0; i < 8; i += 1) {
+      const e = await expectError(viewer, () =>
+        viewer.emit('room:join', { code: created.code, password: `errada${i}xx` }),
+      );
+      expect(e.code).toBe('wrong-password');
+    }
+    const limited = await expectError(viewer, () =>
+      viewer.emit('room:join', { code: created.code, password: 'segredo123' }),
+    );
+    expect(limited.code).toBe('rate-limited');
+  });
+});
+
+describe('limite de espectadores e de salas', () => {
+  it('retorna room-full quando atinge MAX_VIEWERS_PER_ROOM', async () => {
+    process.env.MAX_VIEWERS_PER_ROOM = '1';
+    const host = await server.createClient();
+    const v1 = await server.createClient();
+    const v2 = await server.createClient();
+    const created = await createRoom(host);
+    expect(created.maxViewers).toBe(1);
+
+    await joinRoom(v1, { code: created.code });
+    const err = await expectError(v2, () => v2.emit('room:join', { code: created.code }));
+    expect(err.code).toBe('room-full');
+  });
+
+  it('retorna server-busy quando MAX_ROOMS é atingido', async () => {
+    process.env.MAX_ROOMS = '1';
+    const h1 = await server.createClient();
+    const h2 = await server.createClient();
+    await createRoom(h1);
+    const err = await expectError(h2, () => h2.emit('room:create'));
+    expect(err.code).toBe('server-busy');
+  });
+
+  it('join duplicado do mesmo socket não duplica o espectador', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+    const again = await joinRoom(viewer, { code: created.code });
+    expect(again.viewerCount).toBe(1);
+    expect(server.roomManager.getRoom(created.roomId)?.viewers.size).toBe(1);
+  });
+});
+
+describe('aprovação do apresentador', () => {
+  it('aprova um pedido e admite o espectador', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { requireApproval: true });
+
+    const pending = waitForEvent(viewer, 'room:pending-approval');
+    const request = waitForEvent<any>(host, 'room:join-request');
+    viewer.emit('room:join', { code: created.code, name: 'João' });
+    await pending;
+    const req = await request;
+    expect(req.viewerId).toBe(viewer.id);
+    expect(req.name).toBe('João');
+
+    const joined = waitForEvent<any>(viewer, 'room:joined');
+    host.emit('room:respond-join', { viewerId: viewer.id, approved: true });
+    expect((await joined).roomId).toBe(created.roomId);
+  });
+
+  it('nega um pedido e retorna denied', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { requireApproval: true });
+
+    const request = waitForEvent<any>(host, 'room:join-request');
+    viewer.emit('room:join', { code: created.code });
+    const req = await request;
+
+    const denied = waitForEvent<any>(viewer, 'room:error');
+    host.emit('room:respond-join', { viewerId: req.viewerId, approved: false });
+    expect((await denied).code).toBe('denied');
+  });
+
+  it('expira o pedido por timeout e avisa host e espectador', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { requireApproval: true });
+
+    const cancelled = waitForEvent<any>(host, 'room:join-cancelled');
+    viewer.emit('room:join', { code: created.code });
+    const err = await waitForEvent<any>(viewer, 'room:error');
+    expect(err.code).toBe('denied');
+    expect((await cancelled).viewerId).toBe(viewer.id);
+  });
+
+  it('avisa o host quando o espectador pendente desconecta', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { requireApproval: true });
+
+    const request = waitForEvent<any>(host, 'room:join-request');
+    viewer.emit('room:join', { code: created.code });
+    await request;
+
+    const cancelled = waitForEvent<any>(host, 'room:join-cancelled');
+    const viewerId = viewer.id;
+    viewer.disconnect();
+    expect((await cancelled).viewerId).toBe(viewerId);
+  });
+
+  it('ignora room:respond-join vindo de quem não é o host', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const intruder = await server.createClient();
+    const created = await createRoom(host, { requireApproval: true });
+
+    const request = waitForEvent<any>(host, 'room:join-request');
+    viewer.emit('room:join', { code: created.code });
+    await request;
+
+    intruder.emit('room:respond-join', { viewerId: viewer.id, approved: true });
+    await sleep(100);
+    expect(server.roomManager.getRoom(created.roomId)?.viewers.size).toBe(0);
+  });
+});
+
+describe('modo privacidade', () => {
+  it('só é efetivo quando há TURN configurado', async () => {
+    const host = await server.createClient();
+    const created = await createRoom(host, { privacyMode: true });
+    expect(created.privacyMode).toBe(false);
+
+    process.env.TURN_URLS = 'turn:turn.example.com:3478';
+    process.env.TURN_SECRET = 'x'.repeat(32);
+    resetIceServersCache();
+    const host2 = await server.createClient();
+    const created2 = await createRoom(host2, { privacyMode: true });
+    expect(created2.privacyMode).toBe(true);
+  });
+});
+
+describe('robustez contra payloads malformados', () => {
+  it('stream:config-update sem payload não derruba o servidor', async () => {
+    const host = await server.createClient();
+    await createRoom(host);
+    host.emit('stream:config-update');
+    host.emit('stream:config-update', null);
+    host.emit('stream:config-update', 'texto');
+    host.emit('stream:config-update', { config: null });
+    await sleep(100);
+    const other = await server.createClient();
+    expect(other.connected).toBe(true);
+    expect(host.connected).toBe(true);
+  });
+
+  it('eventos sem payload ou com tipos errados são ignorados', async () => {
+    const host = await server.createClient();
+    await createRoom(host);
+    for (const ev of [
+      'webrtc:offer',
+      'webrtc:answer',
+      'webrtc:ice-candidate',
+      'stream:quality-request',
+      'stream:stats',
+      'chat:message',
+      'chat:reaction',
+      'room:respond-join',
+      'room:join',
+    ]) {
+      host.emit(ev);
+      host.emit(ev, null);
+      host.emit(ev, 42);
+      host.emit(ev, { targetId: 123, text: {}, emoji: [] });
+    }
+    await sleep(150);
+    expect(host.connected).toBe(true);
+    const other = await server.createClient();
+    expect(other.connected).toBe(true);
+  });
+});
+
+describe('relay WebRTC e controle', () => {
+  it('encaminha offer/answer/ICE apenas dentro da mesma sala e envolvendo o host', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const outsider = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+
+    const gotOffer = waitForEvent<any>(viewer, 'webrtc:offer');
+    host.emit('webrtc:offer', { targetId: viewer.id, offer: { type: 'offer', sdp: 'v=0' } });
+    const offer = await gotOffer;
+    expect(offer.senderId).toBe(host.id);
+
+    const gotAnswer = waitForEvent<any>(host, 'webrtc:answer');
+    viewer.emit('webrtc:answer', { targetId: host.id, answer: { type: 'answer', sdp: 'v=0' } });
+    expect((await gotAnswer).senderId).toBe(viewer.id);
+
+    let leaked = false;
+    outsider.on('webrtc:offer', () => {
+      leaked = true;
+    });
+    host.emit('webrtc:offer', { targetId: outsider.id, offer: { type: 'offer', sdp: 'v=0' } });
+    outsider.emit('webrtc:offer', { targetId: viewer.id, offer: { type: 'offer', sdp: 'v=0' } });
+    await sleep(100);
+    expect(leaked).toBe(false);
+  });
+
+  it('espectadores não conseguem trocar mensagens entre si', async () => {
+    const host = await server.createClient();
+    const v1 = await server.createClient();
+    const v2 = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(v1, { code: created.code });
+    await joinRoom(v2, { code: created.code });
+
+    let leaked = false;
+    v2.on('webrtc:ice-candidate', () => {
+      leaked = true;
+    });
+    v1.emit('webrtc:ice-candidate', { targetId: v2.id, candidate: { candidate: 'x', sdpMid: '0' } });
+    await sleep(100);
+    expect(leaked).toBe(false);
+  });
+
+  it('stream:stats e config-update só são aceitos do host', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+
+    let received = 0;
+    host.on('stream:stats', () => {
+      received += 1;
+    });
+    host.on('stream:config-update', () => {
+      received += 1;
+    });
+    viewer.emit('stream:stats', { latencyMs: 1, packetLossPercent: 0, jitterMs: 0, bitrateKbps: 1 });
+    viewer.emit('stream:config-update', { config: { codec: 'H264' } });
+    await sleep(100);
+    expect(received).toBe(0);
+  });
+});
+
+describe('chat e reações', () => {
+  it('distribui mensagens para a sala com o nome do remetente e marca o host', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code, name: 'Ana' });
+
+    const onHost = waitForEvent<any>(host, 'chat:message');
+    const onViewer = waitForEvent<any>(viewer, 'chat:message');
+    viewer.emit('chat:message', { text: '  oi pessoal  ' });
+    const msg = await onHost;
+    await onViewer;
+    expect(msg.text).toBe('oi pessoal');
+    expect(msg.name).toBe('Ana');
+    expect(msg.fromHost).toBe(false);
+
+    const fromHost = waitForEvent<any>(viewer, 'chat:message');
+    host.emit('chat:message', { text: 'bem-vindos' });
+    const m2 = await fromHost;
+    expect(m2.fromHost).toBe(true);
+    expect(m2.name).toBe('Apresentador');
+  });
+
+  it('rejeita texto vazio, grande demais e emoji fora da lista', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+
+    let count = 0;
+    host.on('chat:message', () => (count += 1));
+    host.on('chat:reaction', () => (count += 1));
+    viewer.emit('chat:message', { text: '   ' });
+    viewer.emit('chat:message', { text: 'a'.repeat(501) });
+    viewer.emit('chat:reaction', { emoji: '💩' });
+    await sleep(100);
+    expect(count).toBe(0);
+  });
+
+  it('aplica rate limit de 5 mensagens por janela', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+
+    let count = 0;
+    host.on('chat:message', () => (count += 1));
+    for (let i = 0; i < 12; i += 1) viewer.emit('chat:message', { text: `m${i}` });
+    await sleep(200);
+    expect(count).toBe(5);
+  });
+
+  it('envia reações válidas para a sala', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code, name: 'Lia' });
+
+    const got = waitForEvent<any>(host, 'chat:reaction');
+    viewer.emit('chat:reaction', { emoji: '👍' });
+    const reaction = await got;
+    expect(reaction.emoji).toBe('👍');
+    expect(reaction.name).toBe('Lia');
+  });
+
+  it('não entrega chat a quem está fora da sala', async () => {
+    const host = await server.createClient();
+    const outsider = await server.createClient();
+    await createRoom(host);
+
+    let leaked = false;
+    host.on('chat:message', () => {
+      leaked = true;
+    });
+    outsider.emit('chat:message', { text: 'intruso' });
+    await sleep(100);
+    expect(leaked).toBe(false);
+  });
+});
