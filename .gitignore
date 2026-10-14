@@ -33,3 +33,7 @@ client/e2e/.build/
 
 # Regras locais do assistente Bob (não versionar)
 .bob/
+
+# Cobertura de testes e relatórios do e2e
+coverage/
+client/e2e.log

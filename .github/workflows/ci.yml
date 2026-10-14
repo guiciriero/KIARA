@@ -1,0 +1,237 @@
+# Integração contínua do KIARA: lint, tipos, testes, build, auditoria de dependências e e2e.
+# Também é reutilizado (workflow_call) pelo build-windows.yml, para que o instalador e a
+# release só saiam depois que a verificação passar.
+name: CI
+
+on:
+  push:
+    # Qualquer branch; tags não disparam a CI (o build-windows.yml chama este workflow nas tags v*).
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+# Uma execução por ref; execuções antigas da mesma ref são canceladas por uma mais nova.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Verificação principal: tipos compartilhados, servidor, cliente e desktop.
+  verify:
+    name: Verificar (lint, tipos, testes, build, audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Node 22 + cache do npm, uma chave por lockfile.
+      - name: Instalar Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            shared/types/package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+            desktop/package-lock.json
+
+      # Tipos compartilhados: usados pelo servidor e pelo cliente.
+      - name: shared/types - instalar e compilar
+        working-directory: shared/types
+        run: |
+          npm ci
+          npm run build
+
+      - name: server - instalar
+        working-directory: server
+        run: npm ci
+
+      - name: server - typecheck
+        working-directory: server
+        run: npm run typecheck
+
+      - name: server - testes
+        working-directory: server
+        run: npm test
+
+      - name: server - build
+        working-directory: server
+        run: npm run build
+
+      - name: client - instalar
+        working-directory: client
+        run: npm ci
+
+      - name: client - lint
+        working-directory: client
+        run: npm run lint
+
+      - name: client - typecheck
+        working-directory: client
+        run: npm run typecheck
+
+      # Inclui os testes de desktop/src (ver include em client/vite.config.ts).
+      - name: client - testes
+        working-directory: client
+        run: npm test
+
+      - name: client - build
+        working-directory: client
+        run: npm run build
+
+      - name: desktop - instalar
+        working-directory: desktop
+        run: npm ci
+
+      # O desktop é JavaScript (CommonJS/ESM) sem etapa de build: valida só a sintaxe.
+      - name: desktop - verificar sintaxe (node --check)
+        working-directory: desktop
+        run: |
+          find src scripts \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) -print0 \
+            | xargs -0 -n1 node --check
+
+      # Falha em vulnerabilidades high/critical das dependências de produção.
+      - name: npm audit (server)
+        working-directory: server
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (client)
+        working-directory: client
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (desktop)
+        working-directory: desktop
+        run: npm audit --omit=dev --audit-level=high
+
+  # Teste ponta a ponta no Chrome estável do runner (client/e2e).
+  e2e:
+    name: E2E (Chrome)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            shared/types/package-lock.json
+            client/package-lock.json
+
+      - name: shared/types - instalar e compilar
+        working-directory: shared/types
+        run: |
+          npm ci
+          npm run build
+
+      - name: client - instalar
+        working-directory: client
+        run: npm ci
+
+      # O ubuntu-latest já traz o Google Chrome estável; o puppeteer-core não baixa navegador.
+      - name: Localizar o Chrome estável
+        run: |
+          CHROME="$(command -v google-chrome-stable || command -v google-chrome)"
+          "$CHROME" --version
+          echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
+
+      - name: client - e2e
+        working-directory: client
+        run: npm run e2e 2>&1 | tee e2e.log
+
+      - name: Enviar logs do e2e (em falha)
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-logs
+          path: |
+            client/e2e.log
+            client/e2e/.build/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Build das imagens de contêiner (sem push). As imagens-base vêm de registry.redhat.io, que
+  # exige login: o job só roda quando os segredos abaixo existem (não existem em PRs de forks).
+  #   Segredos: REDHAT_REGISTRY_USER e REDHAT_REGISTRY_TOKEN (conta/service account do Red Hat Registry)
+  docker-build:
+    name: Docker build (sem push)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_REDHAT_CREDS: ${{ secrets.REDHAT_REGISTRY_USER != '' && secrets.REDHAT_REGISTRY_TOKEN != '' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Aviso quando não há credenciais
+        if: env.HAS_REDHAT_CREDS != 'true'
+        run: |
+          echo "::notice::Docker build ignorado: segredos REDHAT_REGISTRY_USER e REDHAT_REGISTRY_TOKEN não configurados."
+
+      - name: Checkout
+        if: env.HAS_REDHAT_CREDS == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Node 22
+        if: env.HAS_REDHAT_CREDS == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            shared/types/package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+
+      # O Dockerfile do servidor copia server/dist; o do cliente compila dentro da imagem.
+      - name: Compilar shared/types, servidor (dist) e cliente
+        if: env.HAS_REDHAT_CREDS == 'true'
+        run: |
+          (cd shared/types && npm ci && npm run build)
+          (cd server && npm ci && npm run build)
+          (cd client && npm ci && npm run build)
+
+      - name: Login no registry.redhat.io
+        if: env.HAS_REDHAT_CREDS == 'true'
+        env:
+          RH_USER: ${{ secrets.REDHAT_REGISTRY_USER }}
+          RH_TOKEN: ${{ secrets.REDHAT_REGISTRY_TOKEN }}
+        run: printf '%s' "$RH_TOKEN" | docker login registry.redhat.io --username "$RH_USER" --password-stdin
+
+      - name: docker build (servidor)
+        if: env.HAS_REDHAT_CREDS == 'true'
+        run: docker build --tag kiara-server:ci ./server
+
+      - name: docker build (cliente)
+        if: env.HAS_REDHAT_CREDS == 'true'
+        run: docker build --tag kiara-client:ci ./client
+
+      - name: Logout do registry
+        if: always() && env.HAS_REDHAT_CREDS == 'true'
+        run: docker logout registry.redhat.io

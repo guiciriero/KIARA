@@ -12,7 +12,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
-        value: 20
+        value: 22
       - key: NODE_ENV
         value: production
       # Obrigatório no Render: o proxy da plataforma precisa alcançar o processo.
@@ -21,10 +21,21 @@ services:
       # Site compilado, servido pelo próprio servidor (caminho relativo a server/).
       - key: CLIENT_DIST_DIR
         value: ../client/dist
-      # TURN (build do cliente). Preencha no painel do Render; sem os três, não é usado.
-      - key: VITE_TURN_URL
+      # Limites e proxy. O Render termina TLS e repassa o IP real via proxy (1 salto).
+      - key: TRUST_PROXY
+        value: 1
+      - key: MAX_VIEWERS_PER_ROOM
+        value: 8
+      - key: ROOM_MAX_HOURS
+        value: 12
+      # TURN: credenciais efêmeras geradas pelo servidor (NÃO vão no bundle do cliente).
+      # Use coturn (TURN_URLS + TURN_SECRET) OU Cloudflare Realtime TURN
+      # (CLOUDFLARE_TURN_KEY_ID + CLOUDFLARE_TURN_API_TOKEN). Preencha no painel do Render.
+      - key: TURN_URLS
         sync: false
-      - key: VITE_TURN_USER
+      - key: TURN_SECRET
         sync: false
-      - key: VITE_TURN_CREDENTIAL
+      - key: CLOUDFLARE_TURN_KEY_ID
+        sync: false
+      - key: CLOUDFLARE_TURN_API_TOKEN
         sync: false

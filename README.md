@@ -23,15 +23,19 @@ O KIARA transmite vídeo de até 4K a 60 FPS, ligando você e os espectadores de
 
 1. Abra o link que a pessoa mandou.
 2. Clique em **Ativar Som da Transmissão** para ouvir o áudio (os navegadores bloqueiam o som até você clicar).
-3. Para sair, clique em **Sair**.
+3. Se a sala tiver senha, digite-a (e, se quiser, um apelido). Se exigir aprovação, aguarde o apresentador aceitar.
+4. Use o **chat** e as **reações** (👍 ❤️ 😂 😮 👏 🔥) na barra de baixo. Atalhos: **F** tela cheia, **M** mutar.
+5. Para sair, clique em **Sair**.
 
 Se preferir, abra a página inicial no navegador, digite o código de 6 caracteres (ou cole o link) e clique em **Entrar**. No app instalado, cole o link completo.
 
 ### Dicas
 
 - O app precisa ficar aberto no computador de quem transmite.
-- O link muda a cada vez que o app é aberto. Quando você fecha, a sala acaba.
-- Quem tiver o link e o código consegue assistir, então envie só para quem você confia.
+- O link muda a cada vez que o app é aberto. Quando você fecha, a sala acaba (e toda sala expira sozinha após 12 horas).
+- Quem tiver o link e o código consegue assistir, a menos que você proteja a sala. Antes de iniciar, em **Acesso à sala**, dá para definir uma **senha** (4 a 64 caracteres) e marcar **Aprovar cada entrada**: cada pessoa aparece na tela como pedido e você clica em Aprovar ou Negar.
+- O **Modo privacidade** esconde seu IP dos espectadores, fazendo o vídeo passar por um servidor de retransmissão (TURN). Só funciona se o servidor tiver TURN configurado; depois de iniciar, a sala mostra se ele foi ativado de fato.
+- Cada espectador recebe uma cópia do vídeo, então seu upload precisa dar conta (bitrate × espectadores). O painel mostra a estimativa e avisa quando ela passa de 20 Mbps (atenção) ou 50 Mbps (perigo). O limite padrão é de 8 espectadores por sala.
 - O botão de baixar o app só aparece no site. Dentro do app instalado você usa o **Atualizar**.
 - No macOS, libere **Gravação de Tela e Áudio do Sistema** em Ajustes do Sistema, Privacidade e Segurança, e reabra o app.
 
@@ -53,7 +57,7 @@ Se o valor for igual ao da página da release, o arquivo é o mesmo que foi gera
 
 ### O que você precisa
 
-- Node.js 20 ou mais novo, com npm 10 ou mais novo
+- Node.js 22 ou mais novo (o Node 20 chegou ao fim do suporte), com npm 10 ou mais novo
 - Git
 
 ### Um comando só
@@ -70,7 +74,7 @@ Na primeira vez ele instala as dependências, compila o site, sobe o servidor e 
 
 Para abrir o app desktop, com som por aplicativo, use `npm run share:desktop`.
 
-Se o vídeo não conectar em redes muito restritas (empresas, alguns planos 4G), será preciso um servidor TURN próprio. O Open Relay que vem no `.env.example` serve só para testes.
+Se o vídeo não conectar em redes muito restritas (empresas, alguns planos 4G), será preciso um servidor TURN. Veja [Variáveis de ambiente](#variáveis-de-ambiente-do-servidor).
 
 ### Modo de desenvolvimento
 
@@ -87,7 +91,7 @@ cd ../../server && npm install && npm run dev
 cd ../client && npm install && npm run dev
 ```
 
-Depois abra http://localhost:3000 (Chrome ou Edge funcionam melhor). Copie `.env.example` para `.env` se quiser mudar portas ou o servidor TURN. O TURN do cliente (`VITE_TURN_*`) só é usado quando URL, usuário e credencial estão preenchidos juntos.
+Depois abra http://localhost:3000 (Chrome ou Edge funcionam melhor). Copie `.env.example` para `.env` se quiser mudar portas, limites ou o servidor TURN. As credenciais TURN agora são geradas pelo servidor (as antigas `VITE_TURN_*` foram removidas, porque iam dentro do site compilado).
 
 O servidor escuta só em `127.0.0.1`, de propósito. Para mudar isso (numa hospedagem, por exemplo), defina `HOST=0.0.0.0`.
 
@@ -96,10 +100,35 @@ O servidor escuta só em `127.0.0.1`, de propósito. Para mudar isso (numa hospe
 | Interface (Vite) | 3000 | `client/vite.config.ts` |
 | Servidor de sinalização | 3001 | `.env`, variável `PORT` |
 
+### Variáveis de ambiente do servidor
+
+Todas são opcionais. Veja também [`.env.example`](.env.example).
+
+| Variável | Padrão | Para que serve |
+|---|---|---|
+| `PORT` / `HOST` | `3001` / `127.0.0.1` | Onde o servidor escuta. Em hospedagem, `HOST=0.0.0.0` |
+| `PUBLIC_URL` | vazio | Endereço público, usado nos links de convite e no CORS |
+| `TRUST_PROXY` | `0` | Saltos de proxy confiáveis para ler o IP real (Render/Nginx = `1`) |
+| `MAX_VIEWERS_PER_ROOM` | `8` | Espectadores por sala |
+| `MAX_ROOMS` | `200` | Salas simultâneas |
+| `MAX_CONNECTIONS` / `MAX_CONNECTIONS_PER_IP` | `500` / `20` | Conexões simultâneas, no total e por IP |
+| `ROOM_MAX_HOURS` | `12` | Duração máxima de uma sala |
+| `JOIN_APPROVAL_TIMEOUT_MS` | `60000` | Tempo que o apresentador tem para responder a um pedido |
+| `TURN_URLS` + `TURN_SECRET` | vazio | TURN próprio (coturn com `use-auth-secret`); o servidor gera credenciais temporárias |
+| `CLOUDFLARE_TURN_KEY_ID` + `CLOUDFLARE_TURN_API_TOKEN` | vazio | Alternativa: Cloudflare Realtime TURN (o plano gratuito inclui 1000 GB por mês, conforme a Cloudflare na data da pesquisa; confira o preço atual) |
+| `LOG_LEVEL` / `LOG_DIR` | `info` / vazio | Nível e pasta dos logs |
+
+Sem TURN configurado, o **Modo privacidade** é ignorado (o apresentador é avisado) e só o STUN público é usado.
+
 ### Qualidade do código
 
 ```bash
-cd client
+npm run verify      # na raiz: tipos compartilhados, servidor e cliente (tipos, testes, build)
+
+cd server
+npm run typecheck && npm test   # Vitest: sinalização, salas, senha, aprovação, TURN, limites
+
+cd ../client
 npm run lint        # ESLint
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest (cliente e lógica de atualização do desktop)
@@ -107,13 +136,15 @@ npm run build       # typecheck e build de produção
 npm run e2e         # WebRTC e áudio em um Chrome de verdade (veja client/e2e/README.md)
 ```
 
+O GitHub Actions roda tudo isso a cada push e pull request ([`ci.yml`](.github/workflows/ci.yml)), além de CodeQL e Dependabot. O instalador só é gerado depois que a CI passa.
+
 ### Hospedagem fixa no Render (grátis, sem depender do seu PC)
 
 O repositório tem um [`render.yaml`](render.yaml) que publica site e servidor num único Web Service do plano Free.
 
 1. Suba o repositório para o GitHub.
 2. No [Render](https://dashboard.render.com), clique em **New**, **Blueprint**, escolha o repositório e confirme.
-3. Preencha `VITE_TURN_URL`, `VITE_TURN_USER` e `VITE_TURN_CREDENTIAL` com o seu servidor TURN (os três juntos, ou deixe vazio). Depois de mudar esses valores, faça um novo deploy, porque eles entram no build do site.
+3. (Opcional) Preencha no painel `TURN_URLS` e `TURN_SECRET`, ou `CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN`. Esses valores ficam só no servidor e nunca vão para o site compilado.
 4. Quando terminar, o endereço `https://<nome>.onrender.com` é o seu KIARA fixo. O `PUBLIC_URL` é preenchido sozinho a partir de `RENDER_EXTERNAL_URL`. Com domínio próprio, defina `PUBLIC_URL` no painel.
 
 Limites do plano Free: o serviço hiberna após 15 minutos sem tráfego (a primeira visita seguinte demora cerca de 1 minuto), e uma reinicialização derruba as salas ativas, que ficam só na memória. Para evitar a hibernação, use um monitor gratuito (por exemplo UptimeRobot) chamando `https://<nome>.onrender.com/health` a cada 5 minutos.
@@ -128,11 +159,10 @@ Se não quiser instalar o Node.js:
 cp .env.example .env
 cd shared/types && npm install && npm run build && cd ../..
 cd server && npm install && npm run build && cd ..
-cd client && npm install && npm run build && cd ..
-docker-compose up -d
+docker compose up -d --build
 ```
 
-Acesse http://localhost:3000. Para parar: `docker-compose down`.
+Acesse http://localhost:3000 (o Nginx do cliente escuta na 8080 dentro do contêiner e faz proxy de `/socket.io` e `/download` para o servidor). Para parar: `docker compose down`. Os arquivos Docker não puderam ser testados no ambiente de desenvolvimento do autor; se algo falhar, abra uma issue.
 
 ### App desktop (som por aplicativo)
 
@@ -153,6 +183,14 @@ npm start              # modo produção, usa client/dist
 
 No modo produção o app abre em `app://app`; adicione essa origem ao `CLIENT_ORIGIN` do servidor.
 
+### O que ainda não foi validado
+
+Foi testado em Chrome real (`npm run e2e`) e por testes automatizados, mas **não** foi possível validar no ambiente de desenvolvimento: o instalador e o auto-update no Windows, a captura de áudio por aplicativo, as imagens Docker, a execução dos workflows no GitHub, o comportamento com leitor de tela e o PWA instalado, e um TURN real (coturn ou Cloudflare).
+
+### Ideias futuras (não implementadas)
+
+SFU/WHIP para mais espectadores sem sobrecarregar o upload do apresentador, e controle remoto do computador. Ficaram fora por exigirem infraestrutura paga ou riscos de segurança que não se justificam para uso entre amigos e família.
+
 Estado dos testes: no macOS o módulo compila e lista os aplicativos, mas a captura de áudio ao vivo ainda não foi validada. No Windows o instalador é gerado pelo GitHub Actions, mas a captura por aplicativo ainda precisa de testes em máquinas reais.
 
 ### Organização das pastas
@@ -164,7 +202,7 @@ native/            Módulo C++ de captura de áudio por aplicativo
 desktop/           App Electron
 shared/types/      Tipos TypeScript usados pelo servidor e pelo cliente
 scripts/           Comando `npm run share` e túnel da Cloudflare
-.github/workflows/ Gera o instalador do Windows e publica as releases
+.github/workflows/ CI, CodeQL e geração do instalador do Windows com releases
 render.yaml        Configuração da hospedagem fixa no Render
 ```
 
@@ -238,10 +276,11 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 
 | Camada | O que usa |
 |---|---|
-| Servidor | Node.js 20, TypeScript, Express, Socket.IO, Winston |
+| Servidor | Node.js 22, TypeScript, Express, Socket.IO, Helmet, Winston |
 | Interface | React 18, TypeScript, Vite, React Router |
 | Vídeo | WebRTC do navegador (`RTCPeerConnection`, `getDisplayMedia`) |
-| App desktop | Electron |
+| App desktop | Electron (com Fuses e verificação de integridade do `cloudflared`) |
+| Instalável | PWA (manifesto e service worker; no navegador, "Instalar app") |
 | Áudio no Windows | C++17, WASAPI Process Loopback, Node Addon API |
 | Áudio no macOS | Objective-C++, ScreenCaptureKit, Node Addon API |
 | Contêineres | Docker, Docker Compose, Nginx, Red Hat UBI 9 |
@@ -252,7 +291,10 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 - O endereço de download só redireciona para arquivos `KIARA-Setup-*.exe` do repositório configurado. Qualquer outro link vindo do GitHub é ignorado.
 - Os contêineres rodam como usuário comum (UID 1001), a partir de imagens `registry.redhat.io/ubi9/*`.
 - O vídeo e o áudio são protegidos por DTLS 1.2 e SRTP, o padrão do WebRTC.
-- As credenciais do TURN ficam só no `.env`, nunca no código.
+- As credenciais do TURN ficam só no servidor (variáveis de ambiente) e são entregues ao cliente como credenciais temporárias; nada vai para o bundle.
+- Salas podem ter senha (guardada só como hash scrypt) e aprovação manual. Tentativas erradas de senha ou código são limitadas por conexão.
+- O servidor usa Helmet (CSP, HSTS em produção), limite de requisições, limite de conexões por IP e valida todo payload de Socket.IO.
+- Para reportar uma vulnerabilidade, veja [`SECURITY.md`](SECURITY.md).
 - O túnel é temporário: as salas e os links mudam a cada sessão e nada fica gravado.
 
 ---
@@ -263,7 +305,9 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 
 **"Você cancelou a seleção de tela".** Você fechou o seletor sem escolher nada. Inicie de novo e selecione uma janela ou monitor.
 
-**O espectador não recebe o vídeo.** Veja se as portas UDP não estão bloqueadas. Em redes restritas (empresa, 4G), configure um servidor TURN no `.env`. Para testes, o Open Relay serve: https://www.metered.ca/tools/openrelay/
+**O espectador não recebe o vídeo.** Veja se as portas UDP não estão bloqueadas. Em redes restritas (empresa, 4G), configure um servidor TURN (`TURN_URLS`/`TURN_SECRET` ou Cloudflare) no servidor.
+
+**"Sala cheia".** A sala chegou ao limite de espectadores (`MAX_VIEWERS_PER_ROOM`, padrão 8). Peça ao apresentador para liberar uma vaga ou aumente o limite se o upload dele aguentar.
 
 **`EADDRINUSE: address already in use :::3001`.** Já existe um servidor rodando. Encerre-o com `Ctrl+C` ou troque a porta no `.env` (`PORT=3002`) e no cliente (`VITE_SERVER_URL=http://127.0.0.1:3002`).
 

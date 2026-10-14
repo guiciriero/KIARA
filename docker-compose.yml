@@ -1,5 +1,7 @@
-version: "3.9"
-
+# Sobe servidor + cliente (Nginx) em http://localhost:3000.
+# O Nginx do cliente faz proxy de /socket.io e /download para o servidor, então o navegador
+# só fala com a porta 3000. Antes: (cd shared/types && npm ci && npm run build) e
+# (cd server && npm ci && npm run build) — o Dockerfile do servidor copia server/dist.
 services:
   # ─── Servidor de Sinalização ─────────────────────────────────────────────
   server:
@@ -8,20 +10,40 @@ services:
       dockerfile: Dockerfile
     container_name: kiara-server
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:3001:3001"   # Exposto apenas localmente (não 0.0.0.0)
+    # Sem "ports": só o Nginx (rede interna) acessa o servidor. Para depurar, publique
+    # "127.0.0.1:3001:3001" localmente.
+    expose:
+      - "3001"
     environment:
       - PORT=3001
+      - HOST=0.0.0.0
       - CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:3000}
       - NODE_ENV=${NODE_ENV:-production}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-    env_file:
-      - .env
+      - TRUST_PROXY=${TRUST_PROXY:-1}
+      - MAX_VIEWERS_PER_ROOM=${MAX_VIEWERS_PER_ROOM:-8}
+      - MAX_ROOMS=${MAX_ROOMS:-200}
+      - MAX_CONNECTIONS=${MAX_CONNECTIONS:-500}
+      - MAX_CONNECTIONS_PER_IP=${MAX_CONNECTIONS_PER_IP:-20}
+      - ROOM_MAX_HOURS=${ROOM_MAX_HOURS:-12}
+      - TURN_URLS=${TURN_URLS:-}
+      - TURN_SECRET=${TURN_SECRET:-}
+      - CLOUDFLARE_TURN_KEY_ID=${CLOUDFLARE_TURN_KEY_ID:-}
+      - CLOUDFLARE_TURN_API_TOKEN=${CLOUDFLARE_TURN_API_TOKEN:-}
+    # ubi9 minimal não tem curl: usa o fetch nativo do Node (22).
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:3001/health"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     networks:
       - kiara-net
 
@@ -33,10 +55,17 @@ services:
     container_name: kiara-client
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:80"     # Nginx na porta 80 internamente
+      - "127.0.0.1:3000:8080"   # Nginx escuta 8080 (não-root); exposto só no localhost
     depends_on:
       server:
         condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     networks:
       - kiara-net
 

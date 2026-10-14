@@ -1,0 +1,14 @@
+.git
+.github
+.bob
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/build
+**/logs
+desktop/
+native/
+*.md
+!README.md

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+release/
+coverage/
+logs/
+*.tsbuildinfo
+package-lock.json
+native/build/
+client/e2e/.build/

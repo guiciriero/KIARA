@@ -1,5 +1,6 @@
 # Build do instalador Windows (NSIS) do app desktop KIARA.
 # Gatilhos: manual, push na main (publica a release "v1.0.<run_number>") e tags "v*".
+# O instalador e a release só são gerados depois que o job "verify" (ci.yml) passar.
 name: Build Windows
 
 on:
@@ -27,8 +28,17 @@ env:
   CLOUDFLARED_VERSION: "latest"
 
 jobs:
+  # Verificação (lint, tipos, testes, build, audit e e2e): reutiliza o ci.yml.
+  # O instalador e a release só saem se ela passar.
+  verify:
+    name: Verificar (CI)
+    uses: ./.github/workflows/ci.yml
+    # Repassa os segredos opcionais do docker-build (REDHAT_REGISTRY_*) ao workflow chamado.
+    secrets: inherit
+
   build:
     name: Compilar instalador
+    needs: verify
     runs-on: windows-latest
     timeout-minutes: 60
     env:
@@ -41,11 +51,13 @@ jobs:
     steps:
       # Baixa o código do repositório.
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Node 22 LTS + cache do npm (um lockfile por subprojeto).
       - name: Instalar Node 22
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -60,7 +72,7 @@ jobs:
       - name: shared/types - instalar e compilar
         working-directory: shared/types
         run: |
-          npm ci || npm install
+          npm ci
           npm run build
 
       # Servidor de sinalização: só instala as dependências. O desktop gera depois um bundle
@@ -68,13 +80,13 @@ jobs:
       # TS6059 porque importa tipos de shared/types, que fica fora do rootDir do servidor).
       - name: server - instalar dependências
         working-directory: server
-        run: npm ci || npm install
+        run: npm ci
 
       # Site (client/dist) que o app serve na mesma origem.
       - name: client - instalar e compilar
         working-directory: client
         run: |
-          npm ci || npm install
+          npm ci
           npm run build
 
       # Módulo nativo C++ (WASAPI/DXGI): só compila no Windows. Python e Visual Studio já vêm
@@ -89,15 +101,21 @@ jobs:
       - name: native - instalar e compilar addon
         working-directory: native
         run: |
-          npm ci --ignore-scripts || npm install --ignore-scripts
+          npm ci --ignore-scripts
           npx node-gyp --version
           npx node-gyp rebuild
           ls -la build/Release/screen_capture.node
 
+      # Smoke test: falha cedo se o addon compilado não carregar (ABI, DLL ausente etc.).
+      - name: native - smoke test (carregar o .node)
+        working-directory: native
+        shell: bash
+        run: node -e "require('./build/Release/screen_capture.node')"
+
       # Dependências do app desktop (electron, electron-builder, esbuild).
       - name: desktop - instalar dependências
         working-directory: desktop
-        run: npm ci || npm install
+        run: npm ci
 
       # Versão semver única por build (1.0.<run_number>) em builds da main/manual; em tags v*
       # a versão da tag é usada. O electron-updater compara essa versão com a instalada.
@@ -164,7 +182,7 @@ jobs:
       - name: Enviar instalador sem assinatura (entrada da SignPath)
         id: unsigned
         if: env.SIGN_INSTALLER == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: KIARA-Setup-unsigned
           path: desktop/release/KIARA-Setup-*.exe
@@ -173,7 +191,7 @@ jobs:
 
       - name: Assinar instalador (SignPath)
         if: env.SIGN_INSTALLER == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -206,7 +224,7 @@ jobs:
 
       # Guarda o instalador como artifact (aba do workflow > Artifacts).
       - name: Enviar instalador como artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: KIARA-Setup-windows
           path: desktop/release/KIARA-Setup-*.exe
@@ -216,7 +234,7 @@ jobs:
       # Arquivos do auto-update (latest.yml + .exe, e o .blockmap quando o build não é assinado)
       # para o job de publicação.
       - name: Enviar arquivos de atualização
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: KIARA-update-files
           path: |
@@ -232,14 +250,14 @@ jobs:
   # Main/manual: tag v1.0.<run_number>; tag v*: usa a própria tag.
   release:
     name: Publicar release
-    needs: build
+    needs: [verify, build]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Baixar arquivos de atualização
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: KIARA-update-files
           path: dist
