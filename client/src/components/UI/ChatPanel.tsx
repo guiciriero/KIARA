@@ -152,6 +152,20 @@ const ChatPanel: React.FC<Props> = ({
             ))}
           </div>
 
+          <div className={styles.reactionRowInPanel} role="group" aria-label="Reações">
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                className={styles.reactionBtn}
+                onClick={() => onReact(emoji)}
+                aria-label={`Reagir com ${emoji}`}
+              >
+                <span aria-hidden="true">{emoji}</span>
+              </button>
+            ))}
+          </div>
+
           <form className={styles.form} onSubmit={submit}>
             <label htmlFor="kiara-chat-input" className={styles.srOnly}>Mensagem</label>
             <input

@@ -11,6 +11,7 @@ export type MediaErrorCode =
   | 'busy'
   | 'no-video'
   | 'audio-unavailable'
+  | 'unsupported'
   | 'unknown';
 
 const MESSAGES: Record<MediaErrorCode, string> = {
@@ -20,6 +21,7 @@ const MESSAGES: Record<MediaErrorCode, string> = {
   'busy': 'A fonte está em uso por outro aplicativo ou não pôde ser lida.',
   'no-video': 'Nenhuma faixa de vídeo foi capturada. Selecione uma tela ou janela válida.',
   'audio-unavailable': 'Não foi possível capturar o áudio selecionado.',
+  'unsupported': 'Este aparelho não consegue compartilhar a tela pelo navegador. Para transmitir, use um computador (Chrome, Edge ou Firefox) ou o app para Windows.',
   'unknown': 'Ocorreu um erro inesperado. Tente novamente.',
 };
 

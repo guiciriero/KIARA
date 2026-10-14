@@ -277,3 +277,12 @@
   width: 28px;
   text-align: right;
 }
+
+/* Toque: alvos de pelo menos 44px */
+@media (pointer: coarse) {
+  .refreshBtn,
+  .muteBtn {
+    width: 44px;
+    height: 44px;
+  }
+}

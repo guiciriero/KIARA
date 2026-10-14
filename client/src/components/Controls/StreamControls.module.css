@@ -65,3 +65,18 @@
   border-color: var(--kiara-danger);
   color: #ffffff;
 }
+
+.btnStart:disabled {
+  background: var(--kiara-surface-active);
+  color: var(--kiara-text-disabled);
+  cursor: not-allowed;
+}
+
+@media (pointer: coarse) {
+  .btnStart,
+  .btnPause,
+  .btnResume,
+  .btnStop {
+    min-height: 48px;
+  }
+}

@@ -90,6 +90,9 @@
 
 html, body, #root {
   height: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   font-family: var(--font-sans);
   background: #000000;
   color: var(--kiara-text);
@@ -128,6 +131,10 @@ button {
   justify-content: center;
   gap: 8px;
   user-select: none;
+}
+
+button {
+  touch-action: manipulation;
 }
 
 button:active:not(:disabled) {
@@ -243,5 +250,12 @@ input::placeholder {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ── Mobile: campos com 16px evitam o zoom automático do iOS ao focar ── */
+@media (pointer: coarse) {
+  input, select, textarea {
+    font-size: 16px;
   }
 }

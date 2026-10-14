@@ -40,11 +40,19 @@ function buildConstraints(config: VideoConfig, withAudio: boolean): DisplayMedia
  * @param withAudio       pede o áudio do sistema (somente navegador)
  * @param captureSourceId (desktop) fonte escolhida na interface; vale só para esta chamada
  */
+/** Navegadores de celular (Android/iOS) não implementam getDisplayMedia */
+export function isDisplayCaptureSupported(): boolean {
+  return typeof navigator !== 'undefined' &&
+    typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+}
+
 export async function captureDisplay(
   config: VideoConfig,
   { withAudio, captureSourceId }: { withAudio: boolean; captureSourceId?: string | null },
 ): Promise<CaptureResult> {
   const host = window.screenShareHost;
+
+  if (!isDisplayCaptureSupported()) throw new MediaError('unsupported');
 
   try {
     if (host && captureSourceId) {

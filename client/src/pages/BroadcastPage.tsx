@@ -4,6 +4,7 @@ import { useBroadcast } from '../hooks/useBroadcast';
 import { useAudioSources } from '../hooks/useAudioSources';
 import { useChat } from '../hooks/useChat';
 import { useSocket } from '../services/SocketContext';
+import { isDisplayCaptureSupported } from '../services/captureService';
 import {
   KiaraLogo,
   IconArrowLeft,
@@ -93,8 +94,10 @@ const BroadcastPage: React.FC = () => {
   const passwordValid = isRoomPasswordValid(roomOptions.password);
   const privacyIgnored = state.isSharing && roomOptions.privacyMode && !state.privacyMode;
 
+  const captureSupported = isDisplayCaptureSupported() || window.screenShareHost !== undefined;
+
   const handleStart = () => {
-    if (!passwordValid) return;
+    if (!passwordValid || !captureSupported) return;
     void startSharing();
   };
 
@@ -181,9 +184,21 @@ const BroadcastPage: React.FC = () => {
               isSharing={state.isSharing}
               isPaused={state.isPaused}
               onStart={handleStart}
+              startDisabled={!captureSupported}
               onStop={stopSharing}
               onTogglePause={togglePause}
             />
+
+            {!captureSupported && (
+              <div className={styles.errorBox} role="alert">
+                <IconAlertTriangle size={16} className={styles.errorIcon} />
+                <span>
+                  Este aparelho não consegue compartilhar a tela pelo navegador. Para transmitir, use
+                  um computador (Chrome, Edge ou Firefox) ou o app para Windows. Para assistir, abra o
+                  link da sala aqui mesmo.
+                </span>
+              </div>
+            )}
 
             {!passwordValid && !state.isSharing && (
               <div className={styles.errorBox} role="alert">

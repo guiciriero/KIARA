@@ -1,5 +1,6 @@
 .container {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: 0 24px;
@@ -212,7 +213,17 @@
 /* ── Responsividade ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .container {
-    padding: 0 20px;
+    padding: 0 max(20px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(20px, env(safe-area-inset-left));
+  }
+  .header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .headerRight {
+    flex-wrap: wrap;
+  }
+  .btnDownload {
+    display: none;
   }
   .title {
     font-size: 1.85rem;

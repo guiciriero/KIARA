@@ -4,6 +4,16 @@ import { useViewer } from '../hooks/useViewer';
 import { useChat } from '../hooks/useChat';
 import { useSocket } from '../services/SocketContext';
 import { isValidRoomCode } from '../utils/viewerLink';
+import {
+  deviceSupportsFullscreen,
+  getFullscreenElement,
+  setLandscapeLock,
+  toggleFullscreen,
+  type FullscreenDocument,
+  type FullscreenTarget,
+  type FullscreenVideo,
+} from '../utils/fullscreen';
+import { useWakeLock } from '../hooks/useWakeLock';
 import type { ViewerQualityPreference } from '@shared/index';
 import {
   KiaraLogo,
@@ -61,16 +71,32 @@ const ViewerPage: React.FC = () => {
     }
   }, [localVolume]);
 
-  // Listener para estado de tela cheia
+  // Estado de tela cheia: API padrão, prefixo webkit e player nativo do iPhone
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+    const video = videoRef.current as (HTMLVideoElement & FullscreenVideo) | null;
+    const sync = () => {
+      const active = Boolean(getFullscreenElement(document as FullscreenDocument)) ||
+        Boolean(video?.webkitDisplayingFullscreen);
+      setIsFullscreen(active);
+      // Em celular, tela cheia trava em paisagem (onde o navegador permite)
+      if (window.matchMedia?.('(pointer: coarse)').matches) {
+        void setLandscapeLock(screen.orientation as unknown as Parameters<typeof setLandscapeLock>[0], active);
+      }
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    video?.addEventListener('webkitbeginfullscreen', sync);
+    video?.addEventListener('webkitendfullscreen', sync);
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('webkitfullscreenchange', sync);
+      video?.removeEventListener('webkitbeginfullscreen', sync);
+      video?.removeEventListener('webkitendfullscreen', sync);
     };
   }, []);
+
+  // Mantém a tela do celular acesa enquanto assiste
+  useWakeLock(state.connectionState === 'connected');
 
   // Autohide de controles após inatividade do mouse
   const resetHideTimer = useCallback(() => {
@@ -127,13 +153,31 @@ const ViewerPage: React.FC = () => {
   const handleToggleFullscreen = async () => {
     if (!containerRef.current) return;
     try {
-      if (!document.fullscreenElement) {
-        await containerRef.current.requestFullscreen();
-      } else {
-        await document.exitFullscreen();
-      }
+      await toggleFullscreen(
+        document as FullscreenDocument,
+        containerRef.current as unknown as FullscreenTarget,
+        videoRef.current as unknown as FullscreenVideo | null,
+      );
     } catch (err) {
       console.warn('[KIARA] Erro ao alternar tela cheia:', err);
+    }
+    resetHideTimer();
+  };
+
+  // iPhone só tem tela cheia pelo player do <video>; sem nenhum suporte, o botão some
+  const fullscreenSupported = deviceSupportsFullscreen();
+
+  /** Mouse: mostra os controles. Toque: um toque no vídeo alterna mostrar/esconder */
+  const handleSurfaceClick = (e: React.MouseEvent) => {
+    const onControls = (e.target as HTMLElement).closest('header, footer, button, select, input, section');
+    if (onControls) {
+      resetHideTimer();
+      return;
+    }
+    if (window.matchMedia?.('(pointer: coarse)').matches && showControls && state.connectionState === 'connected' && !isMuted) {
+      setShowControls(false);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      return;
     }
     resetHideTimer();
   };
@@ -324,8 +368,10 @@ const ViewerPage: React.FC = () => {
     <div
       ref={containerRef}
       className={styles.playerLayout}
-      onMouseMove={resetHideTimer}
-      onClick={resetHideTimer}
+      onPointerMove={(e) => {
+        if (e.pointerType === 'mouse') resetHideTimer();
+      }}
+      onClick={handleSurfaceClick}
     >
       {/* ── Barra Superior Flutuante do Player ────────────────────────────── */}
       <header className={`${styles.topBar} ${!showControls ? styles.hidden : ''}`}>
@@ -498,6 +544,7 @@ const ViewerPage: React.FC = () => {
           )}
 
           {/* Botão de Tela Cheia */}
+          {fullscreenSupported && (
           <button
             type="button"
             className={styles.iconBtn}
@@ -508,6 +555,7 @@ const ViewerPage: React.FC = () => {
           >
             {isFullscreen ? <IconExitFullscreen size={18} /> : <IconFullscreen size={18} />}
           </button>
+          )}
         </div>
       </footer>
     </div>

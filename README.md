@@ -35,6 +35,7 @@ Se preferir, abra a página inicial no navegador, digite o código de 6 caracter
 - O link muda a cada vez que o app é aberto. Quando você fecha, a sala acaba (e toda sala expira sozinha após 12 horas).
 - Quem tiver o link e o código consegue assistir, a menos que você proteja a sala. Antes de iniciar, em **Acesso à sala**, dá para definir uma **senha** (4 a 64 caracteres) e marcar **Aprovar cada entrada**: cada pessoa aparece na tela como pedido e você clica em Aprovar ou Negar.
 - O **Modo privacidade** esconde seu IP dos espectadores, fazendo o vídeo passar por um servidor de retransmissão (TURN). Só funciona se o servidor tiver TURN configurado; depois de iniciar, a sala mostra se ele foi ativado de fato.
+- No celular dá para **assistir** (com tela cheia, tela sempre acesa e chat), mas **não transmitir**: os navegadores de Android e iPhone não permitem compartilhar a tela. Para transmitir, use um computador ou o app para Windows.
 - Cada espectador recebe uma cópia do vídeo, então seu upload precisa dar conta (bitrate × espectadores). O painel mostra a estimativa e avisa quando ela passa de 20 Mbps (atenção) ou 50 Mbps (perigo). O limite padrão é de 8 espectadores por sala.
 - O botão de baixar o app só aparece no site. Dentro do app instalado você usa o **Atualizar**.
 - No macOS, libere **Gravação de Tela e Áudio do Sistema** em Ajustes do Sistema, Privacidade e Segurança, e reabra o app.

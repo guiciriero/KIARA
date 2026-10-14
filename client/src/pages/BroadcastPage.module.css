@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   background: #000000;
   overflow: hidden;
 }
@@ -301,15 +302,63 @@
 
 /* ── Responsividade ─────────────────────────────────────────────── */
 @media (max-width: 900px) {
+  /* A página inteira rola; cada bloco usa a altura de que precisa (nada de painel com rolagem interna) */
+  .studioLayout {
+    height: auto;
+    min-height: 100dvh;
+  }
   .bodyLayout {
     flex-direction: column;
+    overflow: visible;
   }
   .sidebar {
     width: 100%;
     min-width: unset;
     border-right: none;
     border-bottom: 1px solid var(--kiara-border);
-    max-height: 45vh;
+    max-height: none;
+    overflow: visible;
+    order: 2;
+  }
+  .mainArea {
+    order: 1;
+    overflow: visible;
+    padding: 12px;
+  }
+  .previewContainer {
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    flex: none;
+  }
+  .topBar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+}
+
+@media (max-width: 640px) {
+  .topBar {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .studioBadge,
+  .divider {
+    display: none;
+  }
+  .backBtn span {
+    display: none;
+  }
+  .backBtn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .placeholderSteps {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .chatDock {
+    justify-content: stretch;
   }
 }
 

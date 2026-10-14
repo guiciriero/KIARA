@@ -8,6 +8,7 @@ interface Props {
   onStart: () => void;
   onStop: () => void;
   onTogglePause: () => void;
+  startDisabled?: boolean;
 }
 
 const StreamControls: React.FC<Props> = ({
@@ -16,11 +17,12 @@ const StreamControls: React.FC<Props> = ({
   onStart,
   onStop,
   onTogglePause,
+  startDisabled = false,
 }) => {
   return (
     <div className={styles.container}>
       {!isSharing ? (
-        <button type="button" className={styles.btnStart} onClick={onStart}>
+        <button type="button" className={styles.btnStart} onClick={onStart} disabled={startDisabled}>
           <IconBroadcast size={20} />
           <span>Iniciar Transmissão</span>
         </button>

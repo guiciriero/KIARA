@@ -1,7 +1,8 @@
 .playerLayout {
   position: relative;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
+  height: 100dvh;
   background: #000000;
   overflow: hidden;
   display: flex;
@@ -19,7 +20,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  padding-top: env(safe-area-inset-top);
+  height: calc(52px + env(safe-area-inset-top));
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -220,11 +223,12 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 52px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  gap: 8px;
+  padding: 0 max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -286,8 +290,8 @@
 
 .volumeSlider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #ffffff;
   cursor: pointer;
@@ -352,6 +356,7 @@
 /* ── Centered Message ───────────────────────────────────────────── */
 .centeredPage {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -471,4 +476,57 @@
 
 .btnSecondary:hover {
   background: var(--kiara-surface-hover);
+}
+
+/* ── Celular ───────────────────────────────────────────────────── */
+.videoElement {
+  /* Evita o menu de seleção/lupa ao segurar o dedo no vídeo */
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  .topBarCenter {
+    display: none;
+  }
+  .roomLabel {
+    display: none;
+  }
+  .bottomBar {
+    flex-wrap: wrap;
+    row-gap: 0;
+    justify-content: space-between;
+  }
+  .bottomBarLeft {
+    gap: 8px;
+  }
+  /* No toque o volume é pelos botões do aparelho; o slider só ocupa espaço */
+  .volumeSlider {
+    display: none;
+  }
+  .qualitySelect {
+    max-width: 120px;
+  }
+  .unmuteButton {
+    width: calc(100% - 32px);
+    max-width: 360px;
+    min-height: 56px;
+  }
+  .messageCard {
+    padding: 24px 16px;
+  }
+}
+
+/* Paisagem em celular: barras mais baixas para sobrar vídeo */
+@media (max-height: 480px) and (orientation: landscape) {
+  .topBar {
+    min-height: 40px;
+    height: calc(40px + env(safe-area-inset-top));
+  }
+  .bottomBar {
+    min-height: 40px;
+  }
+  .unmuteButton {
+    padding: 8px 14px;
+  }
 }

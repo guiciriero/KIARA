@@ -164,3 +164,19 @@
   border-radius: var(--radius-sm);
   color: var(--kiara-text);
 }
+
+@media (pointer: coarse) {
+  .resChip {
+    min-height: 44px;
+  }
+  .select {
+    min-height: 44px;
+  }
+  .slider {
+    height: 6px;
+  }
+  .slider::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+}

@@ -73,6 +73,7 @@
   bottom: 76px;
   width: min(340px, calc(100vw - 32px));
   max-height: min(60vh, 460px);
+  max-height: min(60dvh, 460px);
   display: flex;
   flex-direction: column;
   background: var(--kiara-surface);
@@ -237,12 +238,24 @@
   }
 }
 
+.reactionRowInPanel {
+  display: none;
+}
+
 @media (max-width: 600px) {
+  /* Na barra do player não cabe: as reações passam para dentro do painel de chat */
   .reactionBar {
     display: none;
   }
+  .reactionRowInPanel {
+    display: flex;
+    justify-content: space-around;
+    border-top: 1px solid var(--kiara-border);
+  }
   .panel {
-    right: 8px;
-    bottom: 68px;
+    right: max(8px, env(safe-area-inset-right));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    bottom: calc(68px + env(safe-area-inset-bottom));
   }
 }

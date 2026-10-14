@@ -23,6 +23,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Alterado
 
+- Experiência mobile: tela cheia no celular (API padrão, prefixo webkit e player nativo do iPhone, com travamento em paisagem quando permitido), tela que fica acesa durante a transmissão, toque no vídeo mostra/esconde os controles, altura dinâmica (`dvh`) e áreas seguras do iPhone, barra do player compacta, reações dentro do chat em telas estreitas, estúdio em coluna única com a prévia no topo, campos com 16 px (sem zoom automático do iOS) e alvos de toque de 44 px.
+- Celulares não conseguem transmitir pelo navegador (não existe `getDisplayMedia`): a página do apresentador explica e desabilita o botão em vez de falhar.
 - Servidor e cliente exigem Node 22.
 - Docker: Nginx escuta na porta 8080 (compose mapeia `127.0.0.1:3000:8080`), CSP mais restrita e proxy de `/socket.io` e `/download` para o servidor.
 - `render.yaml` usa Node 22 e variáveis de TURN com `sync: false`.
