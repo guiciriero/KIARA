@@ -41,14 +41,32 @@ export function isValidRoomPassword(password: unknown): password is string {
   return typeof password === 'string' && password.length >= 4 && password.length <= 64;
 }
 
-/** Sanitiza apelido: até 24 caracteres, sem caracteres de controle */
+/**
+ * Remove caracteres invisíveis/de controle (Cc) e de formatação (Cf: zero-width, marcas
+ * bidirecionais como U+202E "right-to-left override") e separadores de linha/parágrafo.
+ * SEGURANÇA: evita spoofing visual de apelidos/mensagens (inversão de texto, nomes "vazios").
+ */
+export function stripUnsafeChars(text: string): string {
+  return text.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, '');
+}
+
+/** Nomes que fariam um espectador se passar pelo apresentador no chat */
+const RESERVED_NICKNAME = /apresentador|\(\s*host\s*\)/i;
+
+/**
+ * Sanitiza apelido: até 24 caracteres, sem caracteres de controle/invisíveis.
+ * SEGURANÇA: normaliza (NFKC, dobra letras "largas" parecidas), colapsa espaços e recusa nomes
+ * reservados ("Apresentador", "(host)") para impedir personificação do apresentador.
+ */
 export function sanitizeNickname(name: unknown, isHost: boolean = false): string {
   if (isHost) return 'Apresentador';
   if (typeof name !== 'string') return 'Convidado';
-  // Remove caracteres de controle (0x00-0x1F, 0x7F)
-  const cleaned = name.replace(/[\x00-\x1F\x7F]/g, '').trim();
-  if (cleaned.length === 0) return 'Convidado';
-  return cleaned.slice(0, 24);
+  // Limita antes de normalizar para não processar entradas gigantes
+  const cleaned = stripUnsafeChars(name.slice(0, 200).normalize('NFKC'))
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length === 0 || RESERVED_NICKNAME.test(cleaned)) return 'Convidado';
+  return Array.from(cleaned).slice(0, 24).join('').trim() || 'Convidado';
 }
 
 /** Valida CreateRoomPayload */
@@ -165,7 +183,8 @@ export function validateChatPayload(data: unknown): SendChatPayload | null {
   const obj = data as Record<string, unknown>;
 
   if (typeof obj.text !== 'string') return null;
-  const text = obj.text.trim();
+  // Remove controles e marcas bidirecionais (spoofing visual) antes de medir o tamanho
+  const text = stripUnsafeChars(obj.text).trim();
   if (text.length < 1 || text.length > 500) return null;
 
   return { text };
@@ -203,9 +222,9 @@ export function validateOfferPayload(
     sdp: offer.sdp,
   };
 
-  if (offer.config && isValidStreamConfig(offer.config)) {
-    resultOffer.config = offer.config;
-  }
+  // Reconstrói a config só com campos conhecidos (nada de propriedades extras repassadas)
+  const cleanConfig = sanitizeStreamConfig(offer.config);
+  if (cleanConfig) resultOffer.config = cleanConfig;
 
   return {
     targetId: obj.targetId,
@@ -277,42 +296,91 @@ export function validateIceCandidatePayload(
   };
 }
 
-/** Valida StreamConfig */
-export function isValidStreamConfig(config: unknown): config is StreamConfig {
-  if (!config || typeof config !== 'object' || Array.isArray(config)) return false;
+const ALLOWED_VIDEO_CODECS = ['H264', 'H265', 'VP9', 'VP8', 'AV1'] as const;
+const ALLOWED_AUDIO_CODECS = ['opus', 'aac'] as const;
+const ALLOWED_VIDEO_QUALITIES = ['low', 'medium', 'high', 'ultra'] as const;
+const MAX_AUDIO_SOURCES = 32;
+
+/** true se `n` é número finito dentro de [min, max] */
+function inRange(n: unknown, min: number, max: number): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max;
+}
+
+/** Texto curto, sem controles/bidi */
+function shortText(v: unknown, max: number): string {
+  return typeof v === 'string' ? stripUnsafeChars(v).slice(0, max) : '';
+}
+
+/**
+ * Valida E reconstrói um StreamConfig.
+ * SEGURANÇA: o servidor retransmite esta estrutura a outros clientes; por isso só campos
+ * conhecidos, com faixas e listas de valores permitidas, são copiados (sem propriedades
+ * extras, strings livres nem listas gigantes). Retorna null se inválido.
+ */
+export function sanitizeStreamConfig(config: unknown): StreamConfig | null {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return null;
   const c = config as Record<string, unknown>;
 
-  if (!c.video || typeof c.video !== 'object' || Array.isArray(c.video)) return false;
+  if (!c.video || typeof c.video !== 'object' || Array.isArray(c.video)) return null;
   const v = c.video as Record<string, unknown>;
   if (
-    typeof v.width !== 'number' ||
-    !Number.isFinite(v.width) ||
-    typeof v.height !== 'number' ||
-    !Number.isFinite(v.height) ||
-    typeof v.frameRate !== 'number' ||
-    !Number.isFinite(v.frameRate) ||
-    typeof v.bitrate !== 'number' ||
-    !Number.isFinite(v.bitrate) ||
-    typeof v.codec !== 'string' ||
-    typeof v.quality !== 'string'
+    !inRange(v.width, 1, 7680) ||
+    !inRange(v.height, 1, 4320) ||
+    !inRange(v.frameRate, 1, 240) ||
+    !inRange(v.bitrate, 1, 200_000) ||
+    !ALLOWED_VIDEO_CODECS.includes(v.codec as (typeof ALLOWED_VIDEO_CODECS)[number]) ||
+    !ALLOWED_VIDEO_QUALITIES.includes(v.quality as (typeof ALLOWED_VIDEO_QUALITIES)[number])
   ) {
-    return false;
+    return null;
   }
 
-  if (!c.audio || typeof c.audio !== 'object' || Array.isArray(c.audio)) return false;
+  if (!c.audio || typeof c.audio !== 'object' || Array.isArray(c.audio)) return null;
   const a = c.audio as Record<string, unknown>;
   if (
-    typeof a.sampleRate !== 'number' ||
-    !Number.isFinite(a.sampleRate) ||
-    typeof a.bitrate !== 'number' ||
-    !Number.isFinite(a.bitrate) ||
-    typeof a.codec !== 'string' ||
+    (a.sampleRate !== 44100 && a.sampleRate !== 48000) ||
+    !inRange(a.bitrate, 1, 640) ||
+    !ALLOWED_AUDIO_CODECS.includes(a.codec as (typeof ALLOWED_AUDIO_CODECS)[number]) ||
     !Array.isArray(a.sources)
   ) {
-    return false;
+    return null;
   }
 
-  return true;
+  const sources = a.sources
+    .slice(0, MAX_AUDIO_SOURCES)
+    .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object' && !Array.isArray(s))
+    .map((s) => ({
+      id: shortText(s.id, 64),
+      processId: Number.isInteger(s.processId) ? (s.processId as number) : 0,
+      processName: shortText(s.processName, 64),
+      displayName: shortText(s.displayName, 64),
+      volume: inRange(s.volume, 0, 1) ? s.volume : 1,
+      isMuted: s.isMuted === true,
+      platform: (['windows', 'linux', 'macos'] as const).includes(s.platform as 'windows')
+        ? (s.platform as 'windows' | 'linux' | 'macos')
+        : 'windows',
+    }));
+
+  return {
+    video: {
+      width: v.width,
+      height: v.height,
+      frameRate: v.frameRate,
+      codec: v.codec as StreamConfig['video']['codec'],
+      bitrate: v.bitrate,
+      quality: v.quality as StreamConfig['video']['quality'],
+    },
+    audio: {
+      sampleRate: a.sampleRate,
+      bitrate: a.bitrate,
+      codec: a.codec as StreamConfig['audio']['codec'],
+      sources,
+    },
+  };
+}
+
+/** Valida StreamConfig */
+export function isValidStreamConfig(config: unknown): config is StreamConfig {
+  return sanitizeStreamConfig(config) !== null;
 }
 
 /** Valida QualityRequestPayload */
@@ -360,31 +428,48 @@ export function validateQualityRequestPayload(data: unknown): QualityRequestPayl
   };
 }
 
-/** Valida StreamStats */
-export function isValidStreamStats(stats: unknown): stats is StreamStats {
-  if (!stats || typeof stats !== 'object' || Array.isArray(stats)) return false;
+const STATS_NUMERIC_FIELDS = [
+  'fps',
+  'videoBitrate',
+  'audioBitrate',
+  'latencyMs',
+  'packetsLost',
+  'lossPercent',
+  'jitterMs',
+  'timestamp',
+] as const;
+const ALLOWED_QUALITY_LIMITATIONS = ['none', 'cpu', 'bandwidth', 'other'] as const;
+const ALLOWED_CONNECTION_QUALITIES = ['excellent', 'good', 'fair', 'poor'] as const;
+
+/**
+ * Valida E reconstrói StreamStats antes de retransmitir aos espectadores.
+ * SEGURANÇA: só campos conhecidos, números finitos e enums permitidos; nada de propriedades
+ * extras vindas do remetente. Retorna null se inválido.
+ */
+export function sanitizeStreamStats(stats: unknown): StreamStats | null {
+  if (!stats || typeof stats !== 'object' || Array.isArray(stats)) return null;
   const s = stats as Record<string, unknown>;
 
-  const numFields = [
-    'fps',
-    'videoBitrate',
-    'audioBitrate',
-    'latencyMs',
-    'packetsLost',
-    'lossPercent',
-    'jitterMs',
-    'timestamp',
-  ];
-
-  for (const field of numFields) {
-    if (typeof s[field] !== 'number' || !Number.isFinite(s[field])) {
-      return false;
-    }
+  const out: Record<string, unknown> = {};
+  for (const field of STATS_NUMERIC_FIELDS) {
+    const value = s[field];
+    if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e15) return null;
+    out[field] = value;
   }
 
-  if (typeof s.qualityLimitation !== 'string' || typeof s.connectionQuality !== 'string') {
-    return false;
+  if (
+    !ALLOWED_QUALITY_LIMITATIONS.includes(s.qualityLimitation as (typeof ALLOWED_QUALITY_LIMITATIONS)[number]) ||
+    !ALLOWED_CONNECTION_QUALITIES.includes(s.connectionQuality as (typeof ALLOWED_CONNECTION_QUALITIES)[number])
+  ) {
+    return null;
   }
+  out.qualityLimitation = s.qualityLimitation;
+  out.connectionQuality = s.connectionQuality;
 
-  return true;
+  return out as unknown as StreamStats;
+}
+
+/** Valida StreamStats */
+export function isValidStreamStats(stats: unknown): stats is StreamStats {
+  return sanitizeStreamStats(stats) !== null;
 }

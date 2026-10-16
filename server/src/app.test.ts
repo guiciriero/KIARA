@@ -61,6 +61,22 @@ describe('createApp', () => {
     expect(res.headers.get('strict-transport-security')).toBeNull();
   });
 
+  it('segurança: Permissions-Policy, form-action, /health sem uptime e CORS sem credentials', async () => {
+    const { base } = await start({ production: false });
+    const res = await fetch(`${base}/health`, { headers: { Origin: base } });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('uptime');
+    expect(res.headers.get('permissions-policy') ?? '').toContain('camera=()');
+    expect(res.headers.get('content-security-policy') ?? '').toContain("form-action 'self'");
+    expect(res.headers.get('access-control-allow-credentials')).toBeNull();
+  });
+
+  it('segurança: CORS não reflete origens externas', async () => {
+    const { base } = await start({ production: false });
+    const res = await fetch(`${base}/health`, { headers: { Origin: 'https://evil.example' } });
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
   it('/download/windows redireciona e dispara 429 JSON genérico ao exceder o limite; /health é isento', async () => {
     const { base } = await start({
       rateLimit: { general: { windowMs: 60_000, limit: 100 }, download: { windowMs: 60_000, limit: 2 } },

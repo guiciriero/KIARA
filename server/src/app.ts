@@ -135,6 +135,8 @@ export function createApp(opts: AppOptions = {}): AppInstance {
           'object-src': ["'none'"],
           'frame-ancestors': ["'none'"],
           'base-uri': ["'none'"],
+          // Nenhum formulário envia dados para fora (os <form> do app são tratados em JS)
+          'form-action': ["'self'"],
           ...(secureContext ? { 'upgrade-insecure-requests': [] } : {}),
         },
       },
@@ -144,7 +146,18 @@ export function createApp(opts: AppOptions = {}): AppInstance {
     }),
   );
 
-  app.use(cors({ origin: originCheck, credentials: true }));
+  // SEGURANÇA: Permissions-Policy restringe recursos do navegador. Captura de tela, tela cheia,
+  // wake lock e autoplay ficam só na própria origem; o resto é negado.
+  app.use((_req, res, next) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), display-capture=(self), fullscreen=(self), screen-wake-lock=(self), autoplay=(self)',
+    );
+    next();
+  });
+
+  // SEGURANÇA: o app não usa cookies nem HTTP auth; `credentials: true` seria permissivo à toa.
+  app.use(cors({ origin: originCheck }));
 
   // Limite geral por IP; /health fica isento (health checks do Docker/Render)
   const general = opts.rateLimit?.general ?? { windowMs: 15 * 60 * 1000, limit: 300 };
@@ -162,8 +175,9 @@ export function createApp(opts: AppOptions = {}): AppInstance {
   // Nenhuma rota recebe corpo JSON, então não há body parser.
 
   // Endpoint de saúde — usado por health checks do Docker / load balancer
+  // SEGURANÇA: não expõe uptime (fingerprinting/reconhecimento do servidor)
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime() });
+    res.json({ status: 'ok' });
   });
 
   // Download do instalador do Windows: redireciona para o .exe da última release
@@ -209,7 +223,6 @@ export function createApp(opts: AppOptions = {}): AppInstance {
     cors: {
       origin: originCheck,
       methods: ['GET', 'POST'],
-      credentials: true,
     },
     // Recusa o handshake (polling e websocket) de origens fora da allowlist
     allowRequest: (req, callback) => {
@@ -243,6 +256,8 @@ export function createApp(opts: AppOptions = {}): AppInstance {
 
   io.use((socket, next) => {
     const ip = clientIp(socket.handshake.headers, socket.handshake.address);
+    // Disponibiliza o IP real (com TRUST_PROXY) à sinalização, para limitar tentativas por IP
+    socket.data.ip = ip;
     const current = perIp.get(ip) ?? 0;
     if (totalConnections >= maxConnections || current >= maxConnectionsPerIp) {
       next(new Error('server-busy'));

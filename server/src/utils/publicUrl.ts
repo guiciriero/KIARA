@@ -64,7 +64,9 @@ export function getAllowedOrigins(port: number): string[] {
     getPublicUrl(),
     `http://localhost:${port}`,
     `http://127.0.0.1:${port}`,
-    'http://localhost:3000', // dev Vite
+    // SEGURANÇA: a origem do Vite (dev) não entra em produção; evita que outro serviço local
+    // em localhost:3000 (ou uma página lá hospedada) fale com a sinalização.
+    ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000']),
   ].filter((o): o is string => Boolean(o));
   return Array.from(new Set(origins.map(stripTrailingSlash)));
 }

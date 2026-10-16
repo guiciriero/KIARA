@@ -30,8 +30,8 @@ import {
   validateAnswerPayload,
   validateIceCandidatePayload,
   validateQualityRequestPayload,
-  isValidStreamConfig,
-  isValidStreamStats,
+  sanitizeStreamConfig,
+  sanitizeStreamStats,
   sanitizeNickname,
 } from '../utils/validators';
 
@@ -46,6 +46,36 @@ const socketNicknames = new Map<string, string>();
 const MAX_JOIN_FAILURES = 8;
 const JOIN_FAILURE_WINDOW_MS = 60_000;
 const joinFailures = new Map<string, number[]>();
+
+/**
+ * SEGURANÇA (anti-força-bruta além do socket): o limite por socket sozinho é contornado
+ * reconectando. Por isso há também limites por IP e por sala (senha), mantidos por instância
+ * de setupSignaling (ver dentro dela).
+ */
+const MAX_JOIN_FAILURES_PER_IP = 40;
+const MAX_PASSWORD_FAILURES_PER_ROOM = 30;
+const ROOM_PASSWORD_WINDOW_MS = 5 * 60_000;
+
+/** Limite geral de eventos por socket (inunda ICE/stats/nome/qualidade): descarta o excesso */
+const EVENT_WINDOW_MS = 10_000;
+const EVENT_LIMIT = 600;
+const EVENT_HARD_LIMIT = 3_000; // acima disto o socket é desconectado
+
+/** Timestamps recentes de uma chave (poda os antigos) */
+function recentHits(map: Map<string, number[]>, key: string, windowMs: number): number[] {
+  const cutoff = Date.now() - windowMs;
+  const recent = (map.get(key) ?? []).filter((t) => t > cutoff);
+  map.set(key, recent);
+  return recent;
+}
+
+/** Remove chaves sem eventos recentes (evita crescimento ilimitado do mapa) */
+function sweepHits(map: Map<string, number[]>, windowMs: number): void {
+  const cutoff = Date.now() - windowMs;
+  for (const [key, list] of map) {
+    if (!list.some((t) => t > cutoff)) map.delete(key);
+  }
+}
 
 function recentJoinFailures(socketId: string): number[] {
   const cutoff = Date.now() - JOIN_FAILURE_WINDOW_MS;
@@ -127,12 +157,21 @@ function safe(
 }
 
 export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): () => void {
+  // Estado por instância (não compartilhado entre servidores/testes)
+  const ipJoinFailures = new Map<string, number[]>();
+  const roomPasswordFailures = new Map<string, number[]>();
+  const eventBuckets = new Map<string, { start: number; count: number }>();
+  /** Sockets com room:create em andamento (evita criar várias salas em paralelo) */
+  const creatingRoom = new Set<string>();
+
   // Limpeza periódica de salas expiradas a cada 5 minutos
   const pruneInterval = setInterval(() => {
     roomManager.pruneStaleRooms((expiredRoom) => {
       logger.warn(`Encerrando sala expirada por limite de tempo: ${expiredRoom.id}`);
       notifyRoomClosed(io, expiredRoom, 'A sala expirou por limite de tempo.');
     });
+    sweepHits(ipJoinFailures, JOIN_FAILURE_WINDOW_MS);
+    sweepHits(roomPasswordFailures, ROOM_PASSWORD_WINDOW_MS);
   }, 5 * 60 * 1000);
 
   if (typeof pruneInterval.unref === 'function') {
@@ -143,71 +182,124 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
     const socketLogId = socket.id.slice(0, 8);
     logger.info(`Nova conexão estabelecida: ${socketLogId}`);
 
+    // IP real (já considerando TRUST_PROXY) definido pelo middleware de conexão em app.ts
+    const ipKey: string = (socket.data?.ip as string | undefined) ?? socket.handshake.address;
+
+    // SEGURANÇA: o erro de middleware abaixo é só para descartar o pacote; sem este ouvinte
+    // o Socket.IO imprimiria "Missing error handler" no console a cada excesso.
+    socket.on('error', () => {});
+
+    // ── Limite geral de eventos por socket (DoS por inundação de eventos) ────
+    socket.use((_packet, next) => {
+      const now = Date.now();
+      let bucket = eventBuckets.get(socket.id);
+      if (!bucket || now - bucket.start > EVENT_WINDOW_MS) {
+        bucket = { start: now, count: 0 };
+        eventBuckets.set(socket.id, bucket);
+      }
+      bucket.count += 1;
+      if (bucket.count > EVENT_HARD_LIMIT) {
+        socket.disconnect(true);
+        return;
+      }
+      if (bucket.count > EVENT_LIMIT) {
+        next(new Error('rate-limited'));
+        return;
+      }
+      next();
+    });
+
+    /** Registra falha de entrada por socket E por IP (reconectar não zera o contador do IP) */
+    const registerFailure = (): void => {
+      registerJoinFailure(socket.id);
+      recentHits(ipJoinFailures, ipKey, JOIN_FAILURE_WINDOW_MS).push(Date.now());
+    };
+
     // ── Criar sala (apresentador) ────────────────────────────────────────────
     socket.on(
       'room:create',
       safe(socket, async (rawPayload: unknown) => {
-        const validation = validateCreateRoomPayload(rawPayload);
-        if (!validation.valid) {
-          const errorPayload: RoomErrorPayload = {
-            code: 'invalid-request',
-            message: validation.invalidPassword
-              ? 'A senha deve ter entre 4 e 64 caracteres.'
-              : 'Requisição inválida para criação de sala.',
-          };
-          socket.emit('room:error', errorPayload);
-          return;
-        }
-
-        // Se o socket já estiver em alguma sala, sai antes
-        leaveCurrentRoom(socket, io, roomManager);
-
-        let room: ManagedRoom;
+        // SEGURANÇA (race condition): vários room:create simultâneos do mesmo socket criariam
+        // várias salas, e só a última ficaria rastreada (as outras vazariam até expirar).
+        if (creatingRoom.has(socket.id)) return;
+        creatingRoom.add(socket.id);
         try {
-          const turnAvailable = isTurnConfigured();
-          const privacyRequested = Boolean(validation.payload?.privacyMode);
-          const privacyEffective = privacyRequested && turnAvailable;
-
-          room = await roomManager.createRoom(socket.id, {
-            password: validation.payload?.password,
-            requireApproval: validation.payload?.requireApproval,
-            privacyMode: privacyEffective,
-            chatEnabled: validation.payload?.chatEnabled,
-            reactionsEnabled: validation.payload?.reactionsEnabled,
-          });
-        } catch (err: any) {
-          if (err?.code === 'SERVER_BUSY') {
+          const validation = validateCreateRoomPayload(rawPayload);
+          if (!validation.valid) {
             const errorPayload: RoomErrorPayload = {
-              code: 'server-busy',
-              message: 'O servidor está com a capacidade máxima de salas atingida.',
+              code: 'invalid-request',
+              message: validation.invalidPassword
+                ? 'A senha deve ter entre 4 e 64 caracteres.'
+                : 'Requisição inválida para criação de sala.',
             };
             socket.emit('room:error', errorPayload);
             return;
           }
-          throw err;
+
+          // Se o socket já estiver em alguma sala, sai antes
+          leaveCurrentRoom(socket, io, roomManager);
+
+          let room: ManagedRoom;
+          try {
+            const turnAvailable = isTurnConfigured();
+            const privacyRequested = Boolean(validation.payload?.privacyMode);
+            const privacyEffective = privacyRequested && turnAvailable;
+
+            room = await roomManager.createRoom(socket.id, {
+              password: validation.payload?.password,
+              requireApproval: validation.payload?.requireApproval,
+              privacyMode: privacyEffective,
+              chatEnabled: validation.payload?.chatEnabled,
+              reactionsEnabled: validation.payload?.reactionsEnabled,
+            });
+          } catch (err: any) {
+            if (err?.code === 'SERVER_BUSY') {
+              const errorPayload: RoomErrorPayload = {
+                code: 'server-busy',
+                message: 'O servidor está com a capacidade máxima de salas atingida.',
+              };
+              socket.emit('room:error', errorPayload);
+              return;
+            }
+            throw err;
+          }
+
+          // O socket pode ter desconectado durante o hash da senha (await): não deixa sala órfã
+          if (!socket.connected) {
+            roomManager.closeRoom(room.id);
+            return;
+          }
+
+          socket.join(room.id);
+          socketRoomMap.set(socket.id, room.id);
+          socketNicknames.set(socket.id, 'Apresentador');
+
+          const iceServers = await getIceServers(room.id);
+
+          if (!socket.connected) {
+            leaveCurrentRoom(socket, io, roomManager);
+            return;
+          }
+
+          const createdPayload: RoomCreatedPayload = {
+            roomId: room.id,
+            code: room.code,
+            inviteUrl: buildInviteUrl(room.code),
+            iceServers,
+            maxViewers: room.maxViewers,
+            hasPassword: Boolean(room.passwordHash),
+            requireApproval: room.requireApproval,
+            privacyMode: room.privacyMode,
+            chatEnabled: room.chatEnabled,
+            reactionsEnabled: room.reactionsEnabled,
+          };
+
+          socket.emit('room:created', createdPayload);
+          // SEGURANÇA: o código da sala é o "segredo" de convite; não vai para os logs
+          logger.info(`Apresentador ${socketLogId} criou sala ${room.id}`);
+        } finally {
+          creatingRoom.delete(socket.id);
         }
-
-        socket.join(room.id);
-        socketRoomMap.set(socket.id, room.id);
-        socketNicknames.set(socket.id, 'Apresentador');
-
-        const iceServers = await getIceServers(room.id);
-
-        const createdPayload: RoomCreatedPayload = {
-          roomId: room.id,
-          code: room.code,
-          inviteUrl: buildInviteUrl(room.code),
-          iceServers,
-          maxViewers: room.maxViewers,
-          hasPassword: Boolean(room.passwordHash),
-          requireApproval: room.requireApproval,
-          privacyMode: room.privacyMode,
-          chatEnabled: room.chatEnabled,
-          reactionsEnabled: room.reactionsEnabled,
-        };
-
-        socket.emit('room:created', createdPayload);
-        logger.info(`Apresentador ${socketLogId} criou sala ${room.id} (${room.code})`);
       }),
     );
 
@@ -215,7 +307,10 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
     socket.on(
       'room:join',
       safe(socket, async (rawPayload: unknown) => {
-        if (recentJoinFailures(socket.id).length >= MAX_JOIN_FAILURES) {
+        if (
+          recentJoinFailures(socket.id).length >= MAX_JOIN_FAILURES ||
+          recentHits(ipJoinFailures, ipKey, JOIN_FAILURE_WINDOW_MS).length >= MAX_JOIN_FAILURES_PER_IP
+        ) {
           const errorPayload: RoomErrorPayload = {
             code: 'rate-limited',
             message: 'Muitas tentativas. Aguarde um minuto.',
@@ -283,8 +378,22 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
 
         // Validação de senha se a sala possuir senha
         if (room.passwordHash) {
+          // SEGURANÇA: trava de tentativas POR SALA (qualquer socket/IP). Impede grind distribuído
+          // da senha (mín. 4 caracteres) mesmo reconectando ou usando vários IPs.
+          if (
+            recentHits(roomPasswordFailures, room.id, ROOM_PASSWORD_WINDOW_MS).length >=
+            MAX_PASSWORD_FAILURES_PER_ROOM
+          ) {
+            const errorPayload: RoomErrorPayload = {
+              code: 'rate-limited',
+              message: 'Muitas tentativas de senha nesta sala. Tente novamente mais tarde.',
+            };
+            socket.emit('room:error', errorPayload);
+            return;
+          }
+
           if (!payload.password) {
-            registerJoinFailure(socket.id);
+            registerFailure();
             const errorPayload: RoomErrorPayload = {
               code: 'password-required',
               message: 'Esta sala exige senha para entrar.',
@@ -295,7 +404,8 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
 
           const passwordOk = await roomManager.verifyPassword(room, payload.password);
           if (!passwordOk) {
-            registerJoinFailure(socket.id);
+            registerFailure();
+            recentHits(roomPasswordFailures, room.id, ROOM_PASSWORD_WINDOW_MS).push(Date.now());
             const errorPayload: RoomErrorPayload = {
               code: 'wrong-password',
               message: 'Senha incorreta. Verifique e tente novamente.',
@@ -304,6 +414,9 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
             return;
           }
         }
+
+        // O socket pode ter desconectado durante o hash da senha: não registra espectador fantasma
+        if (!socket.connected) return;
 
         // Revalida a sala após operações assíncronas (concorrência)
         const freshRoom = roomManager.getRoom(room.id);
@@ -505,7 +618,9 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       safe(socket, (rawPayload: unknown) => {
         if (!rawPayload || typeof rawPayload !== 'object') return;
         const data = rawPayload as Record<string, unknown>;
-        if (!data.config || !isValidStreamConfig(data.config)) return;
+        // Reconstrói a config só com campos conhecidos antes de retransmitir
+        const cleanConfig = sanitizeStreamConfig(data.config);
+        if (!cleanConfig) return;
 
         const roomId = socketRoomMap.get(socket.id);
         if (!roomId) return;
@@ -513,7 +628,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const room = roomManager.getRoom(roomId);
         if (!room || room.hostId !== socket.id) return;
 
-        socket.to(roomId).emit('stream:config-update', { config: data.config });
+        socket.to(roomId).emit('stream:config-update', { config: cleanConfig });
         logger.debug(`Configuração de stream atualizada na sala ${roomId}`);
       }),
     );
@@ -544,7 +659,9 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
     socket.on(
       'stream:stats',
       safe(socket, (rawPayload: unknown) => {
-        if (!isValidStreamStats(rawPayload)) return;
+        // Reconstrói as estatísticas só com campos conhecidos antes de retransmitir
+        const cleanStats = sanitizeStreamStats(rawPayload);
+        if (!cleanStats) return;
 
         const roomId = socketRoomMap.get(socket.id);
         if (!roomId) return;
@@ -552,7 +669,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const room = roomManager.getRoom(roomId);
         if (!room || room.hostId !== socket.id) return;
 
-        socket.to(roomId).emit('stream:stats', rawPayload);
+        socket.to(roomId).emit('stream:stats', cleanStats);
       }),
     );
 
@@ -683,6 +800,10 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       joinFailures.delete(socket.id);
       chatTimestamps.delete(socket.id);
       reactionTimestamps.delete(socket.id);
+      // SEGURANÇA (vazamento de memória): estes mapas nunca eram limpos na desconexão
+      socketNicknames.delete(socket.id);
+      eventBuckets.delete(socket.id);
+      creatingRoom.delete(socket.id);
       leaveCurrentRoom(socket, io, roomManager);
     });
   };
@@ -721,11 +842,17 @@ async function admitViewerToRoom(
   io: SocketIOServer,
   roomManager: RoomManager,
 ): Promise<void> {
+  // Socket desconectado não pode ocupar vaga da sala
+  if (!socket.connected) return;
   roomManager.addViewer(room.id, socket.id, nickname);
   socket.join(room.id);
   socketRoomMap.set(socket.id, room.id);
 
   const iceServers = await getIceServers(room.id);
+  if (!socket.connected) {
+    leaveCurrentRoom(socket, io, roomManager);
+    return;
+  }
 
   const joinedPayload: RoomJoinedPayload = {
     roomId: room.id,

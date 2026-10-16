@@ -151,7 +151,8 @@ export class RoomManager {
     this.codeIndex.set(code, id);
 
     const logHost = hostId.slice(0, 8);
-    logger.info(`Sala criada: ${id} (código: ${code}) por ${logHost}`);
+    // SEGURANÇA: o código da sala é o segredo de convite — nunca vai para os logs.
+    logger.info(`Sala criada: ${id} por ${logHost}`);
     return room;
   }
 

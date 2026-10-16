@@ -489,3 +489,124 @@ describe('chat e reações', () => {
     expect(leaked).toBe(false);
   });
 });
+
+describe('segurança: anti-força-bruta, sanitização e concorrência', () => {
+  it('limite de senha vale por sala: reconectar (novo socket) não zera as tentativas', async () => {
+    const host = await server.createClient();
+    const created = await createRoom(host, { password: 'segredo123' });
+
+    // 30 falhas distribuídas em vários sockets (cada um abaixo do limite por socket)
+    for (let s = 0; s < 4; s += 1) {
+      const viewer = await server.createClient();
+      const attempts = s < 3 ? 8 : 6;
+      for (let i = 0; i < attempts; i += 1) {
+        const e = await expectError(viewer, () =>
+          viewer.emit('room:join', { code: created.code, password: `errada${s}${i}x` }),
+        );
+        expect(['wrong-password', 'rate-limited']).toContain(e.code);
+      }
+    }
+
+    // Mesmo com a senha CORRETA, a sala está travada para qualquer novo socket
+    const fresh = await server.createClient();
+    const blocked = await expectError(fresh, () =>
+      fresh.emit('room:join', { code: created.code, password: 'segredo123' }),
+    );
+    expect(blocked.code).toBe('rate-limited');
+  });
+
+  it('room:create simultâneos do mesmo socket criam apenas uma sala', async () => {
+    const host = await server.createClient();
+    let created = 0;
+    host.on('room:created', () => {
+      created += 1;
+    });
+    host.emit('room:create', { password: 'segredo123' });
+    host.emit('room:create', { password: 'segredo123' });
+    host.emit('room:create', { password: 'segredo123' });
+    await sleep(500);
+    expect(created).toBe(1);
+    expect(server.roomManager.listRooms()).toHaveLength(1);
+  });
+
+  it('desconectar durante o hash da senha não deixa sala órfã nem espectador fantasma', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { password: 'segredo123' });
+
+    viewer.emit('room:join', { code: created.code, password: 'segredo123' });
+    viewer.disconnect();
+    await sleep(500);
+
+    const room = server.roomManager.getRoom(created.roomId);
+    expect(room?.viewers.has(viewer.id as string)).toBe(false);
+
+    // criar sala com senha (hash assíncrono) e desconectar logo em seguida: nenhuma sala órfã
+    const ghost = await server.createClient();
+    ghost.emit('room:create', { password: 'segredo123' });
+    ghost.disconnect();
+    await sleep(500);
+    expect(server.roomManager.listRooms()).toHaveLength(1); // só a sala do host
+  });
+
+  it('apelido tentando se passar pelo apresentador é substituído', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code, name: 'Apresentador (host)' });
+
+    const onHost = waitForEvent<any>(host, 'chat:message');
+    viewer.emit('chat:message', { text: 'oi\u202E' });
+    const msg = await onHost;
+    expect(msg.name).toBe('Convidado');
+    expect(msg.fromHost).toBe(false);
+    expect(msg.text).toBe('oi');
+  });
+
+  it('stream:config-update do host é reconstruído (sem propriedades extras)', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+
+    const got = waitForEvent<any>(viewer, 'stream:config-update');
+    host.emit('stream:config-update', {
+      config: {
+        video: { width: 1280, height: 720, frameRate: 30, codec: 'H264', bitrate: 3000, quality: 'medium', x: 1 },
+        audio: { sampleRate: 48000, bitrate: 128, codec: 'opus', sources: [], y: 2 },
+        evil: 'payload',
+      },
+      evil2: 'x',
+    });
+    const payload = await got;
+    expect(payload.config.evil).toBeUndefined();
+    expect(payload.config.video.x).toBeUndefined();
+    expect(payload.config.audio.y).toBeUndefined();
+    expect(payload.evil2).toBeUndefined();
+  });
+
+  it('stream:stats com enum inválido não é retransmitido; válido é limpo', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code });
+
+    const base = {
+      fps: 30, videoBitrate: 1, audioBitrate: 1, latencyMs: 1, packetsLost: 0,
+      lossPercent: 0, jitterMs: 0, timestamp: 1, qualityLimitation: 'none', connectionQuality: 'good',
+    };
+    let count = 0;
+    viewer.on('stream:stats', () => {
+      count += 1;
+    });
+    host.emit('stream:stats', { ...base, connectionQuality: '<script>' });
+    await sleep(150);
+    expect(count).toBe(0);
+
+    const got = waitForEvent<any>(viewer, 'stream:stats');
+    host.emit('stream:stats', { ...base, evil: 'x' });
+    const stats = await got;
+    expect(stats.evil).toBeUndefined();
+    expect(stats.connectionQuality).toBe('good');
+  });
+});
