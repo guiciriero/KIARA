@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  classifyError, initialState, disabledState, reduceUpdate,
+  classifyError, initialState, disabledState, reduceUpdate, resolveFeedUrl,
 } = require('./updateLogic');
 
 const MSG_DEV = 'Atualizações ficam desativadas no modo de desenvolvimento.';
@@ -32,17 +32,6 @@ function readBuildInfo(app) {
     };
   } catch {
     return fallback;
-  }
-}
-
-/** Só aceita feed https (evita downgrade para http e esquemas estranhos). */
-function parseFeedUrl(value) {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  try {
-    const u = new URL(value.trim());
-    return u.protocol === 'https:' && !u.username && !u.password ? u.href : null;
-  } catch {
-    return null;
   }
 }
 
@@ -96,7 +85,13 @@ function createUpdater({
     au.logger = null;
 
     // Sem URL, o electron-updater usa o app-update.yml gerado pelo electron-builder (github).
-    const feed = parseFeedUrl(env.KIARA_UPDATE_URL) || parseFeedUrl(info.updateUrl);
+    // SEGURANÇA: app empacotado ignora KIARA_UPDATE_URL do ambiente (um atacante local
+    // poderia redirecionar as atualizações para um feed malicioso); só vale a URL do build.
+    const feed = resolveFeedUrl({
+      isPackaged: app.isPackaged,
+      envUrl: env.KIARA_UPDATE_URL,
+      buildInfoUrl: info.updateUrl,
+    });
     if (feed) au.setFeedURL({ provider: 'generic', url: feed });
 
     au.on('update-available', (i) => dispatch({ type: 'found', version: i && i.version }));
@@ -142,4 +137,4 @@ function createUpdater({
   return { getState: () => state, check, download, install };
 }
 
-module.exports = { createUpdater, readBuildInfo, parseFeedUrl };
+module.exports = { createUpdater, readBuildInfo };
