@@ -54,8 +54,13 @@ export function useChat() {
     };
 
     const onReaction = (reaction: ReactionEvent) => {
+      const stableId =
+        reaction.id || `${reaction.senderId}-${reaction.timestamp}-${Math.random().toString(36).slice(2, 8)}`;
+      const safeReaction: ReactionEvent = { ...reaction, id: stableId };
+
       setReactions((prev) => {
-        const next = [...prev.filter((r) => Date.now() - r.timestamp < REACTION_TTL_MS), reaction];
+        const alive = prev.filter((r) => Date.now() - r.timestamp < REACTION_TTL_MS);
+        const next = [...alive, safeReaction].slice(-60);
         scheduleExpiry(next);
         return next;
       });

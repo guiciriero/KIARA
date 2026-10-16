@@ -88,11 +88,45 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 6px 4px 12px;
+  padding: 6px 6px 6px 12px;
   border-bottom: 1px solid var(--kiara-border);
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--kiara-text);
+}
+
+.userBadgeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--kiara-surface-raised);
+  border-bottom: 1px solid var(--kiara-border);
+  font-size: 0.72rem;
+  color: var(--kiara-text-secondary);
+}
+
+.editNameBtn {
+  background: transparent;
+  color: var(--kiara-brand, #3b82d4);
+  font-size: 0.72rem;
+  text-decoration: underline;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.editNameBtn:hover {
+  color: var(--kiara-text);
+}
+
+.nameInputInline {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border-input);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-text);
+  max-width: 130px;
 }
 
 .closeBtn {
@@ -210,19 +244,25 @@
   pointer-events: none;
   overflow: hidden;
   z-index: 25;
+  contain: layout style paint;
 }
 
 .floatingReaction {
   position: absolute;
   bottom: 70px;
   font-size: 2rem;
-  animation: floatUp 4s ease-out forwards;
+  user-select: none;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: floatUp 4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  transform: translate3d(0, 0, 0);
 }
 
 @keyframes floatUp {
-  0% { transform: translateY(0); opacity: 0; }
-  10% { opacity: 1; }
-  100% { transform: translateY(-260px); opacity: 0; }
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  10% { transform: translate3d(0, -25px, 0); opacity: 1; }
+  80% { opacity: 0.9; }
+  100% { transform: translate3d(0, -260px, 0); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

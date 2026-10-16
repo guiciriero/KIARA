@@ -13,6 +13,11 @@ interface Props {
   onMarkRead: () => void;
   /** Id do socket local, para destacar as próprias mensagens */
   selfId?: string;
+  chatEnabled?: boolean;
+  reactionsEnabled?: boolean;
+  currentName?: string;
+  onUpdateName?: (name: string) => void;
+  onRequestName?: () => boolean; // retorna true se o nome é válido / configurado
 }
 
 function formatTime(ts: number): string {
@@ -20,20 +25,42 @@ function formatTime(ts: number): string {
 }
 
 /** Reações flutuantes sobre o vídeo (decorativas: o texto vai para a região aria-live do chat) */
-export const ReactionOverlay: React.FC<{ reactions: ReactionEvent[] }> = ({ reactions }) => (
-  <div className={styles.reactionOverlay} aria-hidden="true">
-    {reactions.map((r, i) => (
-      <span
-        key={`${r.senderId}-${r.timestamp}-${i}`}
-        className={styles.floatingReaction}
-        style={{ left: `${10 + ((r.timestamp + i * 37) % 70)}%` }}
-        title={r.name}
-      >
-        {r.emoji}
-      </span>
-    ))}
-  </div>
-);
+export const ReactionOverlay: React.FC<{
+  reactions: ReactionEvent[];
+  enabled?: boolean;
+}> = ({ reactions, enabled = true }) => {
+  if (!enabled || reactions.length === 0) return null;
+
+  return (
+    <div className={styles.reactionOverlay} aria-hidden="true">
+      {reactions.map((r) => {
+        let hash = 0;
+        const seed = r.id || `${r.senderId}-${r.timestamp}`;
+        for (let j = 0; j < seed.length; j++) {
+          hash = (hash << 5) - hash + seed.charCodeAt(j);
+          hash |= 0;
+        }
+        const pos = Math.abs(hash);
+        const leftPercent = 8 + (pos % 78);
+        const scale = 0.85 + ((pos >> 2) % 4) * 0.1;
+
+        return (
+          <span
+            key={r.id || `${r.senderId}-${r.timestamp}`}
+            className={styles.floatingReaction}
+            style={{
+              left: `${leftPercent}%`,
+              transform: `scale(${scale}) translate3d(0, 0, 0)`,
+            }}
+            title={r.name}
+          >
+            {r.emoji}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
 
 const ChatPanel: React.FC<Props> = ({
   messages,
@@ -42,12 +69,25 @@ const ChatPanel: React.FC<Props> = ({
   onReact,
   onMarkRead,
   selfId,
+  chatEnabled = true,
+  reactionsEnabled = true,
+  currentName,
+  onUpdateName,
+  onRequestName,
 }) => {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInputValue, setNameInputValue] = useState(currentName || '');
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (currentName !== undefined) {
+      setNameInputValue(currentName);
+    }
+  }, [currentName]);
 
   useEffect(() => {
     if (open) {
@@ -66,46 +106,79 @@ const ChatPanel: React.FC<Props> = ({
     toggleRef.current?.focus();
   };
 
+  const handleReact = (emoji: ReactionEmoji) => {
+    if (!reactionsEnabled) return;
+    if (onRequestName && !onRequestName()) {
+      return;
+    }
+    onReact(emoji);
+  };
+
+  const handleSaveName = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const clean = nameInputValue.trim();
+    if (clean.length > 0 && onUpdateName) {
+      onUpdateName(clean);
+    }
+    setIsEditingName(false);
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!chatEnabled) return;
+    if (onRequestName && !onRequestName()) {
+      return;
+    }
     if (text.trim().length === 0) return;
     onSend(text);
     setText('');
   };
 
+  if (!chatEnabled && !reactionsEnabled) {
+    return null;
+  }
+
   return (
     <div className={styles.wrapper}>
-      <button
-        ref={toggleRef}
-        type="button"
-        className={styles.toggleBtn}
-        onClick={() => (open ? close() : setOpen(true))}
-        aria-expanded={open}
-        aria-controls="kiara-chat-panel"
-        aria-label={
-          unreadCount > 0 && !open ? `Abrir chat, ${unreadCount} mensagens novas` : open ? 'Fechar chat' : 'Abrir chat'
-        }
-        title="Chat"
-      >
-        <IconMessageSquare size={18} />
-        {unreadCount > 0 && !open && <span className={styles.badge} aria-hidden="true">{unreadCount > 99 ? '99+' : unreadCount}</span>}
-      </button>
+      {chatEnabled && (
+        <button
+          ref={toggleRef}
+          type="button"
+          className={styles.toggleBtn}
+          onClick={() => (open ? close() : setOpen(true))}
+          aria-expanded={open}
+          aria-controls="kiara-chat-panel"
+          aria-label={
+            unreadCount > 0 && !open ? `Abrir chat, ${unreadCount} mensagens novas` : open ? 'Fechar chat' : 'Abrir chat'
+          }
+          title="Chat"
+        >
+          <IconMessageSquare size={18} />
+          {unreadCount > 0 && !open && (
+            <span className={styles.badge} aria-hidden="true">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
-      <div className={styles.reactionBar} role="group" aria-label="Reações">
-        {REACTION_EMOJIS.map((emoji) => (
-          <button
-            key={emoji}
-            type="button"
-            className={styles.reactionBtn}
-            onClick={() => onReact(emoji)}
-            aria-label={`Reagir com ${emoji}`}
-          >
-            <span aria-hidden="true">{emoji}</span>
-          </button>
-        ))}
-      </div>
+      {reactionsEnabled && (
+        <div className={styles.reactionBar} role="group" aria-label="Reações">
+          {REACTION_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              className={styles.reactionBtn}
+              onClick={() => handleReact(emoji)}
+              aria-label={`Reagir com ${emoji}`}
+            >
+              <span aria-hidden="true">{emoji}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {open && (
+      {chatEnabled && open && (
         <section
           id="kiara-chat-panel"
           className={styles.panel}
@@ -123,6 +196,42 @@ const ChatPanel: React.FC<Props> = ({
               <IconX size={16} />
             </button>
           </div>
+
+          {onUpdateName && (
+            <div className={styles.userBadgeRow}>
+              {isEditingName ? (
+                <form onSubmit={handleSaveName} style={{ display: 'flex', gap: '4px', width: '100%', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    maxLength={24}
+                    value={nameInputValue}
+                    onChange={(e) => setNameInputValue(e.target.value)}
+                    className={styles.nameInputInline}
+                    autoFocus
+                    placeholder="Seu nome"
+                  />
+                  <button type="submit" className={styles.editNameBtn}>Salvar</button>
+                  <button type="button" className={styles.editNameBtn} onClick={() => setIsEditingName(false)}>Cancelar</button>
+                </form>
+              ) : (
+                <>
+                  <span>
+                    Identificado como: <strong>{currentName || 'Convidado'}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.editNameBtn}
+                    onClick={() => {
+                      setNameInputValue(currentName || '');
+                      setIsEditingName(true);
+                    }}
+                  >
+                    Alterar
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           <div
             ref={logRef}
@@ -152,19 +261,21 @@ const ChatPanel: React.FC<Props> = ({
             ))}
           </div>
 
-          <div className={styles.reactionRowInPanel} role="group" aria-label="Reações">
-            {REACTION_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                className={styles.reactionBtn}
-                onClick={() => onReact(emoji)}
-                aria-label={`Reagir com ${emoji}`}
-              >
-                <span aria-hidden="true">{emoji}</span>
-              </button>
-            ))}
-          </div>
+          {reactionsEnabled && (
+            <div className={styles.reactionRowInPanel} role="group" aria-label="Reações">
+              {REACTION_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className={styles.reactionBtn}
+                  onClick={() => handleReact(emoji)}
+                  aria-label={`Reagir com ${emoji}`}
+                >
+                  <span aria-hidden="true">{emoji}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <form className={styles.form} onSubmit={submit}>
             <label htmlFor="kiara-chat-input" className={styles.srOnly}>Mensagem</label>
