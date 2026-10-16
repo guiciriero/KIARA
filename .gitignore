@@ -37,3 +37,26 @@ client/e2e/.build/
 # Cobertura de testes e relatórios do e2e
 coverage/
 client/e2e.log
+
+# Todos os .env.* exceto o exemplo (que deve ser versionado)
+.env.*
+!.env.example
+
+# Segredos e certificados — nunca devem entrar no repositório
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.keystore
+*.jks
+secrets.*
+.npmrc
+
+# Banco de dados SQLite local
+*.sqlite
+
+# Configurações de IDEs — cada dev usa as suas localmente
+.vscode/
+.idea/

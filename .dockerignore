@@ -12,3 +12,22 @@ desktop/
 native/
 *.md
 !README.md
+
+# Segredos e certificados — nunca devem entrar na imagem
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.keystore
+*.jks
+secrets.*
+.npmrc
+
+# Banco de dados SQLite local
+*.sqlite
+
+# Configurações de IDEs
+.vscode/
+.idea/

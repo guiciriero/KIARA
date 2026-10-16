@@ -42,3 +42,15 @@ Fora do escopo:
 - Nenhum segredo no repositório; use variáveis de ambiente (`.env.example` lista todas).
 - Credenciais TURN são geradas pelo servidor, efêmeras, e nunca entram no bundle do cliente.
 - Ações do GitHub fixadas por SHA, CodeQL e Dependabot ativos.
+
+## Divulgação e rotação de credenciais
+
+Se você suspeitar que algum segredo (token de API, senha, chave privada) foi exposto no repositório:
+
+1. **Revogue e rotacione imediatamente** — o tempo entre a exposição e a revogação determina o risco real.
+2. **O histórico git é público e permanente.** Remover o arquivo em um commit posterior *não apaga* o segredo do histórico; qualquer pessoa que já clonou o repositório ou que acesse a URL do commit ainda consegue vê-lo. Use `git filter-repo` (ou entre em contato com o suporte do GitHub) para reescrever o histórico, e considere o segredo comprometido até a revogação ser confirmada.
+3. **Reporte via Private Vulnerability Reporting** (ver seção acima) se o vazamento envolver credenciais de infraestrutura do projeto.
+
+### Open Relay (openrelayproject)
+
+As credenciais de TURN `openrelayproject` / `openrelayproject` são **credenciais públicas de teste** fornecidas pelo projeto Open Relay e **não são segredos** — qualquer pessoa pode usá-las. Elas existem exclusivamente como fallback de conectividade em desenvolvimento/demo e não dão acesso a nenhum recurso privado do KIARA. Em produção, configure servidores TURN próprios com credenciais efêmeras geradas pelo servidor (ver `TURN_SECRET` no `.env.example`).
