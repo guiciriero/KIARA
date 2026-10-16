@@ -21,6 +21,8 @@ export interface ManagedRoom extends Room {
   passwordHash?: Buffer;
   requireApproval: boolean;
   privacyMode: boolean;
+  chatEnabled: boolean;
+  reactionsEnabled: boolean;
   maxViewers: number;
   viewers: Set<string>;
   viewerNames: Map<string, string>;
@@ -99,6 +101,8 @@ export class RoomManager {
       password?: string;
       requireApproval?: boolean;
       privacyMode?: boolean;
+      chatEnabled?: boolean;
+      reactionsEnabled?: boolean;
     },
   ): Promise<ManagedRoom> {
     if (this.rooms.size >= getMaxRooms()) {
@@ -133,6 +137,8 @@ export class RoomManager {
       isActive: true,
       requireApproval: Boolean(options?.requireApproval),
       privacyMode: Boolean(options?.privacyMode),
+      chatEnabled: options?.chatEnabled !== false,
+      reactionsEnabled: options?.reactionsEnabled !== false,
       maxViewers,
       passwordSalt,
       passwordHash,

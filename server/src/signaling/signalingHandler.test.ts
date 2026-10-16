@@ -418,7 +418,7 @@ describe('chat e reações', () => {
     expect(count).toBe(5);
   });
 
-  it('envia reações válidas para a sala', async () => {
+  it('envia reações válidas para a sala com id único', async () => {
     const host = await server.createClient();
     const viewer = await server.createClient();
     const created = await createRoom(host);
@@ -429,6 +429,50 @@ describe('chat e reações', () => {
     const reaction = await got;
     expect(reaction.emoji).toBe('👍');
     expect(reaction.name).toBe('Lia');
+    expect(typeof reaction.id).toBe('string');
+    expect(reaction.id.length).toBeGreaterThan(0);
+  });
+
+  it('permite atualizar nome do espectador via room:set-name', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code, name: 'Antigo' });
+
+    viewer.emit('room:set-name', { name: 'NovoNome' });
+    await sleep(50);
+
+    const got = waitForEvent<any>(host, 'chat:message');
+    viewer.emit('chat:message', { text: 'olá com novo nome' });
+    const msg = await got;
+    expect(msg.name).toBe('NovoNome');
+  });
+
+  it('permite ativar/desativar chat e reações via room:update-features', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { chatEnabled: true, reactionsEnabled: true });
+    const joined = await joinRoom(viewer, { code: created.code });
+    expect(joined.chatEnabled).toBe(true);
+    expect(joined.reactionsEnabled).toBe(true);
+
+    const featuresPromise = waitForEvent<any>(viewer, 'room:features-update');
+    host.emit('room:update-features', { chatEnabled: false, reactionsEnabled: false });
+    const updatedFeatures = await featuresPromise;
+    expect(updatedFeatures.chatEnabled).toBe(false);
+    expect(updatedFeatures.reactionsEnabled).toBe(false);
+
+    let receivedMsg = false;
+    let receivedReaction = false;
+    host.on('chat:message', () => (receivedMsg = true));
+    host.on('chat:reaction', () => (receivedReaction = true));
+
+    viewer.emit('chat:message', { text: 'não deve passar' });
+    viewer.emit('chat:reaction', { emoji: '👍' });
+    await sleep(100);
+
+    expect(receivedMsg).toBe(false);
+    expect(receivedReaction).toBe(false);
   });
 
   it('não entrega chat a quem está fora da sala', async () => {

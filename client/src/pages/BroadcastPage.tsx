@@ -46,9 +46,14 @@ const BroadcastPage: React.FC = () => {
     password: '',
     requireApproval: false,
     privacyMode: false,
+    chatEnabled: true,
+    reactionsEnabled: true,
   });
   const createRoomOptions = useMemo<CreateRoomPayload>(() => {
-    const options: CreateRoomPayload = {};
+    const options: CreateRoomPayload = {
+      chatEnabled: roomOptions.chatEnabled,
+      reactionsEnabled: roomOptions.reactionsEnabled,
+    };
     if (roomOptions.password) options.password = roomOptions.password;
     if (roomOptions.requireApproval) options.requireApproval = true;
     if (roomOptions.privacyMode) options.privacyMode = true;
@@ -105,6 +110,16 @@ const BroadcastPage: React.FC = () => {
     setVideoConfig(newConfig);
     if (state.isSharing) {
       void updateVideoConfig(newConfig);
+    }
+  };
+
+  const handleRoomOptionsChange = (newOptions: RoomOptionsValue) => {
+    setRoomOptions(newOptions);
+    if (state.isSharing && socket?.connected) {
+      socket.emit('room:update-features', {
+        chatEnabled: newOptions.chatEnabled,
+        reactionsEnabled: newOptions.reactionsEnabled,
+      });
     }
   };
 
@@ -218,7 +233,7 @@ const BroadcastPage: React.FC = () => {
           {/* Acesso à sala: senha, aprovação, privacidade */}
           <RoomOptionsPanel
             value={roomOptions}
-            onChange={setRoomOptions}
+            onChange={handleRoomOptionsChange}
             disabled={state.isSharing}
           />
 
@@ -275,7 +290,7 @@ const BroadcastPage: React.FC = () => {
                 <div className={styles.previewOverlayTop}>
                   <div className={styles.liveIndicator}>
                     <span className={styles.liveDot} />
-                    <span>AO VIVO (60 FPS)</span>
+                    <span>AO VIVO ({videoConfig.frameRate} FPS)</span>
                   </div>
                   {state.isPaused && (
                     <div className={styles.pausedIndicator}>
@@ -298,7 +313,10 @@ const BroadcastPage: React.FC = () => {
                 </div>
 
                 {state.stats && <StatsOverlay stats={state.stats} />}
-                <ReactionOverlay reactions={chat.reactions} />
+                <ReactionOverlay
+                  reactions={chat.reactions}
+                  enabled={roomOptions.reactionsEnabled}
+                />
               </>
             ) : (
               <div className={styles.placeholderState}>
@@ -375,6 +393,8 @@ const BroadcastPage: React.FC = () => {
                 onReact={chat.sendReaction}
                 onMarkRead={chat.markRead}
                 selfId={socket?.id}
+                chatEnabled={roomOptions.chatEnabled}
+                reactionsEnabled={roomOptions.reactionsEnabled}
               />
             </div>
           )}

@@ -20,6 +20,8 @@ import { buildInviteUrl } from '../utils/publicUrl';
 import { getIceServers, isTurnConfigured } from '../utils/iceServers';
 import {
   validateCreateRoomPayload,
+  validateRoomFeaturesPayload,
+  validateUpdateNamePayload,
   validateJoinRoomPayload,
   validateRespondJoinPayload,
   validateChatPayload,
@@ -170,6 +172,8 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
             password: validation.payload?.password,
             requireApproval: validation.payload?.requireApproval,
             privacyMode: privacyEffective,
+            chatEnabled: validation.payload?.chatEnabled,
+            reactionsEnabled: validation.payload?.reactionsEnabled,
           });
         } catch (err: any) {
           if (err?.code === 'SERVER_BUSY') {
@@ -198,6 +202,8 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
           hasPassword: Boolean(room.passwordHash),
           requireApproval: room.requireApproval,
           privacyMode: room.privacyMode,
+          chatEnabled: room.chatEnabled,
+          reactionsEnabled: room.reactionsEnabled,
         };
 
         socket.emit('room:created', createdPayload);
@@ -268,6 +274,8 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
             hostId: room.hostId,
             viewerCount: room.viewers.size,
             iceServers,
+            chatEnabled: room.chatEnabled,
+            reactionsEnabled: room.reactionsEnabled,
           };
           socket.emit('room:joined', joinedPayload);
           return;
@@ -548,6 +556,51 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       }),
     );
 
+    // ── Atualização de funcionalidades da sala (chat / reações) (apenas host) ─
+    socket.on(
+      'room:update-features',
+      safe(socket, (rawPayload: unknown) => {
+        const data = validateRoomFeaturesPayload(rawPayload);
+        if (!data) return;
+
+        const roomId = socketRoomMap.get(socket.id);
+        if (!roomId) return;
+
+        const room = roomManager.getRoom(roomId);
+        if (!room || !room.isActive || room.hostId !== socket.id) return;
+
+        room.chatEnabled = data.chatEnabled;
+        room.reactionsEnabled = data.reactionsEnabled;
+
+        io.to(roomId).emit('room:features-update', {
+          chatEnabled: room.chatEnabled,
+          reactionsEnabled: room.reactionsEnabled,
+        });
+        logger.info(
+          `Sala ${roomId}: features atualizadas (chat: ${room.chatEnabled}, reações: ${room.reactionsEnabled})`,
+        );
+      }),
+    );
+
+    // ── Atualização de nome do espectador ─────────────────────────────────────
+    socket.on(
+      'room:set-name',
+      safe(socket, (rawPayload: unknown) => {
+        const data = validateUpdateNamePayload(rawPayload);
+        if (!data) return;
+
+        const roomId = socketRoomMap.get(socket.id);
+        const room = roomId ? roomManager.getRoom(roomId) : undefined;
+        const isHost = room ? room.hostId === socket.id : false;
+
+        const nickname = sanitizeNickname(data.name, isHost);
+        socketNicknames.set(socket.id, nickname);
+        if (roomId && room && !isHost) {
+          room.viewerNames.set(socket.id, nickname);
+        }
+      }),
+    );
+
     // ── Chat: Mensagem de texto ──────────────────────────────────────────────
     socket.on(
       'chat:message',
@@ -560,6 +613,9 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
 
         const room = roomManager.getRoom(roomId);
         if (!room || !room.isActive) return;
+
+        // Se o chat foi desativado pelo apresentador
+        if (!room.chatEnabled) return;
 
         if (!checkChatRateLimit(socket.id)) return; // Excedente descartado em silêncio
 
@@ -594,6 +650,9 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const room = roomManager.getRoom(roomId);
         if (!room || !room.isActive) return;
 
+        // Se as reações foram desativadas pelo apresentador
+        if (!room.reactionsEnabled) return;
+
         if (!checkReactionRateLimit(socket.id)) return; // Excedente descartado em silêncio
 
         const isHost = room.hostId === socket.id;
@@ -602,6 +661,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
           : socketNicknames.get(socket.id) || room.viewerNames.get(socket.id) || 'Convidado';
 
         const reaction: ReactionEvent = {
+          id: randomUUID(),
           senderId: socket.id,
           name: senderName,
           emoji: data.emoji,
@@ -672,6 +732,8 @@ async function admitViewerToRoom(
     hostId: room.hostId,
     viewerCount: room.viewers.size,
     iceServers,
+    chatEnabled: room.chatEnabled,
+    reactionsEnabled: room.reactionsEnabled,
   };
   socket.emit('room:joined', joinedPayload);
 

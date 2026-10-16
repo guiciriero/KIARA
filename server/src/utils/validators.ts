@@ -5,10 +5,12 @@
 
 import type {
   CreateRoomPayload,
+  RoomFeaturesPayload,
   JoinRoomPayload,
   RespondJoinPayload,
   SendChatPayload,
   SendReactionPayload,
+  UpdateNamePayload,
   ReactionEmoji,
   RTCOfferPayload,
   RTCAnswerPayload,
@@ -82,7 +84,43 @@ export function validateCreateRoomPayload(data: unknown): {
     result.privacyMode = obj.privacyMode;
   }
 
+  if ('chatEnabled' in obj && obj.chatEnabled !== undefined) {
+    if (typeof obj.chatEnabled !== 'boolean') return { valid: false };
+    result.chatEnabled = obj.chatEnabled;
+  }
+
+  if ('reactionsEnabled' in obj && obj.reactionsEnabled !== undefined) {
+    if (typeof obj.reactionsEnabled !== 'boolean') return { valid: false };
+    result.reactionsEnabled = obj.reactionsEnabled;
+  }
+
   return { valid: true, payload: result };
+}
+
+/** Valida RoomFeaturesPayload */
+export function validateRoomFeaturesPayload(data: unknown): RoomFeaturesPayload | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const obj = data as Record<string, unknown>;
+
+  if (typeof obj.chatEnabled !== 'boolean' || typeof obj.reactionsEnabled !== 'boolean') {
+    return null;
+  }
+
+  return {
+    chatEnabled: obj.chatEnabled,
+    reactionsEnabled: obj.reactionsEnabled,
+  };
+}
+
+/** Valida UpdateNamePayload */
+export function validateUpdateNamePayload(data: unknown): UpdateNamePayload | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const obj = data as Record<string, unknown>;
+
+  if (typeof obj.name !== 'string') return null;
+  const name = sanitizeNickname(obj.name);
+
+  return { name };
 }
 
 /** Valida JoinRoomPayload */
