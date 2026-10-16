@@ -25,7 +25,7 @@ export interface StreamConfig {
 export interface VideoConfig {
   width: number;          // Largura em pixels (max 3840)
   height: number;         // Altura em pixels (max 2160)
-  frameRate: number;      // FPS (1-60)
+  frameRate: number;      // FPS (1-120)
   codec: VideoCodec;
   bitrate: number;        // kbps
   quality: 'low' | 'medium' | 'high' | 'ultra';
@@ -149,6 +149,9 @@ export type SignalingEvent =
   | 'room:viewer-left'
   | 'room:join-cancelled'
   | 'room:host-disconnected'
+  | 'room:update-features'
+  | 'room:features-update'
+  | 'room:set-name'
   | 'chat:message'
   | 'chat:reaction'
   | 'webrtc:offer'
@@ -202,6 +205,16 @@ export interface CreateRoomPayload {
   requireApproval?: boolean;
   /** Pede conexão somente via relay TURN (esconde o IP do apresentador). */
   privacyMode?: boolean;
+  /** Permite chat na sala (padrão true) */
+  chatEnabled?: boolean;
+  /** Permite reações na sala (padrão true) */
+  reactionsEnabled?: boolean;
+}
+
+/** Configurações de funcionalidades da sala (chat e reações) */
+export interface RoomFeaturesPayload {
+  chatEnabled: boolean;
+  reactionsEnabled: boolean;
 }
 
 /** S→C `room:created` */
@@ -216,6 +229,8 @@ export interface RoomCreatedPayload {
   requireApproval: boolean;
   /** true somente se o pedido foi atendido (exige TURN configurado no servidor) */
   privacyMode: boolean;
+  chatEnabled: boolean;
+  reactionsEnabled: boolean;
 }
 
 /** C→S `room:join` */
@@ -226,12 +241,19 @@ export interface JoinRoomPayload {
   name?: string;
 }
 
+/** C→S `room:set-name` */
+export interface UpdateNamePayload {
+  name: string;
+}
+
 /** S→C `room:joined` (só depois de senha e aprovação) */
 export interface RoomJoinedPayload {
   roomId: string;
   hostId: string;
   viewerCount: number;
   iceServers: IceServerConfig[];
+  chatEnabled: boolean;
+  reactionsEnabled: boolean;
 }
 
 /** S→host `room:join-request` (sala com aprovação) */
@@ -276,6 +298,7 @@ export interface SendReactionPayload {
 
 /** S→sala `chat:reaction` */
 export interface ReactionEvent {
+  id: string;
   senderId: string;
   name: string;
   emoji: ReactionEmoji;

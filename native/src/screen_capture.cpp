@@ -309,8 +309,8 @@ Napi::Value StartCapture(const Napi::CallbackInfo& info) {
   int fps    = config.Get("fps").IsNumber()    ? config.Get("fps").As<Napi::Number>().Int32Value()    : 30;
   int monIdx = config.Get("monitorIndex").IsNumber() ? config.Get("monitorIndex").As<Napi::Number>().Int32Value() : 0;
 
-  // Garante que o FPS está em um range razoável (1-60)
-  fps = std::max(1, std::min(60, fps));
+  // Garante que o FPS está em um range razoável (1-120)
+  fps = std::max(1, std::min(120, fps));
 
   Napi::Function callback = info[1].As<Napi::Function>();
 

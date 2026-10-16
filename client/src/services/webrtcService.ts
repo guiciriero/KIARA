@@ -308,6 +308,8 @@ export class WebRTCBroadcaster {
           const params = videoSender.getParameters();
           if (params.encodings && params.encodings[0]) {
             params.encodings[0].maxBitrate = newBitrate;
+            params.encodings[0].maxFramerate = this.videoConfig.frameRate || 60;
+            params.degradationPreference = 'maintain-framerate';
             void videoSender.setParameters(params).catch(() => {});
           }
         }

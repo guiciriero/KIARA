@@ -16,12 +16,16 @@ export interface CaptureResult {
 }
 
 function buildConstraints(config: VideoConfig, withAudio: boolean): DisplayMediaStreamOptions {
+  const targetFps = config.frameRate || 60;
   return {
     video: {
-      width:     { ideal: config.width,  max: 3840 },
-      height:    { ideal: config.height, max: 2160 },
-      frameRate: { ideal: config.frameRate || 60, max: 60 },
-    },
+      width: { ideal: config.width, max: 3840 },
+      height: { ideal: config.height, max: 2160 },
+      frameRate: { ideal: targetFps, max: Math.max(targetFps, 120) },
+      // Otimizações de renderização/captura: evita throttling artificial do compositor
+      resizeMode: 'none',
+      cursor: 'always',
+    } as MediaTrackConstraints,
     // Sem processamento: eco/ruído/AGC degradam o áudio de jogos e músicas
     audio: withAudio
       ? ({
@@ -66,8 +70,19 @@ export async function captureDisplay(
       stopStream(stream);
       throw new MediaError('no-video');
     }
-    // 'motion' prioriza fluidez (60 FPS) sobre nitidez de texto
+    // 'motion' prioriza fluidez e taxa máxima de FPS sobre nitidez estática
     videoTrack.contentHint = 'motion';
+
+    // Tenta aplicar restrições de frameRate diretamente na faixa para garantir que o browser não limite a 30fps
+    try {
+      const targetFps = config.frameRate || 60;
+      await videoTrack.applyConstraints({
+        frameRate: { ideal: targetFps, max: Math.max(targetFps, 120) },
+      });
+    } catch {
+      // Ignora se o browser/driver não aceitar applyConstraints dinâmico
+    }
+
     return { stream, videoTrack, audioTracks: stream.getAudioTracks() };
   } catch (err) {
     throw toMediaError(err);

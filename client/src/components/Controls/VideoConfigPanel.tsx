@@ -63,7 +63,7 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
         <input
           type="range"
           min={15}
-          max={60}
+          max={120}
           step={5}
           value={config.frameRate}
           disabled={disabled}
@@ -74,6 +74,7 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
           <span>15 FPS</span>
           <span>30 FPS</span>
           <span>60 FPS</span>
+          <span>120 FPS</span>
         </div>
       </div>
 
