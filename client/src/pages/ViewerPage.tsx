@@ -39,23 +39,46 @@ const ViewerPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { state, leaveRoom, setQuality, join } = useViewer(code);
+  const { state, leaveRoom, setQuality, join, updateName, storedName } = useViewer(code);
   const { socket } = useSocket();
   const chat = useChat();
   const [passwordInput, setPasswordInput] = useState('');
-  const [nameInput, setNameInput] = useState(() => {
-    try {
-      return localStorage.getItem('kiara:name') ?? '';
-    } catch {
-      return '';
-    }
-  });
+  const [nameInput, setNameInput] = useState(() => storedName || '');
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [modalNameValue, setModalNameValue] = useState(() => storedName || '');
   const [isMuted, setIsMuted] = useState(true);
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleUpdateName = useCallback(
+    (newName: string) => {
+      const clean = newName.trim();
+      if (clean.length > 0) {
+        setNameInput(clean);
+        updateName(clean);
+      }
+    },
+    [updateName],
+  );
+
+  const handleRequireName = useCallback((): boolean => {
+    if (nameInput.trim().length > 0) return true;
+    setModalNameValue('');
+    setShowNameModal(true);
+    return false;
+  }, [nameInput]);
+
+  const handleConfirmNameModal = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const clean = modalNameValue.trim();
+    if (clean.length > 0) {
+      handleUpdateName(clean);
+    }
+    setShowNameModal(false);
+  };
 
   // Conecta o stream remoto ao elemento <video>
   useEffect(() => {
@@ -450,11 +473,53 @@ const ViewerPage: React.FC = () => {
           </div>
         )}
 
-        <ReactionOverlay reactions={chat.reactions} />
+        <ReactionOverlay
+          reactions={chat.reactions}
+          enabled={state.reactionsEnabled}
+        />
 
         {/* Telemetria de Estatísticas */}
         {showStats && state.stats && <StatsOverlay stats={state.stats} />}
       </div>
+
+      {/* Modal para inserção de nome do viewer */}
+      {showNameModal && (
+        <div className={styles.modalBackdrop}>
+          <form className={styles.modalContent} onSubmit={handleConfirmNameModal}>
+            <h2>Identifique-se</h2>
+            <p>Insira seu nome ou apelido para enviar mensagens no chat e reações.</p>
+            <label htmlFor="viewer-name-modal-input" className={styles.fieldLabel}>
+              Seu nome
+            </label>
+            <input
+              id="viewer-name-modal-input"
+              type="text"
+              maxLength={24}
+              autoFocus
+              className={styles.textInput}
+              value={modalNameValue}
+              placeholder="Ex.: Alice"
+              onChange={(e) => setModalNameValue(e.target.value)}
+            />
+            <div className={styles.modalButtons}>
+              <button
+                type="submit"
+                className={styles.btnPrimary}
+                disabled={modalNameValue.trim().length === 0}
+              >
+                <span>Confirmar Nome</span>
+              </button>
+              <button
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => setShowNameModal(false)}
+              >
+                <span>Fechar</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ── Barra Inferior Flutuante de Controles do Player ──────────────── */}
       <footer className={`${styles.bottomBar} ${!showControls ? styles.hidden : ''}`}>
@@ -503,6 +568,11 @@ const ViewerPage: React.FC = () => {
               onReact={chat.sendReaction}
               onMarkRead={chat.markRead}
               selfId={socket?.id}
+              chatEnabled={state.chatEnabled}
+              reactionsEnabled={state.reactionsEnabled}
+              currentName={nameInput}
+              onUpdateName={handleUpdateName}
+              onRequestName={handleRequireName}
             />
           )}
           {/* Seletor Individual de Resolução / Qualidade */}

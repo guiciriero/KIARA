@@ -18,6 +18,7 @@ import type {
   JoinRoomPayload,
   RoomJoinedPayload,
   RoomErrorPayload,
+  RoomFeaturesPayload,
 } from '@shared/index';
 
 export type { ViewerState } from './viewerReducer';
@@ -99,13 +100,26 @@ export function useViewer(roomCode: string | undefined) {
 
     const onJoined = (data: RoomJoinedPayload) => {
       reconnector.reset();
-      dispatch({ type: 'joined', viewerCount: data.viewerCount });
+      dispatch({
+        type: 'joined',
+        viewerCount: data.viewerCount,
+        chatEnabled: data.chatEnabled,
+        reactionsEnabled: data.reactionsEnabled,
+      });
 
       // Nunca dois WebRTCViewer ao mesmo tempo
       destroyViewer();
       const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers);
       viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
       viewerRef.current = viewer;
+    };
+
+    const onFeaturesUpdate = (features: RoomFeaturesPayload) => {
+      dispatch({
+        type: 'features-update',
+        chatEnabled: features.chatEnabled,
+        reactionsEnabled: features.reactionsEnabled,
+      });
     };
 
     const onPendingApproval = () => dispatch({ type: 'pending-approval' });
@@ -141,6 +155,7 @@ export function useViewer(roomCode: string | undefined) {
     };
 
     socket.on('room:joined', onJoined);
+    socket.on('room:features-update', onFeaturesUpdate);
     socket.on('room:pending-approval', onPendingApproval);
     socket.on('room:error', onError);
     socket.on('room:host-disconnected', onHostDisconnected);
@@ -156,6 +171,7 @@ export function useViewer(roomCode: string | undefined) {
 
     return () => {
       socket.off('room:joined', onJoined);
+      socket.off('room:features-update', onFeaturesUpdate);
       socket.off('room:pending-approval', onPendingApproval);
       socket.off('room:error', onError);
       socket.off('room:host-disconnected', onHostDisconnected);
@@ -193,6 +209,16 @@ export function useViewer(roomCode: string | undefined) {
     [socket],
   );
 
+  /** Atualiza o apelido do espectador localmente e no servidor */
+  const updateName = useCallback(
+    (name: string) => {
+      credsRef.current.name = name;
+      storeName(name);
+      socket?.emit('room:set-name', { name });
+    },
+    [socket],
+  );
+
   /** Sai da sala voluntariamente */
   const leaveRoom = useCallback(() => {
     sessionRef.current = false;
@@ -202,5 +228,5 @@ export function useViewer(roomCode: string | undefined) {
     dispatch({ type: 'reset' });
   }, [socket, destroyViewer]);
 
-  return { state, leaveRoom, setQuality, join };
+  return { state, leaveRoom, setQuality, join, updateName, storedName: readStoredName() };
 }

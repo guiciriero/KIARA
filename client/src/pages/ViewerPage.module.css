@@ -330,6 +330,54 @@
   border-color: #ffffff;
 }
 
+/* ── Modal de Identificação / Nome do Viewer ────────────────── */
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.modalContent {
+  width: 100%;
+  max-width: 380px;
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalContent h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--kiara-text);
+  margin: 0;
+}
+
+.modalContent p {
+  font-size: 0.85rem;
+  color: var(--kiara-text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.modalButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .iconBtn {
   background: transparent;
   border: 1px solid transparent;
