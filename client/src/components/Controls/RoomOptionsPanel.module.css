@@ -97,7 +97,7 @@
   height: 18px;
   margin-top: 2px;
   flex-shrink: 0;
-  accent-color: #ffffff;
+  accent-color: var(--kiara-text-strong);
   cursor: pointer;
 }
 

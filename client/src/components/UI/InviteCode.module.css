@@ -33,7 +33,7 @@
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--kiara-text-secondary);
-  background: #171717;
+  background: var(--kiara-surface-hover);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
 }
@@ -50,13 +50,13 @@
   font-size: 1.3rem;
   font-weight: 600;
   letter-spacing: 0.15em;
-  color: #ffffff;
+  color: var(--kiara-text-strong);
   line-height: 1;
 }
 
 .copyCodeBtn {
-  background: #ffffff;
-  color: #000000;
+  background: var(--kiara-text-strong);
+  color: var(--kiara-bg);
   padding: 6px 12px;
   font-size: 0.78rem;
   font-weight: 600;
@@ -69,8 +69,8 @@
 }
 
 .copyCodeBtn.copied {
-  background: #222222;
-  color: #ffffff;
+  background: var(--kiara-surface-active);
+  color: var(--kiara-text-strong);
 }
 
 .urlCard {
@@ -105,7 +105,7 @@
 }
 
 .copyUrlBtn {
-  background: #141414;
+  background: var(--kiara-surface-elevated);
   border: 1px solid var(--kiara-border);
   color: var(--kiara-text);
   padding: 4px 10px;
@@ -116,11 +116,11 @@
 }
 
 .copyUrlBtn:hover:not(.copied) {
-  background: #1f1f1f;
-  border-color: #333333;
+  background: var(--kiara-surface-strong);
+  border-color: var(--kiara-border-strong);
 }
 
 .copyUrlBtn.copied {
-  background: #222222;
-  color: #ffffff;
+  background: var(--kiara-surface-active);
+  color: var(--kiara-text-strong);
 }

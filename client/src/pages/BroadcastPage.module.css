@@ -3,7 +3,7 @@
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
-  background: #000000;
+  background: var(--kiara-bg);
   overflow: hidden;
 }
 
@@ -34,7 +34,7 @@
 
 .backBtn:hover {
   background: var(--kiara-surface-hover);
-  color: #ffffff;
+  color: var(--kiara-text-strong);
   border-color: var(--kiara-border-active);
 }
 
@@ -71,7 +71,7 @@
 }
 
 .viewersCountPill strong {
-  color: #ffffff;
+  color: var(--kiara-text-strong);
 }
 
 .bodyLayout {
@@ -105,7 +105,7 @@
   gap: 8px;
   background: var(--kiara-danger-subtle);
   border: 1px solid var(--kiara-danger);
-  color: #ffffff;
+  color: var(--kiara-text-strong);
   padding: 8px 12px;
   border-radius: var(--radius-md);
   font-size: 0.78rem;
@@ -126,13 +126,13 @@
   gap: 12px;
   padding: 16px;
   overflow-y: auto;
-  background: #000000;
+  background: var(--kiara-bg);
 }
 
 .previewContainer {
   flex: 1;
   min-height: 360px;
-  background: #000000;
+  background: var(--kiara-bg);
   border: 1px solid var(--kiara-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -164,8 +164,8 @@
   align-items: center;
   gap: 6px;
   background: rgba(0, 0, 0, 0.75);
-  border: 1px solid #222222;
-  color: #ededed;
+  border: 1px solid var(--kiara-surface-active);
+  color: var(--kiara-text);
   padding: 3px 8px;
   border-radius: var(--radius-full);
   font-size: 0.68rem;
@@ -182,7 +182,7 @@
 
 .pausedIndicator {
   background: rgba(0, 0, 0, 0.75);
-  border: 1px solid #333333;
+  border: 1px solid var(--kiara-border-strong);
   color: var(--kiara-warning);
   padding: 3px 8px;
   border-radius: var(--radius-full);
@@ -208,8 +208,8 @@
 
 .switchScreenBtn:hover {
   background: var(--kiara-surface-hover);
-  border-color: #ffffff;
-  color: #ffffff;
+  border-color: var(--kiara-text-strong);
+  color: var(--kiara-text-strong);
 }
 
 /* ── Estado Vazio / Placeholder do Estúdio ──────────────────────── */
@@ -238,7 +238,7 @@
 .placeholderState h3 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--kiara-text-strong);
   letter-spacing: -0.01em;
 }
 
@@ -269,7 +269,7 @@
   border-radius: 50%;
   background: var(--kiara-surface-hover);
   border: 1px solid var(--kiara-border);
-  color: #ffffff;
+  color: var(--kiara-text-strong);
   font-weight: 600;
   font-size: 0.62rem;
   display: flex;

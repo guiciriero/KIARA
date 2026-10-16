@@ -44,7 +44,7 @@
 .primary {
   background: var(--kiara-accent);
   border-color: var(--kiara-accent);
-  color: #000000;
+  color: var(--kiara-bg);
 }
 
 .primary:hover:not(:disabled) {

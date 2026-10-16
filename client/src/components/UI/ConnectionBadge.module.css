@@ -4,7 +4,7 @@
   gap: 6px;
   padding: 3px 8px;
   border-radius: var(--radius-full);
-  background: #0a0a0a;
+  background: var(--kiara-surface-deep);
   border: 1px solid var(--kiara-border);
   font-size: 0.75rem;
   font-weight: 500;
@@ -32,8 +32,8 @@
 
 /* ── Estados Dinâmicos ────────────────────────────────────────── */
 .badge[data-state="connected"] {
-  border-color: #222222;
-  color: #ededed;
+  border-color: var(--kiara-surface-active);
+  color: var(--kiara-text);
 }
 
 .badge[data-state="connected"] .dot {
@@ -42,7 +42,7 @@
 
 .badge[data-state="connecting"],
 .badge[data-state="reconnecting"] {
-  border-color: #222222;
+  border-color: var(--kiara-surface-active);
   color: var(--kiara-warning);
 }
 

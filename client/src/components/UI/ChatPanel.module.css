@@ -40,7 +40,7 @@
   padding: 0 4px;
   border-radius: var(--radius-full);
   background: var(--kiara-danger);
-  color: #000000;
+  color: var(--kiara-bg);
   font-size: 0.65rem;
   font-weight: 700;
   display: inline-flex;
@@ -108,7 +108,7 @@
 
 .editNameBtn {
   background: transparent;
-  color: var(--kiara-brand, #3b82d4);
+  color: var(--kiara-cool);
   font-size: 0.72rem;
   text-decoration: underline;
   padding: 2px 4px;
@@ -227,8 +227,8 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  background: #ffffff;
-  color: #000000;
+  background: var(--kiara-text-strong);
+  color: var(--kiara-bg);
 }
 
 .sendBtn:disabled {

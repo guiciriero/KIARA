@@ -61,8 +61,8 @@
 }
 
 .btnApprove {
-  background: #ffffff;
-  color: #000000;
+  background: var(--kiara-text-strong);
+  color: var(--kiara-bg);
 }
 
 .btnApprove:hover {

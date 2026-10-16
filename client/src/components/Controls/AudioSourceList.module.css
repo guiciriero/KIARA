@@ -45,7 +45,7 @@
 
 .refreshBtn:hover:not(:disabled) {
   background: var(--kiara-surface-hover);
-  color: #ffffff;
+  color: var(--kiara-text-strong);
 }
 
 .spinning {
@@ -53,7 +53,7 @@
 }
 
 .webNotice {
-  background: #111111;
+  background: var(--kiara-border-subtle);
   border: 1px solid var(--kiara-border);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
@@ -86,7 +86,7 @@
   width: 12px;
   height: 12px;
   border: 2px solid var(--kiara-border);
-  border-top-color: #ffffff;
+  border-top-color: var(--kiara-text-strong);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -113,12 +113,12 @@
 }
 
 .item:hover {
-  border-color: #333333;
+  border-color: var(--kiara-border-strong);
 }
 
 .item.selected {
-  border-color: #ffffff;
-  background: #141414;
+  border-color: var(--kiara-text-strong);
+  background: var(--kiara-surface-elevated);
 }
 
 .rowMain {
@@ -191,7 +191,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #222222;
+  background-color: var(--kiara-surface-active);
   transition: var(--transition-fast);
   border-radius: var(--radius-full);
 }
@@ -209,12 +209,12 @@
 }
 
 .switch input:checked + .sliderRound {
-  background-color: #ffffff;
+  background-color: var(--kiara-text-strong);
 }
 
 .switch input:checked + .sliderRound:before {
   transform: translateX(14px);
-  background-color: #000000;
+  background-color: var(--kiara-bg);
 }
 
 /* ── Volume Slider ────────────────────────────────────────────── */
@@ -237,7 +237,7 @@
 }
 
 .muteBtn:hover {
-  color: #ffffff;
+  color: var(--kiara-text-strong);
 }
 
 .muteBtn.muted {
@@ -266,7 +266,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--kiara-text-strong);
   cursor: pointer;
 }
 

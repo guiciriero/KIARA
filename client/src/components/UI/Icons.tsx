@@ -11,7 +11,7 @@ export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
   withText = true,
   className,
 }) => (
-  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', verticalAlign: 'middle', userSelect: 'none' }}>
+  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', verticalAlign: 'middle', userSelect: 'none' }}>
     <img src="/favicon.svg" width={size} height={size} alt="" className={className} draggable={false} />
     {withText && (
       <span
@@ -20,7 +20,7 @@ export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
           fontWeight: 650,
           fontSize: '0.95rem',
           letterSpacing: '0.04em',
-          color: '#ffffff',
+          color: 'var(--kiara-text-strong)',
           display: 'inline-flex',
           alignItems: 'center',
         }}

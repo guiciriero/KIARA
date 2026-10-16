@@ -37,7 +37,7 @@
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--kiara-live);
-  background: #111111;
+  background: var(--kiara-border-subtle);
   border: 1px solid var(--kiara-border-active);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
@@ -65,7 +65,7 @@
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--kiara-text-strong);
 }
 
 /* ── Grade de Resoluções ─────────────────────────────────────── */
@@ -93,8 +93,8 @@
 }
 
 .resChip.selectedRes {
-  background: #ffffff;
-  border-color: #ffffff;
+  background: var(--kiara-text-strong);
+  border-color: var(--kiara-text-strong);
 }
 
 .resLabel {
@@ -104,7 +104,7 @@
 }
 
 .selectedRes .resLabel {
-  color: #000000;
+  color: var(--kiara-bg);
 }
 
 .resSub {
@@ -114,7 +114,7 @@
 }
 
 .selectedRes .resSub {
-  color: #333333;
+  color: var(--kiara-border-strong);
 }
 
 /* ── Sliders ─────────────────────────────────────────────────── */
@@ -140,7 +140,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--kiara-text-strong);
   cursor: pointer;
 }
 
