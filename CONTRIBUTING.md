@@ -50,16 +50,16 @@ Ele executa, em sequência, o que a CI executa para servidor e cliente. Individu
 
 ## Padrão de commits
 
-Usamos [Conventional Commits](https://www.conventionalcommits.org/pt-br/):
+Usamos o formato `tipo(escopo opcional): descrição`, com apenas quatro tipos:
 
 ```
 feat(server): limita espectadores por sala
 fix(client): corrige reconexão após troca de rede
-docs: atualiza instruções de deploy
-chore(ci): fixa ações por SHA
+update(deps): atualiza vitest
+refactor(client): centraliza cores em tokens CSS
 ```
 
-Tipos comuns: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`.
+Tipos: `feat` (nova funcionalidade), `fix` (correção), `update` (atualizações, documentação e configuração) e `refactor` (mudança interna sem alterar comportamento).
 
 ## Pull requests
 
