@@ -24,17 +24,23 @@ permissions:
   contents: read
 
 env:
-  # Usa a última release estável oficial do cloudflared
-  CLOUDFLARED_VERSION: "latest"
+  # Versão fixada do cloudflared (cadeia de suprimentos: nunca usar "latest" em produção).
+  # Ao subir de versão, atualize CLOUDFLARED_VERSION e CLOUDFLARED_SHA256 juntos —
+  # o SHA-256 é do arquivo cloudflared-windows-amd64.exe da release correspondente.
+  CLOUDFLARED_VERSION: "2026.10.1"
+  CLOUDFLARED_SHA256: "4d2490e74082c5d48dbfedaf92576fa5bd1702379ab88eb7faa0cfbe8dc891b6"
 
 jobs:
   # Verificação (lint, tipos, testes, build, audit e e2e): reutiliza o ci.yml.
   # O instalador e a release só saem se ela passar.
+  # Segredos repassados explicitamente — "secrets: inherit" enviaria SIGNPATH_API_TOKEN
+  # e outros segredos desnecessários ao ci.yml; repasse mínimo é mais seguro.
   verify:
     name: Verificar (CI)
     uses: ./.github/workflows/ci.yml
-    # Repassa os segredos opcionais do docker-build (REDHAT_REGISTRY_*) ao workflow chamado.
-    secrets: inherit
+    secrets:
+      REDHAT_REGISTRY_USER: ${{ secrets.REDHAT_REGISTRY_USER }}
+      REDHAT_REGISTRY_TOKEN: ${{ secrets.REDHAT_REGISTRY_TOKEN }}
 
   build:
     name: Compilar instalador
@@ -141,10 +147,14 @@ jobs:
         run: npm run bundle:server
 
       # Confere os artefatos e baixa o cloudflared.exe (com verificação de SHA-256).
+      # CLOUDFLARED_VERSION e CLOUDFLARED_SHA256 vêm do env global do workflow (ver topo).
+      # Ao atualizar a versão, recalcule o SHA-256 e atualize os dois campos juntos.
       - name: desktop - preparar recursos (prepare:resources)
         working-directory: desktop
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          CLOUDFLARED_VERSION: ${{ env.CLOUDFLARED_VERSION }}
+          CLOUDFLARED_SHA256: ${{ env.CLOUDFLARED_SHA256 }}
         run: npm run prepare:resources
 
       # Gera o instalador NSIS (sem assinatura de código).

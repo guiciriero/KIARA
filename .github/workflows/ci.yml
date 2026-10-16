@@ -11,6 +11,13 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    # Segredos declarados explicitamente para receber repasse do build-windows.yml.
+    # required: false — o ci.yml funciona mesmo sem eles (docker-build é condicional).
+    secrets:
+      REDHAT_REGISTRY_USER:
+        required: false
+      REDHAT_REGISTRY_TOKEN:
+        required: false
 
 # Uma execução por ref; execuções antigas da mesma ref são canceladas por uma mais nova.
 concurrency:

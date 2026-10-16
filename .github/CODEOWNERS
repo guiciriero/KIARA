@@ -1,0 +1,18 @@
+# Proprietários de código do repositório KIARA.
+# Cada linha: padrão  @dono — o GitHub solicita revisão automática nos PRs que tocam esses caminhos.
+# Documentação: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Regra global: qualquer arquivo não coberto pelas linhas abaixo
+*                         @guiciriero
+
+# Infraestrutura de CI e segurança — revisão obrigatória do mantenedor
+/.github/                 @guiciriero
+
+# Scripts de build do desktop (preparação de recursos, assinatura)
+/desktop/scripts/         @guiciriero
+
+# Código do servidor de sinalização
+/server/src/              @guiciriero
+
+# Política de segurança e divulgação de vulnerabilidades
+SECURITY.md               @guiciriero

@@ -214,6 +214,27 @@ async function prepareCloudflared() {
     }
   }
 
+  // Em ambiente CI (ou com REQUIRE_CLOUDFLARED_SHA256=1), recusar download sem SHA-256 conhecido.
+  // Isso impede que uma falha na API do GitHub ou uma versão "latest" sem digest resulte em
+  // um binário não verificado entrando no instalador — confiança cega é inaceitável em CI.
+  const requireSha =
+    process.env.CI === 'true' || process.env.REQUIRE_CLOUDFLARED_SHA256 === '1';
+  if (requireSha && !expectedSha) {
+    fail(
+      'SHA-256 do cloudflared não está disponível e o ambiente é CI ' +
+        '(CI=true ou REQUIRE_CLOUDFLARED_SHA256=1).\n' +
+        '  → Defina CLOUDFLARED_SHA256 no workflow (ex.: hash do cloudflared-windows-amd64.exe)\n' +
+        '    ou garanta que a API do GitHub retorne o digest do asset.',
+    );
+  }
+  if (!expectedSha) {
+    // Fora de CI: apenas avisa, não falha
+    console.warn(
+      '[prepare-resources] Aviso: CLOUDFLARED_SHA256 não definido e API não retornou digest. ' +
+        'O binário será baixado SEM verificação de integridade.',
+    );
+  }
+
   await downloadDirect(downloadUrl, OUT_FILE, expectedSha);
 }
 
