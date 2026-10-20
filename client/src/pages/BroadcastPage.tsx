@@ -11,6 +11,7 @@ import {
   IconUsers,
   IconScreen,
   IconAlertTriangle,
+  IconEyeOff,
 } from '../components/UI/Icons';
 import StreamControls from '../components/Controls/StreamControls';
 import AudioSourceList from '../components/Controls/AudioSourceList';
@@ -70,6 +71,20 @@ const BroadcastPage: React.FC = () => {
       .map((src) => ({ id: src.id, pid: src.processId, volume: src.volume, muted: src.isMuted })),
     [audioHook.sources, audioHook.selected],
   );
+
+  // Preferência de retorno de tela: lida do localStorage na montagem
+  const [previewAtivo, setPreviewAtivo] = useState<boolean>(() => {
+    const salvo = localStorage.getItem('kiara:previewAtivo');
+    return salvo === null ? true : salvo === 'true';
+  });
+
+  const togglePreview = () => {
+    setPreviewAtivo((atual) => {
+      const proximo = !atual;
+      localStorage.setItem('kiara:previewAtivo', String(proximo));
+      return proximo;
+    });
+  };
 
   const [tunnelDown, setTunnelDown] = useState(false);
   useEffect(() => {
@@ -149,11 +164,15 @@ const BroadcastPage: React.FC = () => {
     if (audioFailures > 0) replaceSelection(activeIdsRef.current);
   }, [audioFailures, replaceSelection]);
 
+  // Conecta ou desconecta o srcObject do <video> conforme o estado do preview
   useEffect(() => {
-    if (previewRef.current && state.stream) {
+    if (!previewRef.current) return;
+    if (previewAtivo && state.stream) {
       previewRef.current.srcObject = state.stream;
+    } else {
+      previewRef.current.srcObject = null;
     }
-  }, [state.stream]);
+  }, [state.stream, previewAtivo]);
 
   return (
     <div className={styles.studioLayout}>
@@ -198,10 +217,12 @@ const BroadcastPage: React.FC = () => {
             <StreamControls
               isSharing={state.isSharing}
               isPaused={state.isPaused}
+              previewAtivo={previewAtivo}
               onStart={handleStart}
               startDisabled={!captureSupported}
               onStop={stopSharing}
               onTogglePause={togglePause}
+              onTogglePreview={togglePreview}
             />
 
             {!captureSupported && (
@@ -283,9 +304,17 @@ const BroadcastPage: React.FC = () => {
                   autoPlay
                   muted
                   playsInline
-                  className={styles.previewVideo}
+                  className={previewAtivo ? styles.previewVideo : styles.previewVideoOculto}
                 />
-                
+
+                {/* Tela de fundo quando o preview está desabilitado */}
+                {!previewAtivo && (
+                  <div className={styles.previewDesabilitado}>
+                    <IconEyeOff size={32} />
+                    <span>Retorno de tela desabilitado</span>
+                  </div>
+                )}
+
                 {/* Header Flutuante do Preview */}
                 <div className={styles.previewOverlayTop}>
                   <div className={styles.liveIndicator}>

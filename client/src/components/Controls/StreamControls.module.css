@@ -72,11 +72,56 @@
   cursor: not-allowed;
 }
 
+/* Botão de retorno de tela: estado "preview ativo" → clique oculta */
+.btnOcultarPreview {
+  width: 100%;
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border);
+  color: var(--kiara-text-secondary);
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btnOcultarPreview:hover {
+  background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-active);
+  color: var(--kiara-text-strong);
+}
+
+/* Botão de retorno de tela: estado "preview oculto" → clique exibe */
+.btnExibirPreview {
+  width: 100%;
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border-active);
+  color: var(--kiara-text-strong);
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btnExibirPreview:hover {
+  background: var(--kiara-surface-hover);
+  color: var(--kiara-text-strong);
+}
+
 @media (pointer: coarse) {
   .btnStart,
   .btnPause,
   .btnResume,
-  .btnStop {
+  .btnStop,
+  .btnOcultarPreview,
+  .btnExibirPreview {
     min-height: 48px;
   }
 }
