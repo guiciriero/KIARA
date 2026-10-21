@@ -1,20 +1,27 @@
 .container {
   background: var(--kiara-warning-subtle);
-  border: 1px solid var(--kiara-warning);
+  border: 1px solid rgba(234, 179, 8, 0.28);
   border-radius: var(--radius-md);
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  animation: kiaraSlideUp var(--transition-fast) both;
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
+  gap: 8px;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--kiara-warning);
+  letter-spacing: -0.01em;
+}
+
+.header svg {
+  flex-shrink: 0;
 }
 
 .list {
@@ -28,16 +35,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  background: var(--kiara-surface);
+  gap: 12px;
+  background: var(--kiara-surface-raised);
   border: 1px solid var(--kiara-border-active);
   border-radius: var(--radius-sm);
-  padding: 6px 6px 6px 10px;
+  padding: 8px 8px 8px 12px;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.item:hover {
+  border-color: var(--kiara-border-strong);
 }
 
 .name {
-  font-size: 0.84rem;
-  color: var(--kiara-text);
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--kiara-text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -46,7 +59,7 @@
 
 .actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -54,19 +67,36 @@
 .btnDeny {
   min-height: 44px;
   min-width: 44px;
-  padding: 0 14px;
+  padding: 0 16px;
   border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .btnApprove {
   background: var(--kiara-text-strong);
   color: var(--kiara-bg);
+  border: 1px solid var(--kiara-text-strong);
 }
 
 .btnApprove:hover {
-  background: var(--kiara-accent-hover);
+  background: #ffffff;
+  border-color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btnApprove:active {
+  transform: translateY(0);
+}
+
+.btnApprove:focus-visible {
+  outline: 2px solid var(--kiara-border-focus);
+  outline-offset: 2px;
+  box-shadow: var(--kiara-ring);
 }
 
 .btnDeny {
@@ -77,4 +107,17 @@
 
 .btnDeny:hover {
   background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-strong);
+  color: var(--kiara-text-strong);
+  transform: translateY(-1px);
+}
+
+.btnDeny:active {
+  transform: translateY(0);
+}
+
+.btnDeny:focus-visible {
+  outline: 2px solid var(--kiara-border-focus);
+  outline-offset: 2px;
+  box-shadow: var(--kiara-ring);
 }

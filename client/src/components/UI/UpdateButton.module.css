@@ -7,7 +7,9 @@
 }
 
 .text {
-  line-height: 1.2;
+  line-height: 1.3;
+  font-weight: 450;
+  letter-spacing: var(--tracking-wide);
 }
 
 .error {
@@ -16,43 +18,81 @@
 }
 
 .btn {
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
   border: 1px solid var(--kiara-border-active);
-  background: transparent;
+  background: var(--kiara-surface-raised);
   color: var(--kiara-text);
   font-size: 0.75rem;
   font-weight: 500;
+  letter-spacing: var(--tracking-wide);
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .btn:hover:not(:disabled) {
   background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-strong);
+  color: var(--kiara-text-strong);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn:focus-visible {
-  outline: 2px solid var(--kiara-accent);
+  outline: 2px solid var(--kiara-border-focus);
   outline-offset: 2px;
+  box-shadow: var(--kiara-ring);
 }
 
 .btn:disabled {
   color: var(--kiara-text-disabled);
-  cursor: default;
+  border-color: var(--kiara-border-subtle);
+  background: transparent;
+  cursor: not-allowed;
 }
 
 .primary {
-  background: var(--kiara-accent);
-  border-color: var(--kiara-accent);
+  background: var(--kiara-text-strong);
+  border-color: var(--kiara-text-strong);
   color: var(--kiara-bg);
+  font-weight: 600;
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--kiara-accent-hover);
+  background: #ffffff;
+  border-color: #ffffff;
+  color: var(--kiara-bg);
+  opacity: 0.95;
 }
 
 .progress {
   width: 80px;
   height: 4px;
-  accent-color: var(--kiara-accent);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--kiara-surface-active);
+  border: none;
+}
+
+.progress::-webkit-progress-bar {
+  background: var(--kiara-surface-active);
+  border-radius: var(--radius-full);
+}
+
+.progress::-webkit-progress-value {
+  background: var(--kiara-cool);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-fast);
+}
+
+.progress::-moz-progress-bar {
+  background: var(--kiara-cool);
+  border-radius: var(--radius-full);
 }

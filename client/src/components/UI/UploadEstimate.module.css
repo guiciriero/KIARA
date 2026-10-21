@@ -1,37 +1,51 @@
 .container {
   border: 1px solid var(--kiara-border);
   border-radius: var(--radius-md);
-  padding: 8px 12px;
+  padding: 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.76rem;
+  gap: 6px;
+  font-size: 0.78rem;
   line-height: 1.4;
   background: var(--kiara-surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--kiara-text-secondary);
+  font-weight: 500;
+}
+
+.row svg {
+  flex-shrink: 0;
 }
 
 .row strong {
-  color: var(--kiara-text);
+  color: var(--kiara-text-strong);
+  font-weight: 600;
 }
 
 .note {
   color: var(--kiara-text-secondary);
-  font-size: 0.72rem;
+  font-size: 0.73rem;
+  line-height: 1.35;
 }
 
 .ok {
   border-color: var(--kiara-border);
+  background: var(--kiara-surface);
+}
+
+.ok .row svg {
+  color: var(--kiara-cool);
 }
 
 .warning {
-  border-color: var(--kiara-warning);
+  border-color: rgba(234, 179, 8, 0.3);
   background: var(--kiara-warning-subtle);
 }
 
@@ -40,7 +54,7 @@
 }
 
 .danger {
-  border-color: var(--kiara-danger);
+  border-color: rgba(239, 68, 68, 0.3);
   background: var(--kiara-danger-subtle);
 }
 

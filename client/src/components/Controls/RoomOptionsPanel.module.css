@@ -1,4 +1,5 @@
 .container {
+  position: relative;
   background: var(--kiara-surface);
   border: 1px solid var(--kiara-border);
   border-radius: var(--radius-md);
@@ -6,13 +7,20 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: border-color var(--transition-base);
+}
+
+.container:hover,
+.container:focus-within {
+  border-color: var(--kiara-border-active);
 }
 
 .header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-bottom: 8px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--kiara-border);
 }
 
@@ -57,19 +65,28 @@
   color: var(--kiara-text);
   padding: 8px 10px;
   font-size: 0.85rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
 }
 
 .input:hover:not(:disabled) {
   border-color: var(--kiara-border-input-hover);
 }
 
+.input:focus-visible {
+  border-color: var(--kiara-border-focus);
+  background: var(--kiara-surface-elevated);
+}
+
 .input[aria-invalid='true'] {
   border-color: var(--kiara-danger);
+  box-shadow: 0 0 0 3px var(--kiara-danger-subtle);
 }
 
 .input:disabled {
   color: var(--kiara-text-disabled);
   cursor: not-allowed;
+  background: var(--kiara-surface);
+  border-color: var(--kiara-border-active);
 }
 
 .hint {
@@ -82,6 +99,12 @@
   font-size: 0.72rem;
   line-height: 1.4;
   color: var(--kiara-danger-hover);
+  animation: hintIn 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes hintIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .toggleRow {
@@ -90,6 +113,23 @@
   gap: 10px;
   min-height: 44px;
   cursor: pointer;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast);
+}
+
+.toggleRow:hover {
+  background: var(--kiara-accent-subtle);
+}
+
+.toggleRow:has(.checkbox:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.toggleRow:has(.checkbox:disabled):hover {
+  background: transparent;
 }
 
 .checkbox {
@@ -99,6 +139,10 @@
   flex-shrink: 0;
   accent-color: var(--kiara-text-strong);
   cursor: pointer;
+}
+
+.checkbox:disabled {
+  cursor: not-allowed;
 }
 
 .toggleText {
@@ -114,4 +158,10 @@
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--kiara-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hintError {
+    animation: none;
+  }
 }
