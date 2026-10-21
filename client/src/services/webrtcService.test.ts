@@ -109,12 +109,23 @@ describe('webrtcService', () => {
   });
 
   describe('degradationPreferenceFor', () => {
-    it('usa balanced para high/ultra/indefinida e maintain-framerate para low/medium', () => {
-      expect(degradationPreferenceFor('high')).toBe('balanced');
-      expect(degradationPreferenceFor('ultra')).toBe('balanced');
-      expect(degradationPreferenceFor(undefined)).toBe('balanced');
+    it('usa maintain-framerate para low/medium em qualquer plataforma', () => {
       expect(degradationPreferenceFor('low')).toBe('maintain-framerate');
       expect(degradationPreferenceFor('medium')).toBe('maintain-framerate');
+      expect(degradationPreferenceFor('low', true)).toBe('maintain-framerate');
+      expect(degradationPreferenceFor('medium', true)).toBe('maintain-framerate');
+    });
+
+    it('usa balanced para high/ultra/indefinida no macOS', () => {
+      expect(degradationPreferenceFor('high', true)).toBe('balanced');
+      expect(degradationPreferenceFor('ultra', true)).toBe('balanced');
+      expect(degradationPreferenceFor(undefined, true)).toBe('balanced');
+    });
+
+    it('usa maintain-framerate para high/ultra/indefinida fora do macOS', () => {
+      expect(degradationPreferenceFor('high', false)).toBe('maintain-framerate');
+      expect(degradationPreferenceFor('ultra', false)).toBe('maintain-framerate');
+      expect(degradationPreferenceFor(undefined, false)).toBe('maintain-framerate');
     });
   });
 

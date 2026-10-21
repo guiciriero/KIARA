@@ -71,11 +71,18 @@ interface PeerConnectionData {
 }
 
 /**
- * Preferência de degradação do encoder: 'high'/'ultra' e indefinida usam 'balanced' (reduz
- * resolução e fps sob pressão); 'low'/'medium' mantêm o fps.
+ * Preferência de degradação do encoder.
+ * - 'low'/'medium': mantém fps (reduz resolução sob pressão).
+ * - 'high'/'ultra'/undefined no macOS: 'balanced' — VideoToolbox tolera melhor
+ *   quedas controladas de fps+resolução do que resolução travada em alta carga.
+ * - Demais plataformas em 'high'/'ultra'/undefined: 'maintain-framerate'.
  */
-export function degradationPreferenceFor(quality?: VideoConfig['quality']): RTCDegradationPreference {
-  return quality === 'low' || quality === 'medium' ? 'maintain-framerate' : 'balanced';
+export function degradationPreferenceFor(
+  quality?: VideoConfig['quality'],
+  mac: boolean = isMacOS(),
+): RTCDegradationPreference {
+  if (quality === 'low' || quality === 'medium') return 'maintain-framerate';
+  return mac ? 'balanced' : 'maintain-framerate';
 }
 
 /**

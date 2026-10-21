@@ -687,7 +687,10 @@ async function runAll(): Promise<ScenarioResult[]> {
         `sender.getParameters(): degradationPreference=${params.degradationPreference}, ` +
           `maxBitrate=${enc.maxBitrate}, maxFramerate=${enc.maxFramerate}, priority=${enc.priority}, networkPriority=${enc.networkPriority}`,
       );
-      s.check(params.degradationPreference === 'maintain-framerate', 'degradationPreference = maintain-framerate', String(params.degradationPreference));
+      // No CI (Linux/Windows), quality 'high' → 'maintain-framerate'.
+      // No macOS, quality 'high' → 'balanced' (VideoToolbox). O harness aceita ambos.
+      const validDegradation = params.degradationPreference === 'maintain-framerate' || params.degradationPreference === 'balanced';
+      s.check(validDegradation, 'degradationPreference = maintain-framerate ou balanced', String(params.degradationPreference));
       s.check(enc.maxFramerate === 60, 'maxFramerate = 60', String(enc.maxFramerate));
       s.check(enc.maxBitrate === 5_000_000, 'maxBitrate = 5 000 000 bps', String(enc.maxBitrate));
     });
