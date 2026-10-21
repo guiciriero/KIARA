@@ -2,7 +2,7 @@
  * fullscreen.ts
  * Tela cheia compatível com celulares.
  *
- * - Android/desktop: Fullscreen API padrão no container (mantém nossos controles e o chat).
+ * - Android/desktop: Fullscreen API padrão no container (mantém nossos controles).
  * - Safari (iPad/macOS antigo): API com prefixo `webkit`.
  * - iPhone: só o <video> entra em tela cheia, via `webkitEnterFullscreen()` (player nativo).
  * Funções puras sobre objetos mínimos, para testar sem DOM.

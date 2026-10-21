@@ -127,6 +127,64 @@
   color: var(--kiara-text-strong);
 }
 
+/* ── Alternar painéis de configuração ─────────────────────────────── */
+.settingsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-full);
+  color: var(--kiara-text);
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-base),
+    transform var(--transition-fast);
+}
+
+.settingsToggle svg {
+  transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settingsToggle:hover {
+  background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-input-hover);
+  color: var(--kiara-text-strong);
+}
+
+.settingsToggle:hover svg {
+  transform: rotate(45deg);
+}
+
+.settingsToggle:active {
+  transform: scale(0.97);
+}
+
+.settingsToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--kiara-ring);
+}
+
+/* Painéis ocultos: destaca o botão para lembrar como voltar */
+.settingsToggleOff {
+  background: var(--kiara-text-strong);
+  border-color: var(--kiara-text-strong);
+  color: var(--kiara-bg);
+}
+
+.settingsToggleOff:hover {
+  background: var(--kiara-accent-hover);
+  border-color: var(--kiara-accent-hover);
+  color: var(--kiara-bg);
+}
+
 /* ── Layout Corpo: 3 colunas (sala | preview | config) ───────────── */
 .bodyLayout {
   flex: 1;
@@ -136,6 +194,13 @@
   grid-template-areas: "room main config";
   overflow: hidden;
   min-height: 0;
+  /* Recolher/expandir os painéis anima as colunas (o vídeo cresce junto) */
+  transition: grid-template-columns 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Painéis de configuração recolhidos: o palco ocupa todo o espaço */
+.bodyLayout.settingsHidden {
+  grid-template-columns: 0 1fr 0;
 }
 
 /* ── Painéis Laterais Compartilhados ─────────────────────────────── */
@@ -146,8 +211,10 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   min-width: 0;
+  transition: opacity 220ms ease, visibility 0s linear 0s;
 }
 
 .sidebarConfig {
@@ -157,8 +224,26 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   min-width: 0;
+  transition: opacity 220ms ease, visibility 0s linear 0s;
+}
+
+/* Conteúdo com largura fixa: não reflui enquanto a coluna encolhe */
+.sidebarInner {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Recolhido: invisível e fora da ordem de tabulação (visibility sai após o fade) */
+.settingsHidden .sidebarRoom,
+.settingsHidden .sidebarConfig {
+  opacity: 0;
+  visibility: hidden;
+  border-width: 0;
+  transition: opacity 160ms ease, visibility 0s linear 320ms;
 }
 
 /* Entrada suave e escalonada dos painéis laterais */
@@ -422,15 +507,21 @@
   overflow-y: auto;
   background: var(--kiara-bg);
   min-width: 0;
+  transition: padding 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settingsHidden .mainArea {
+  padding: 8px;
 }
 
 .previewContainer {
   flex: 1;
-  min-height: 260px;
+  min-height: 400px;
   background: var(--kiara-bg);
   border: 1px solid var(--kiara-border-active);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  /* Os vídeos internos têm o próprio raio; visível para as reações flutuarem sem corte */
+  overflow: visible;
   position: relative;
   display: flex;
   align-items: center;
@@ -473,6 +564,80 @@
   display: block;
 }
 
+/* Player principal: tela do co-apresentador (mesmo comportamento do player do espectador) */
+.mainVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--kiara-bg);
+  border-radius: inherit;
+  animation: panelEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Retorno local: ocupa o palco inteiro até alguém co-apresentar */
+.hostFeed {
+  --mini-w: clamp(150px, 22vw, 300px);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--kiara-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  z-index: 5;
+  transition:
+    width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    right 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    bottom 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+/* Miniplayer flutuante (PiP) acima da barra de controles */
+.hostFeedMini {
+  right: 16px;
+  bottom: 84px;
+  width: var(--mini-w);
+  height: calc(var(--mini-w) * 0.5625);
+  border-color: var(--kiara-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.hostFeedMini:hover {
+  border-color: var(--kiara-text-secondary);
+}
+
+.hostFeedMini .previewDesabilitado {
+  min-height: 0;
+}
+
+.miniLabel {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  background: var(--kiara-glass);
+  -webkit-backdrop-filter: var(--kiara-glass-blur);
+  backdrop-filter: var(--kiara-glass-blur);
+  border: 1px solid var(--kiara-glass-border);
+  border-radius: var(--radius-full);
+  color: var(--kiara-text-strong);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
 /* O elemento <video> continua no DOM mas sem srcObject: ocupa espaço zero */
 .previewVideoOculto {
   display: none;
@@ -497,47 +662,112 @@
   position: absolute;
   top: 12px;
   left: 12px;
+  right: 12px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   z-index: 20;
+  pointer-events: none;
 }
 
-.liveIndicator {
+/* Identifica de quem é a tela no player principal */
+.sourceChip,
+.stageError {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 4px 10px;
   background: var(--kiara-glass);
   -webkit-backdrop-filter: var(--kiara-glass-blur);
   backdrop-filter: var(--kiara-glass-blur);
   border: 1px solid var(--kiara-glass-border);
-  color: var(--kiara-text-strong);
-  padding: 4px 10px 4px 9px;
   border-radius: var(--radius-full);
-  font-size: 0.68rem;
+  color: var(--kiara-text);
+  font-size: 0.7rem;
+  font-weight: 500;
+  animation: panelEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stageError {
+  color: var(--kiara-danger);
+  max-width: 100%;
+}
+
+/* Barra flutuante do Host: base visual vem do ViewerPage.module.css */
+.hostBar {
+  gap: 12px;
+}
+
+.stopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--kiara-danger-subtle);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--kiara-danger);
+  font-size: 0.74rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
-.liveDot {
-  position: relative;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--kiara-live);
+.stopBtn:hover {
+  border-color: var(--kiara-danger);
 }
 
-/* Anel de pulso suave (apenas transform/opacity) */
-.liveDot::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--kiara-live);
-  opacity: 0;
-  animation: liveRing 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
-  pointer-events: none;
+.stopBtn:active {
+  transform: scale(0.97);
+}
+
+.stopBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--kiara-ring);
+}
+
+.placeholderStart {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 0 20px;
+  background: var(--kiara-text-strong);
+  border: 1px solid var(--kiara-text-strong);
+  border-radius: var(--radius-md);
+  color: var(--kiara-bg);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-base);
+}
+
+.placeholderStart:hover:not(:disabled) {
+  background: var(--kiara-accent-hover);
+  box-shadow: 0 0 20px var(--kiara-cool-glow);
+}
+
+.placeholderStart:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.placeholderStart:focus-visible {
+  outline: none;
+  box-shadow: var(--kiara-ring);
+}
+
+.placeholderStart:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .pausedIndicator {
@@ -551,34 +781,6 @@
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.04em;
-}
-
-.switchScreenBtn {
-  background: var(--kiara-glass);
-  -webkit-backdrop-filter: var(--kiara-glass-blur);
-  backdrop-filter: var(--kiara-glass-blur);
-  border: 1px solid var(--kiara-glass-border);
-  color: var(--kiara-text);
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  font-size: 0.68rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
-}
-
-.switchScreenBtn:hover {
-  background: var(--kiara-surface-hover);
-  border-color: var(--kiara-text-strong);
-  color: var(--kiara-text-strong);
-  transform: translateY(-1px);
-}
-
-.switchScreenBtn:active {
-  transform: translateY(0) scale(0.98);
 }
 
 /* ── Estado Vazio / Placeholder do Estúdio ──────────────────────── */
@@ -684,12 +886,6 @@
   color: var(--kiara-text);
 }
 
-/* ── Chat Dock ───────────────────────────────────────────────────── */
-.chatDock {
-  display: flex;
-  justify-content: flex-end;
-}
-
 /* ── Responsividade ─────────────────────────────────────────────── */
 @media (max-width: 1200px) {
   .bodyLayout {
@@ -700,12 +896,21 @@
       "room config";
     grid-template-rows: auto;
   }
+  .bodyLayout.settingsHidden {
+    grid-template-columns: 0 1fr;
+  }
   .sidebarConfig {
     border-left: none;
     border-top: 1px solid var(--kiara-border);
     max-height: none;
     overflow: visible;
     grid-area: config;
+  }
+  .sidebarConfig .sidebarInner {
+    width: auto;
+  }
+  .settingsHidden .sidebarConfig {
+    display: none;
   }
 }
 
@@ -722,6 +927,17 @@
       "config";
     grid-template-rows: auto;
     overflow: visible;
+    transition: none;
+  }
+  .bodyLayout.settingsHidden {
+    grid-template-columns: 1fr;
+  }
+  .sidebarInner {
+    width: auto;
+  }
+  .settingsHidden .sidebarRoom,
+  .settingsHidden .sidebarConfig {
+    display: none;
   }
   .sidebarRoom {
     border-right: none;
@@ -743,6 +959,13 @@
     min-height: 0;
     aspect-ratio: 16 / 9;
     flex: none;
+  }
+  .hostFeed {
+    --mini-w: clamp(110px, 30vw, 200px);
+  }
+  .hostFeedMini {
+    right: 8px;
+    bottom: 72px;
   }
   .topBar {
     position: sticky;
@@ -771,24 +994,34 @@
     flex-direction: column;
     align-items: flex-start;
   }
-  .chatDock {
-    justify-content: stretch;
-  }
   .codeDisplayText {
     font-size: 1.25rem;
     letter-spacing: 0.15em;
+  }
+  .settingsToggle span {
+    display: none;
+  }
+  .settingsToggle {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+  .stopBtn span {
+    display: none;
+  }
+  .hostBar {
+    gap: 4px;
   }
 }
 
 /* Toque: alvos de pelo menos 44px */
 @media (pointer: coarse) {
+  .settingsToggle {
+    min-height: 44px;
+  }
   .copyLinkBtn {
     min-height: 44px;
     min-width: 44px;
-    padding: 4px 14px;
-  }
-  .switchScreenBtn {
-    min-height: 44px;
     padding: 4px 14px;
   }
   .backBtn {
@@ -800,12 +1033,14 @@
 @media (prefers-reduced-motion: reduce) {
   .sidebarRoom > *,
   .sidebarConfig > *,
+  .mainVideo,
+  .sourceChip,
+  .stageError,
   .previewContainer,
   .placeholderState,
   .errorBox {
     animation: none;
   }
-  .liveDot::after,
   .liveDotSmall::after {
     animation: none;
     opacity: 0;
@@ -814,7 +1049,14 @@
     animation: none;
   }
   .backBtn:hover,
-  .switchScreenBtn:hover {
+  .settingsToggle:hover svg {
     transform: none;
+  }
+  .bodyLayout,
+  .mainArea,
+  .hostFeed,
+  .sidebarRoom,
+  .sidebarConfig {
+    transition: none;
   }
 }

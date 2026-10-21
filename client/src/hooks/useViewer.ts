@@ -103,7 +103,6 @@ export function useViewer(roomCode: string | undefined) {
       dispatch({
         type: 'joined',
         viewerCount: data.viewerCount,
-        chatEnabled: data.chatEnabled,
         reactionsEnabled: data.reactionsEnabled,
         hostId: data.hostId,
         iceServers: data.iceServers,
@@ -119,7 +118,6 @@ export function useViewer(roomCode: string | undefined) {
     const onFeaturesUpdate = (features: RoomFeaturesPayload) => {
       dispatch({
         type: 'features-update',
-        chatEnabled: features.chatEnabled,
         reactionsEnabled: features.reactionsEnabled,
       });
     };

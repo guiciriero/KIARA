@@ -1,5 +1,5 @@
 import React, { useId } from 'react';
-import { IconLock, IconUserCheck, IconShield, IconMessageSquare, IconSparkles } from '../UI/Icons';
+import { IconLock, IconUserCheck, IconShield, IconSparkles } from '../UI/Icons';
 import styles from './RoomOptionsPanel.module.css';
 
 export const MIN_ROOM_PASSWORD = 4;
@@ -9,7 +9,6 @@ export interface RoomOptionsValue {
   password: string;
   requireApproval: boolean;
   privacyMode: boolean;
-  chatEnabled: boolean;
   reactionsEnabled: boolean;
 }
 
@@ -102,21 +101,6 @@ const RoomOptionsPanel: React.FC<Props> = ({ value, onChange, disabled = false }
       </label>
 
       <div style={{ height: '1px', background: 'var(--kiara-border)', margin: '8px 0' }} />
-
-      <label className={styles.toggleRow}>
-        <input
-          type="checkbox"
-          className={styles.checkbox}
-          checked={value.chatEnabled}
-          onChange={(e) => onChange({ ...value, chatEnabled: e.target.checked })}
-        />
-        <span className={styles.toggleText}>
-          <span className={styles.toggleTitle}>
-            <IconMessageSquare size={14} /> Permitir chat
-          </span>
-          <span className={styles.hint}>Os espectadores podem trocar mensagens de texto.</span>
-        </span>
-      </label>
 
       <label className={styles.toggleRow}>
         <input

@@ -26,6 +26,7 @@ import type {
   CreateRoomPayload,
   RoomCreatedPayload,
   RoomErrorPayload,
+  IceServerConfig,
   JoinRequestPayload,
   RespondJoinPayload,
 } from '@shared/index';
@@ -56,9 +57,12 @@ export interface BroadcastState {
   privacyMode: boolean;
   /** Espectadores aguardando aprovação (salas com aprovação) */
   pendingRequests: JoinRequestPayload[];
+  /** Servidores ICE da sala; reutilizados para receber a tela do co-apresentador */
+  iceServers: IceServerConfig[];
 }
 
 const ROOM_TIMEOUT_MS = 8000;
+const NO_ICE_SERVERS: IceServerConfig[] = [];
 
 /** 'high'/'ultra' priorizam nitidez (texto/código); 'low'/'medium' priorizam fluidez */
 function contentHintFor(quality: VideoConfig['quality']): ContentHint {
@@ -73,6 +77,7 @@ const INITIAL_STATE: BroadcastState = {
   activeAudioIds: [], audioFailures: 0,
   maxViewers: 0, hasPassword: false, requireApproval: false, privacyMode: false,
   pendingRequests: [],
+  iceServers: NO_ICE_SERVERS,
 };
 
 type AppSocket = NonNullable<ReturnType<typeof useSocket>['socket']>;
@@ -270,6 +275,7 @@ export function useBroadcast(
         requireApproval: room.requireApproval,
         privacyMode: room.privacyMode,
         pendingRequests: [],
+        iceServers: room.iceServers,
         connectionState: 'connected',
         isSharing: true,
         isPaused: false,

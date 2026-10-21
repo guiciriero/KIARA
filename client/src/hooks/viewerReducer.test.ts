@@ -85,12 +85,11 @@ describe('viewerReducer', () => {
     expect(s.roomClosed).toBe(false);
   });
 
-  it('features-update atualiza chatEnabled e reactionsEnabled', () => {
+  it('features-update atualiza reactionsEnabled', () => {
     const s = run([
-      { type: 'joined', viewerCount: 1, chatEnabled: true, reactionsEnabled: true },
-      { type: 'features-update', chatEnabled: false, reactionsEnabled: false },
+      { type: 'joined', viewerCount: 1, reactionsEnabled: true },
+      { type: 'features-update', reactionsEnabled: false },
     ]);
-    expect(s.chatEnabled).toBe(false);
     expect(s.reactionsEnabled).toBe(false);
   });
 

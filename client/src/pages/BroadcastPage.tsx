@@ -1,19 +1,38 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBroadcast } from '../hooks/useBroadcast';
+import { useCopresenterStream } from '../hooks/useCopresenterStream';
 import { useAudioSources } from '../hooks/useAudioSources';
-import { useChat } from '../hooks/useChat';
+import { useReactions } from '../hooks/useReactions';
 import { useSocket } from '../services/SocketContext';
 import { isDisplayCaptureSupported } from '../services/captureService';
+import {
+  deviceSupportsFullscreen,
+  getFullscreenElement,
+  toggleFullscreen,
+  type FullscreenDocument,
+  type FullscreenTarget,
+} from '../utils/fullscreen';
 import {
   KiaraLogo,
   IconArrowLeft,
   IconUsers,
   IconScreen,
   IconAlertTriangle,
+  IconEye,
   IconEyeOff,
   IconCopy,
   IconCheck,
+  IconBroadcast,
+  IconPause,
+  IconPlay,
+  IconStop,
+  IconSettings,
+  IconActivity,
+  IconFullscreen,
+  IconExitFullscreen,
+  IconVolumeHigh,
+  IconVolumeMute,
 } from '../components/UI/Icons';
 import StreamControls from '../components/Controls/StreamControls';
 import AudioSourceList from '../components/Controls/AudioSourceList';
@@ -27,14 +46,25 @@ import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import UploadEstimate from '../components/UI/UploadEstimate';
-import ChatPanel, { ReactionOverlay } from '../components/UI/ChatPanel';
+import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import styles from './BroadcastPage.module.css';
+// Barra flutuante e botões do player: as mesmas classes do espectador, para os dois ficarem idênticos
+import viewerStyles from './ViewerPage.module.css';
 import type { VideoConfig as VideoConfigType, CreateRoomPayload } from '@shared/index';
 
 const BroadcastPage: React.FC = () => {
   const navigate = useNavigate();
   const previewRef = useRef<HTMLVideoElement>(null);
+  const copresenterVideoRef = useRef<HTMLVideoElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+
+  // Painéis de configuração: recolhíveis para dar todo o espaço ao vídeo
+  const [isSettingsVisible, setIsSettingsVisible] = useState(true);
+  const [showStats, setShowStats] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  /** O som do co-apresentador começa mudo para evitar eco com o áudio que ele recebe */
+  const [copresenterMuted, setCopresenterMuted] = useState(true);
 
   const [videoConfig, setVideoConfig] = useState<VideoConfigType>({
     width: 1920,
@@ -49,12 +79,10 @@ const BroadcastPage: React.FC = () => {
     password: '',
     requireApproval: false,
     privacyMode: false,
-    chatEnabled: true,
     reactionsEnabled: true,
   });
   const createRoomOptions = useMemo<CreateRoomPayload>(() => {
     const options: CreateRoomPayload = {
-      chatEnabled: roomOptions.chatEnabled,
       reactionsEnabled: roomOptions.reactionsEnabled,
     };
     if (roomOptions.password) options.password = roomOptions.password;
@@ -125,7 +153,12 @@ const BroadcastPage: React.FC = () => {
   } = useBroadcast(videoConfig, audioSelection, captureSourceId, createRoomOptions);
 
   const { socket } = useSocket();
-  const chat = useChat();
+  const reactions = useReactions();
+  const copresenter = useCopresenterStream(socket, state.isSharing, state.iceServers);
+  const copresenterStream = copresenter.stream;
+  const hasCopresenterVideo = copresenterStream !== null;
+  /** Retorno local vira miniplayer assim que há tela de co-apresentador no player principal */
+  const hostIsMini = hasCopresenterVideo;
   const passwordValid = isRoomPasswordValid(roomOptions.password);
   const privacyIgnored = state.isSharing && roomOptions.privacyMode && !state.privacyMode;
 
@@ -147,7 +180,6 @@ const BroadcastPage: React.FC = () => {
     setRoomOptions(newOptions);
     if (state.isSharing && socket?.connected) {
       socket.emit('room:update-features', {
-        chatEnabled: newOptions.chatEnabled,
         reactionsEnabled: newOptions.reactionsEnabled,
       });
     }
@@ -189,6 +221,50 @@ const BroadcastPage: React.FC = () => {
     }
   }, [state.stream, previewAtivo]);
 
+  // Tela do co-apresentador no player principal
+  useEffect(() => {
+    if (copresenterVideoRef.current) {
+      copresenterVideoRef.current.srcObject = copresenterStream;
+    }
+  }, [copresenterStream]);
+
+  // Estado de tela cheia do palco
+  useEffect(() => {
+    const sync = () => setIsFullscreen(Boolean(getFullscreenElement(document as FullscreenDocument)));
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('webkitfullscreenchange', sync);
+    };
+  }, []);
+
+  const fullscreenSupported = deviceSupportsFullscreen();
+  const handleToggleFullscreen = useCallback(async () => {
+    if (!stageRef.current) return;
+    try {
+      await toggleFullscreen(document as FullscreenDocument, stageRef.current as unknown as FullscreenTarget);
+    } catch (err) {
+      console.warn('[KIARA] Erro ao alternar tela cheia:', err);
+    }
+  }, []);
+
+  // Atalho F = tela cheia (ignorado enquanto se digita em campos)
+  const fullscreenShortcutRef = useRef(handleToggleFullscreen);
+  fullscreenShortcutRef.current = handleToggleFullscreen;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== 'f') return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+      e.preventDefault();
+      void fullscreenShortcutRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // O servidor confirma o código; antes de transmitir vale o código fixo local
   const displayCode = state.roomCode ?? roomCode;
   const displayUrl = state.inviteUrl ?? buildPermanentLink(linkOrigin, displayCode);
@@ -229,6 +305,18 @@ const BroadcastPage: React.FC = () => {
         </div>
 
         <div className={styles.topBarRight}>
+          <button
+            type="button"
+            className={`${styles.settingsToggle} ${!isSettingsVisible ? styles.settingsToggleOff : ''}`}
+            onClick={() => setIsSettingsVisible((v) => !v)}
+            aria-expanded={isSettingsVisible}
+            aria-controls="studio-room-panel studio-config-panel"
+            title={isSettingsVisible ? 'Ocultar painéis de configuração' : 'Exibir painéis de configuração'}
+          >
+            <IconSettings size={15} />
+            <span>{isSettingsVisible ? 'Ocultar Configurações' : 'Exibir Configurações'}</span>
+          </button>
+
           <ConnectionBadge state={state.connectionState} />
 
           {state.isSharing && (
@@ -245,10 +333,15 @@ const BroadcastPage: React.FC = () => {
       </header>
 
       {/* ── Conteúdo Principal do Estúdio ───────────────────────────────── */}
-      <div className={styles.bodyLayout}>
+      <div className={`${styles.bodyLayout} ${!isSettingsVisible ? styles.settingsHidden : ''}`}>
 
         {/* ── Painel Esquerdo: Acesso à Sala ─────────────────────────────── */}
-        <aside className={styles.sidebarRoom}>
+        <aside
+          id="studio-room-panel"
+          className={styles.sidebarRoom}
+          aria-label="Sala e transmissão"
+        >
+          <div className={styles.sidebarInner}>
 
           {/* Seção: Controles de transmissão */}
           <div className={styles.panelSection}>
@@ -380,10 +473,16 @@ const BroadcastPage: React.FC = () => {
             viewers={state.isSharing ? state.viewerCount : 1}
             maxViewers={state.isSharing ? state.maxViewers : 0}
           />
+          </div>
         </aside>
 
-        {/* ── Painel Direito: Configurações de Transmissão + Preview ──────── */}
-        <aside className={styles.sidebarConfig}>
+        {/* ── Painel Direito: Configurações de Transmissão ──────────────── */}
+        <aside
+          id="studio-config-panel"
+          className={styles.sidebarConfig}
+          aria-label="Configurações de transmissão"
+        >
+          <div className={styles.sidebarInner}>
 
           {/* Configurações de Qualidade de Vídeo */}
           <VideoConfigPanel
@@ -412,60 +511,187 @@ const BroadcastPage: React.FC = () => {
             onRefresh={audioHook.refreshSources}
             webMode={!audioHook.isDesktop}
           />
+          </div>
         </aside>
 
-        {/* ── Área Central: Preview da Transmissão ───────────────────────── */}
+        {/* ── Área Central: palco no padrão do player do espectador ─────── */}
         <main className={styles.mainArea}>
-          <div className={styles.previewContainer}>
+          <div ref={stageRef} className={styles.previewContainer}>
             {state.isSharing ? (
               <>
-                <video
-                  ref={previewRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className={previewAtivo ? styles.previewVideo : styles.previewVideoOculto}
-                />
-
-                {/* Tela de fundo quando o preview está desabilitado */}
-                {!previewAtivo && (
-                  <div className={styles.previewDesabilitado}>
-                    <IconEyeOff size={32} />
-                    <span>Retorno de tela desabilitado</span>
-                  </div>
+                {/* Player principal: tela do co-apresentador (quando existe) */}
+                {hasCopresenterVideo && (
+                  <video
+                    ref={copresenterVideoRef}
+                    autoPlay
+                    playsInline
+                    muted={copresenterMuted}
+                    className={styles.mainVideo}
+                  />
                 )}
 
-                {/* Header Flutuante do Preview */}
+                {/* Retorno local: ocupa o palco todo ou vira miniplayer flutuante (PiP) */}
+                <div
+                  className={`${styles.hostFeed} ${hostIsMini ? styles.hostFeedMini : ''}`}
+                  aria-label={hostIsMini ? 'Sua transmissão (miniplayer)' : 'Sua transmissão'}
+                >
+                  <video
+                    ref={previewRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className={previewAtivo ? styles.previewVideo : styles.previewVideoOculto}
+                  />
+                  {!previewAtivo && (
+                    <div className={styles.previewDesabilitado}>
+                      <IconEyeOff size={hostIsMini ? 20 : 32} />
+                      {!hostIsMini && <span>Retorno de tela desabilitado</span>}
+                    </div>
+                  )}
+                  {hostIsMini && <span className={styles.miniLabel}>Você</span>}
+                </div>
+
+                {/* Avisos flutuantes sobre o palco */}
                 <div className={styles.previewOverlayTop}>
-                  <div className={styles.liveIndicator}>
-                    <span className={styles.liveDot} />
-                    <span>AO VIVO ({videoConfig.frameRate} FPS)</span>
-                  </div>
                   {state.isPaused && (
                     <div className={styles.pausedIndicator}>
                       <span>EM PAUSA</span>
                     </div>
                   )}
-
-                  {/* Botão de Troca Rápida de Tela / Janela no Web Mode */}
-                  {!audioHook.isDesktop && (
-                    <button
-                      type="button"
-                      className={styles.switchScreenBtn}
-                      onClick={() => { void handleWebChangeScreen(); }}
-                      title="Alternar para outra tela ou janela sem parar a transmissão"
-                    >
-                      <IconScreen size={14} />
-                      <span>Trocar Tela / Janela</span>
-                    </button>
+                  {copresenter.copresenter && (
+                    <div className={styles.sourceChip} role="status">
+                      <IconBroadcast size={13} />
+                      <span>
+                        {hasCopresenterVideo
+                          ? `Tela de ${copresenter.copresenter.name}`
+                          : `Conectando a tela de ${copresenter.copresenter.name}…`}
+                      </span>
+                    </div>
+                  )}
+                  {!isSettingsVisible && state.error && (
+                    <div className={styles.stageError} role="alert">
+                      <IconAlertTriangle size={14} />
+                      <span>{state.error}</span>
+                    </div>
                   )}
                 </div>
 
-                {state.stats && <StatsOverlay stats={state.stats} />}
+                {showStats && state.stats && <StatsOverlay stats={state.stats} />}
                 <ReactionOverlay
-                  reactions={chat.reactions}
+                  reactions={reactions.reactions}
                   enabled={roomOptions.reactionsEnabled}
                 />
+
+                {/* ── Barra flutuante: controles essenciais sempre acessíveis ── */}
+                <footer className={`${viewerStyles.bottomBar} ${styles.hostBar}`}>
+                  <div className={viewerStyles.bottomBarLeft}>
+                    <div className={viewerStyles.liveIndicator}>
+                      <span className={viewerStyles.liveDot} />
+                      <span>AO VIVO · {videoConfig.frameRate} FPS</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`${viewerStyles.iconBtn} ${state.isPaused ? viewerStyles.activeBtn : ''}`}
+                      onClick={togglePause}
+                      title={state.isPaused ? 'Retomar transmissão de tela' : 'Pausar transmissão momentaneamente'}
+                      aria-label={state.isPaused ? 'Retomar transmissão' : 'Pausar transmissão'}
+                      aria-pressed={state.isPaused}
+                    >
+                      {state.isPaused ? <IconPlay size={18} /> : <IconPause size={18} />}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={styles.stopBtn}
+                      onClick={stopSharing}
+                      title="Encerrar transmissão e fechar sala"
+                      aria-label="Encerrar transmissão"
+                    >
+                      <IconStop size={16} />
+                      <span>Encerrar</span>
+                    </button>
+                  </div>
+
+                  <div className={viewerStyles.bottomBarRight}>
+                    <button
+                      type="button"
+                      className={`${viewerStyles.iconBtn} ${copiedLink ? viewerStyles.activeBtn : ''}`}
+                      onClick={() => void handleCopyLink()}
+                      title="Copiar link fixo da sala"
+                      aria-label="Copiar link da sala"
+                    >
+                      {copiedLink ? <IconCheck size={18} /> : <IconCopy size={18} />}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={viewerStyles.iconBtn}
+                      onClick={togglePreview}
+                      title={previewAtivo ? 'Ocultar retorno de tela' : 'Exibir retorno de tela'}
+                      aria-label={previewAtivo ? 'Ocultar retorno de tela' : 'Exibir retorno de tela'}
+                      aria-pressed={!previewAtivo}
+                    >
+                      {previewAtivo ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                    </button>
+
+                    {!audioHook.isDesktop && (
+                      <button
+                        type="button"
+                        className={viewerStyles.iconBtn}
+                        onClick={() => { void handleWebChangeScreen(); }}
+                        title="Alternar para outra tela ou janela sem parar a transmissão"
+                        aria-label="Trocar tela ou janela"
+                      >
+                        <IconScreen size={18} />
+                      </button>
+                    )}
+
+                    {hasCopresenterVideo && (
+                      <button
+                        type="button"
+                        className={viewerStyles.iconBtn}
+                        onClick={() => setCopresenterMuted((m) => !m)}
+                        title={copresenterMuted ? 'Ouvir o co-apresentador' : 'Silenciar o co-apresentador'}
+                        aria-label={copresenterMuted ? 'Ouvir o co-apresentador' : 'Silenciar o co-apresentador'}
+                        aria-pressed={!copresenterMuted}
+                      >
+                        {copresenterMuted ? <IconVolumeMute size={18} /> : <IconVolumeHigh size={18} />}
+                      </button>
+                    )}
+
+                    <ReactionBar
+                      onReact={reactions.sendReaction}
+                      enabled={roomOptions.reactionsEnabled}
+                    />
+
+                    {state.stats && (
+                      <button
+                        type="button"
+                        className={`${viewerStyles.iconBtn} ${showStats ? viewerStyles.activeBtn : ''}`}
+                        onClick={() => setShowStats((v) => !v)}
+                        title="Exibir telemetria e latência"
+                        aria-label="Telemetria da transmissão"
+                        aria-pressed={showStats}
+                      >
+                        <IconActivity size={18} />
+                      </button>
+                    )}
+
+                    {fullscreenSupported && (
+                      <button
+                        type="button"
+                        className={viewerStyles.iconBtn}
+                        onClick={() => void handleToggleFullscreen()}
+                        title={isFullscreen ? 'Sair de tela cheia (F)' : 'Tela cheia (F)'}
+                        aria-label={isFullscreen ? 'Sair de tela cheia' : 'Tela cheia'}
+                        aria-keyshortcuts="F"
+                      >
+                        {isFullscreen ? <IconExitFullscreen size={18} /> : <IconFullscreen size={18} />}
+                      </button>
+                    )}
+                  </div>
+                </footer>
               </>
             ) : (
               <div className={styles.placeholderState}>
@@ -491,26 +717,30 @@ const BroadcastPage: React.FC = () => {
                     <span>Compartilhe o link</span>
                   </div>
                 </div>
+
+                {/* Com os painéis ocultos, o início da transmissão continua à mão */}
+                {!isSettingsVisible && (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.placeholderStart}
+                      onClick={handleStart}
+                      disabled={!captureSupported || !passwordValid}
+                    >
+                      <IconBroadcast size={18} />
+                      <span>Iniciar Transmissão</span>
+                    </button>
+                    {state.error && (
+                      <div className={styles.errorBox} role="alert">
+                        <IconAlertTriangle size={16} className={styles.errorIcon} />
+                        <span>{state.error}</span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
-
-          {/* Chat Dock (ao vivo) */}
-          {state.isSharing && (
-            <div className={styles.chatDock}>
-              <ChatPanel
-                messages={chat.messages}
-                reactions={chat.reactions}
-                unreadCount={chat.unreadCount}
-                onSend={chat.sendMessage}
-                onReact={chat.sendReaction}
-                onMarkRead={chat.markRead}
-                selfId={socket?.id}
-                chatEnabled={roomOptions.chatEnabled}
-                reactionsEnabled={roomOptions.reactionsEnabled}
-              />
-            </div>
-          )}
         </main>
       </div>
     </div>

@@ -30,7 +30,6 @@ export interface ViewerState {
   roomClosed: boolean;
   hostDisconnected: boolean;
   selectedQuality: ViewerQualityPreference;
-  chatEnabled: boolean;
   reactionsEnabled: boolean;
   /** Socket ID do host (destino do offer WebRTC do co-apresentador) */
   hostId: string | null;
@@ -50,7 +49,6 @@ export const INITIAL_VIEWER_STATE: ViewerState = {
   roomClosed: false,
   hostDisconnected: false,
   selectedQuality: 'auto',
-  chatEnabled: true,
   reactionsEnabled: true,
   hostId: null,
   iceServers: [],
@@ -61,12 +59,11 @@ export type ViewerAction =
   | {
       type: 'joined';
       viewerCount: number;
-      chatEnabled?: boolean;
       reactionsEnabled?: boolean;
       hostId?: string;
       iceServers?: IceServerConfig[];
     }
-  | { type: 'features-update'; chatEnabled: boolean; reactionsEnabled: boolean }
+  | { type: 'features-update'; reactionsEnabled: boolean }
   | { type: 'stream'; stream: MediaStream }
   | { type: 'pending-approval' }
   | { type: 'error'; message: string; code: RoomErrorCode }
@@ -99,7 +96,6 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
       return {
         ...state,
         viewerCount: action.viewerCount,
-        chatEnabled: action.chatEnabled !== undefined ? action.chatEnabled : state.chatEnabled,
         reactionsEnabled: action.reactionsEnabled !== undefined ? action.reactionsEnabled : state.reactionsEnabled,
         hostId: action.hostId !== undefined ? action.hostId : state.hostId,
         iceServers: action.iceServers !== undefined ? action.iceServers : state.iceServers,
@@ -116,7 +112,6 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
     case 'features-update':
       return {
         ...state,
-        chatEnabled: action.chatEnabled,
         reactionsEnabled: action.reactionsEnabled,
       };
 

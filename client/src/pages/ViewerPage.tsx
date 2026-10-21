@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useViewer } from '../hooks/useViewer';
-import { useChat } from '../hooks/useChat';
+import { useReactions } from '../hooks/useReactions';
 import { useCopresenter } from '../hooks/useCopresenter';
 import { useAudioSources } from '../hooks/useAudioSources';
 import { useSocket } from '../services/SocketContext';
@@ -39,7 +39,7 @@ import AudioSourceList from '../components/Controls/AudioSourceList';
 import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
-import ChatPanel, { ReactionOverlay } from '../components/UI/ChatPanel';
+import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import styles from './ViewerPage.module.css';
 
 const ViewerPage: React.FC = () => {
@@ -50,7 +50,7 @@ const ViewerPage: React.FC = () => {
 
   const { state, leaveRoom, setQuality, join, updateName, storedName } = useViewer(code);
   const { socket } = useSocket();
-  const chat = useChat();
+  const reactions = useReactions();
   const [passwordInput, setPasswordInput] = useState('');
   const [nameInput, setNameInput] = useState(() => storedName || '');
   const [showNameModal, setShowNameModal] = useState(false);
@@ -546,7 +546,7 @@ const ViewerPage: React.FC = () => {
         )}
 
         <ReactionOverlay
-          reactions={chat.reactions}
+          reactions={reactions.reactions}
           enabled={state.reactionsEnabled}
         />
 
@@ -639,7 +639,7 @@ const ViewerPage: React.FC = () => {
         <div className={styles.modalBackdrop}>
           <form className={styles.modalContent} onSubmit={handleConfirmNameModal}>
             <h2>Identifique-se</h2>
-            <p>Insira seu nome ou apelido para enviar mensagens no chat e reações.</p>
+            <p>Insira seu nome ou apelido para reagir à transmissão.</p>
             <label htmlFor="viewer-name-modal-input" className={styles.fieldLabel}>
               Seu nome
             </label>
@@ -728,18 +728,9 @@ const ViewerPage: React.FC = () => {
             </button>
           )}
           {state.connectionState === 'connected' && (
-            <ChatPanel
-              messages={chat.messages}
-              reactions={chat.reactions}
-              unreadCount={chat.unreadCount}
-              onSend={chat.sendMessage}
-              onReact={chat.sendReaction}
-              onMarkRead={chat.markRead}
-              selfId={socket?.id}
-              chatEnabled={state.chatEnabled}
-              reactionsEnabled={state.reactionsEnabled}
-              currentName={nameInput}
-              onUpdateName={handleUpdateName}
+            <ReactionBar
+              onReact={reactions.sendReaction}
+              enabled={state.reactionsEnabled}
               onRequestName={handleRequireName}
             />
           )}
