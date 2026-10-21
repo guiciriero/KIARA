@@ -326,7 +326,11 @@ export class WebRTCBroadcaster {
         if (videoSender) {
           const params = videoSender.getParameters();
           if (params.encodings && params.encodings[0]) {
-            params.encodings[0].maxBitrate = newBitrate;
+            // Respeita a preferência de qualidade individual do espectador (ex.: 720p)
+            const effectiveBitrate = peerData.qualityPreference?.maxBitrateKbps
+              ? Math.min(newBitrate, peerData.qualityPreference.maxBitrateKbps * 1000)
+              : newBitrate;
+            params.encodings[0].maxBitrate = effectiveBitrate;
             params.encodings[0].maxFramerate = this.videoConfig.frameRate || 60;
             params.degradationPreference = degradationPreferenceFor(this.videoConfig.quality);
             void videoSender.setParameters(params).catch(() => {});
@@ -427,6 +431,8 @@ export class WebRTCBroadcaster {
     this.socket.on('room:viewer-joined', this.handleViewerJoined);
     this.socket.on('room:viewer-left', this.handleViewerLeft);
     this.socket.on('stream:quality-request', this.handleQualityRequest);
+    // Handler para pedidos de ICE restart vindos dos espectadores (retransmitidos pelo servidor)
+    this.socket.on('webrtc:ice-restart-request', this.handleIceRestartRequestFromViewer);
   }
 
   private async initiateConnection(viewerId: string): Promise<void> {
@@ -497,6 +503,9 @@ export class WebRTCBroadcaster {
       const iceState = pc.iceConnectionState;
       const failed = state === 'failed' || iceState === 'failed';
 
+      // Logs estruturados para monitorar estados de conexão
+      console.warn(`[KIARA:broadcaster] viewer=${viewerId.slice(0, 8)} connectionState=${state} iceConnectionState=${iceState}`);
+
       // Chrome costuma reportar 'failed' nos dois eventos; sem isso o restart rodaria duas vezes.
       if (!failed) peerData.iceFailureHandled = false;
 
@@ -506,6 +515,7 @@ export class WebRTCBroadcaster {
           peerData.iceGraceTimer = null;
         }
         peerData.iceRestartAttempts = 0;
+        console.warn(`[KIARA:broadcaster] Conexão WebRTC estabelecida com espectador ${viewerId.slice(0, 8)}.`);
         return;
       }
 
@@ -516,11 +526,13 @@ export class WebRTCBroadcaster {
           clearTimeout(peerData.iceGraceTimer);
           peerData.iceGraceTimer = null;
         }
+        console.warn(`[KIARA:broadcaster] ICE falhou para viewer ${viewerId.slice(0, 8)} (state=${state}, iceState=${iceState}). Tentando restart...`);
         void this.triggerIceRestart(viewerId);
         return;
       }
 
       if (state === 'disconnected' || iceState === 'disconnected') {
+        console.warn(`[KIARA:broadcaster] Viewer ${viewerId.slice(0, 8)} desconectado (state=${state}, iceState=${iceState}). Aguardando reconexão automática...`);
         if (!peerData.iceGraceTimer) {
           peerData.iceGraceTimer = setTimeout(() => {
             peerData.iceGraceTimer = null;
@@ -629,6 +641,13 @@ export class WebRTCBroadcaster {
     }
   }
 
+  /** Handler para quando o servidor retransmite o pedido de restart com senderId preenchido */
+  private handleIceRestartRequestFromViewer = ({ senderId }: { senderId: string }) => {
+    if (this.peers.has(senderId)) {
+      void this.triggerIceRestart(senderId);
+    }
+  };
+
   destroy(): void {
     this.destroyed = true;
     for (const id of [...this.peers.keys()]) {
@@ -644,6 +663,7 @@ export class WebRTCBroadcaster {
     this.socket.off('room:viewer-joined', this.handleViewerJoined);
     this.socket.off('room:viewer-left', this.handleViewerLeft);
     this.socket.off('stream:quality-request', this.handleQualityRequest);
+    this.socket.off('webrtc:ice-restart-request', this.handleIceRestartRequestFromViewer);
   }
 }
 
@@ -657,6 +677,13 @@ export class WebRTCViewer {
   private pendingCandidates: RTCIceCandidatePayload[] = [];
   private iceServers: IceServerConfig[];
   private destroyed = false;
+  /** MediaStream remoto acumulado via ontrack (robusto para Firefox e Safari) */
+  private remoteStream: MediaStream | null = null;
+  /** Controle de ICE restart no lado do espectador */
+  private iceRestartAttempts = 0;
+  private iceGraceTimer: ReturnType<typeof setTimeout> | null = null;
+  private iceRestartTimer: ReturnType<typeof setTimeout> | null = null;
+  private iceFailureHandled = false;
 
   constructor(socket: Socket, hostId: string, iceServers: IceServerConfig[] = []) {
     this.socket = socket;
@@ -667,52 +694,208 @@ export class WebRTCViewer {
 
   onStream(cb: (stream: MediaStream) => void): void {
     this.onRemoteStream = cb;
+    // Se o stream já chegou antes do callback ser registrado, entrega imediatamente
+    if (this.remoteStream) {
+      cb(this.remoteStream);
+    }
+  }
+
+  /** Cria (ou reutiliza) o RTCPeerConnection e configura todos os handlers */
+  private ensurePeerConnection(): RTCPeerConnection {
+    if (this.pc) return this.pc;
+
+    const pc = new RTCPeerConnection(buildRtcConfig(this.iceServers));
+    this.pc = pc;
+    this.remoteStream = new MediaStream();
+
+    // ontrack: compatível com Chrome, Firefox e Safari
+    // Firefox pode não preencher event.streams — adicionamos a track manualmente
+    pc.ontrack = (event) => {
+      if (this.destroyed || pc !== this.pc) return;
+
+      const stream = event.streams[0] ?? this.remoteStream!;
+
+      // Garante que a track está no stream acumulado
+      if (event.track && !stream.getTracks().includes(event.track)) {
+        stream.addTrack(event.track);
+      }
+
+      // Atualiza referência interna
+      if (event.streams[0]) {
+        this.remoteStream = event.streams[0];
+      } else {
+        this.remoteStream = stream;
+      }
+
+      // Remove track do stream quando ela terminar (ex.: host parou de transmitir)
+      if (event.track) {
+        event.track.onended = () => {
+          this.remoteStream?.removeTrack(event.track);
+        };
+      }
+
+      if (this.onRemoteStream && this.remoteStream) {
+        this.onRemoteStream(this.remoteStream);
+      }
+    };
+
+    pc.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      this.socket.emit('webrtc:ice-candidate', {
+        targetId: this.hostId,
+        candidate: {
+          candidate: event.candidate.candidate,
+          sdpMid: event.candidate.sdpMid,
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+        },
+      });
+    };
+
+    const handleConnectionStateChange = () => {
+      if (this.destroyed || pc !== this.pc) return;
+      const state = pc.connectionState;
+      const iceState = pc.iceConnectionState;
+      const failed = state === 'failed' || iceState === 'failed';
+
+      if (!failed) this.iceFailureHandled = false;
+
+      if (state === 'connected' || iceState === 'connected' || iceState === 'completed') {
+        if (this.iceGraceTimer) {
+          clearTimeout(this.iceGraceTimer);
+          this.iceGraceTimer = null;
+        }
+        this.iceRestartAttempts = 0;
+        console.warn('[KIARA:viewer] Conexão WebRTC estabelecida com o apresentador.');
+        return;
+      }
+
+      if (failed) {
+        if (this.iceFailureHandled) return;
+        this.iceFailureHandled = true;
+        if (this.iceGraceTimer) {
+          clearTimeout(this.iceGraceTimer);
+          this.iceGraceTimer = null;
+        }
+        console.warn(`[KIARA:viewer] ICE falhou (state=${state}, iceState=${iceState}). Tentando restart...`);
+        void this.triggerIceRestart();
+        return;
+      }
+
+      if (state === 'disconnected' || iceState === 'disconnected') {
+        console.warn(`[KIARA:viewer] Conexão desconectada (state=${state}, iceState=${iceState}). Aguardando reconexão automática...`);
+        if (!this.iceGraceTimer) {
+          this.iceGraceTimer = setTimeout(() => {
+            this.iceGraceTimer = null;
+            if (
+              this.pc === pc &&
+              (pc.connectionState === 'disconnected' || pc.iceConnectionState === 'disconnected')
+            ) {
+              void this.triggerIceRestart();
+            }
+          }, ICE_DISCONNECTED_GRACE_MS);
+        }
+      }
+    };
+
+    pc.onconnectionstatechange = handleConnectionStateChange;
+    pc.oniceconnectionstatechange = handleConnectionStateChange;
+
+    return pc;
+  }
+
+  private async triggerIceRestart(): Promise<void> {
+    if (this.destroyed) return;
+    if (this.iceRestartTimer) return; // Já há um restart agendado
+
+    if (this.iceRestartAttempts < MAX_ICE_RESTART_ATTEMPTS) {
+      this.iceRestartAttempts += 1;
+      const delay = iceRestartDelayMs(this.iceRestartAttempts);
+      console.warn(`[KIARA:viewer] ICE restart tentativa ${this.iceRestartAttempts} em ${delay}ms`);
+      this.iceRestartTimer = setTimeout(() => {
+        this.iceRestartTimer = null;
+        if (!this.destroyed && this.pc) {
+          void this.runIceRestart();
+        }
+      }, delay);
+    } else {
+      // Esgotou as tentativas: fecha e recria o peer para próxima oferta do host
+      console.warn('[KIARA:viewer] ICE restart esgotado. Aguardando reoferta do apresentador.');
+      this.closePeerConnection();
+    }
+  }
+
+  private async runIceRestart(): Promise<void> {
+    if (!this.pc || this.destroyed) return;
+    try {
+      if (typeof this.pc.restartIce === 'function') {
+        this.pc.restartIce();
+      }
+      // O viewer não pode criar offer; informa ao host que precisa de restart via evento
+      this.socket.emit('webrtc:ice-restart-request', { targetId: this.hostId });
+      console.warn('[KIARA:viewer] Solicitação de ICE restart enviada ao apresentador.');
+    } catch (err) {
+      console.warn(`[KIARA:viewer] Falha ao solicitar ICE restart:`, err);
+    }
+  }
+
+  private closePeerConnection(): void {
+    if (this.iceGraceTimer) { clearTimeout(this.iceGraceTimer); this.iceGraceTimer = null; }
+    if (this.iceRestartTimer) { clearTimeout(this.iceRestartTimer); this.iceRestartTimer = null; }
+    this.pc?.close();
+    this.pc = null;
+    this.remoteStream = null;
+    this.pendingCandidates = [];
+    this.iceRestartAttempts = 0;
+    this.iceFailureHandled = false;
   }
 
   private handleOffer = async ({ senderId, offer }: { senderId: string; offer: RTCSessionDescriptionInit }) => {
     if (senderId !== this.hostId || this.destroyed) return;
 
-    if (!this.pc) {
-      this.pc = new RTCPeerConnection(buildRtcConfig(this.iceServers));
-
-      this.pc.ontrack = (event) => {
-        if (event.streams[0] && this.onRemoteStream) {
-          this.onRemoteStream(event.streams[0]);
-        }
-      };
-
-      this.pc.onicecandidate = (event) => {
-        if (!event.candidate) return;
-        this.socket.emit('webrtc:ice-candidate', {
-          targetId: this.hostId,
-          candidate: {
-            candidate: event.candidate.candidate,
-            sdpMid: event.candidate.sdpMid,
-            sdpMLineIndex: event.candidate.sdpMLineIndex,
-          },
-        });
-      };
-    }
+    // Se há ICE restart em andamento, cancela o timer e reutiliza o PC existente (se possível)
+    // Se o PC foi fechado por restart esgotado, cria novo
+    const pc = this.ensurePeerConnection();
 
     try {
-      await this.pc.setRemoteDescription(new RTCSessionDescription(offer));
-
-      for (const cand of this.pendingCandidates) {
-        await this.pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+      // Trata renegociação: se o PC está em estado que não suporta nova offer, recria
+      // signalingState pode ser undefined em ambientes de teste; tratar como 'stable'
+      const sigState = pc.signalingState ?? 'stable';
+      if (sigState !== 'stable' && sigState !== 'have-remote-offer') {
+        console.warn('[KIARA:viewer] Offer recebida em estado inesperado, recriando PC...');
+        this.closePeerConnection();
+        const freshPc = this.ensurePeerConnection();
+        await freshPc.setRemoteDescription(new RTCSessionDescription(offer));
+        await this.flushPendingCandidates(freshPc);
+        const answer = await freshPc.createAnswer();
+        await freshPc.setLocalDescription(answer);
+        this.socket.emit('webrtc:answer', {
+          targetId: this.hostId,
+          answer: { sdp: answer.sdp, type: answer.type },
+        });
+        return;
       }
-      this.pendingCandidates = [];
 
-      const answer = await this.pc.createAnswer();
-      await this.pc.setLocalDescription(answer);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await this.flushPendingCandidates(pc);
+
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
 
       this.socket.emit('webrtc:answer', {
         targetId: this.hostId,
         answer: { sdp: answer.sdp, type: answer.type },
       });
     } catch (err) {
-      console.error('[KIARA] Não foi possível estabelecer conexão com o apresentador:', err);
+      console.error('[KIARA:viewer] Não foi possível estabelecer conexão com o apresentador:', err);
     }
   };
+
+  private async flushPendingCandidates(pc: RTCPeerConnection): Promise<void> {
+    for (const cand of this.pendingCandidates) {
+      await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+    }
+    this.pendingCandidates = [];
+  }
 
   private handleIceCandidate = async ({ senderId, candidate }: { senderId: string; candidate: RTCIceCandidatePayload }) => {
     if (senderId !== this.hostId || !candidate?.candidate) return;
@@ -734,9 +917,7 @@ export class WebRTCViewer {
 
   destroy(): void {
     this.destroyed = true;
-    this.pendingCandidates = [];
-    this.pc?.close();
-    this.pc = null;
+    this.closePeerConnection();
     this.socket.off('webrtc:offer', this.handleOffer);
     this.socket.off('webrtc:ice-candidate', this.handleIceCandidate);
   }

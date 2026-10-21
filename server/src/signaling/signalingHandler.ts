@@ -584,6 +584,34 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       }),
     );
 
+    // ── Pedido de ICE restart (espectador → apresentador) ─────────────────────
+    // O viewer não pode criar offer (só o broadcaster pode), então sinaliza ao host
+    // para que ele inicie um novo ICE restart/offer.
+    socket.on(
+      'webrtc:ice-restart-request',
+      safe(socket, (rawPayload: unknown) => {
+        if (!rawPayload || typeof rawPayload !== 'object') return;
+        const data = rawPayload as Record<string, unknown>;
+        if (typeof data.targetId !== 'string') return;
+
+        const roomId = socketRoomMap.get(socket.id);
+        if (!roomId) return;
+
+        const room = roomManager.getRoom(roomId);
+        if (!room || !room.isActive) return;
+
+        // Apenas espectadores da sala podem pedir restart ao host
+        if (!room.viewers.has(socket.id)) return;
+        if (data.targetId !== room.hostId) return;
+
+        // Retransmite ao host com senderId para ele saber qual viewer precisa de restart
+        io.to(room.hostId).emit('webrtc:ice-restart-request', {
+          senderId: socket.id,
+        });
+        logger.debug(`Viewer ${socket.id.slice(0, 8)} pediu ICE restart na sala ${roomId}`);
+      }),
+    );
+
     // ── Candidato ICE ────────────────────────────────────────────────────────
     socket.on(
       'webrtc:ice-candidate',

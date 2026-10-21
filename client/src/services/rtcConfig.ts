@@ -10,10 +10,15 @@
 
 import type { IceServerConfig } from '@shared/index';
 
-/** STUN público usado apenas como fallback quando o servidor não entrega nenhum ICE server */
+/**
+ * STUN público usado apenas como fallback quando o servidor não entrega nenhum ICE server.
+ * Múltiplos servidores aumentam a chance de conectividade em redes restritas.
+ */
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
+  // Google STUN — mais comum e geralmente disponível
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  // Cloudflare STUN — alternativa confiável
+  { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
 export interface BuildRtcConfigOptions {
@@ -23,7 +28,7 @@ export interface BuildRtcConfigOptions {
 
 /**
  * Monta o RTCConfiguration a partir dos ICE servers entregues pelo servidor.
- * Lista vazia ⇒ STUN público do Google. `relayOnly` ⇒ iceTransportPolicy 'relay'.
+ * Lista vazia ⇒ STUN público (Google + Cloudflare). `relayOnly` ⇒ iceTransportPolicy 'relay'.
  */
 export function buildRtcConfig(
   iceServers: IceServerConfig[],
@@ -36,7 +41,8 @@ export function buildRtcConfig(
     iceServers: servers,
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
-    iceCandidatePoolSize: 2,
+    // Pool maior: o browser pré-coleta candidatos ICE antes do offer, acelerando a negociação
+    iceCandidatePoolSize: 4,
   };
   if (opts.relayOnly) config.iceTransportPolicy = 'relay';
   return config;

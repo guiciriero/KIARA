@@ -153,10 +153,25 @@ const ViewerPage: React.FC = () => {
     setShowNameModal(false);
   };
 
-  // Conecta o stream remoto ao elemento <video>
+  // Conecta o stream remoto ao elemento <video> e garante o autoplay
   useEffect(() => {
-    if (videoRef.current && state.remoteStream) {
-      videoRef.current.srcObject = state.remoteStream;
+    const video = videoRef.current;
+    if (!video || !state.remoteStream) return;
+
+    // Só reatribui se o srcObject for diferente (evita rebind desnecessário)
+    if (video.srcObject !== state.remoteStream) {
+      video.srcObject = state.remoteStream;
+    }
+
+    // Força play() — alguns browsers (Safari/Firefox) precisam de chamada explícita
+    // após rebind do srcObject mesmo com autoPlay=true
+    if (video.paused) {
+      video.play().catch((err) => {
+        // AbortError é esperado quando o usuário navega antes do play resolver
+        if ((err as Error)?.name !== 'AbortError') {
+          console.warn('[KIARA:viewer] Erro ao iniciar reprodução automática:', err);
+        }
+      });
     }
   }, [state.remoteStream]);
 
