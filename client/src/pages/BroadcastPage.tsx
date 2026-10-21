@@ -33,6 +33,8 @@ import {
   IconExitFullscreen,
   IconVolumeHigh,
   IconVolumeMute,
+  IconPictureInPicture,
+  IconX,
 } from '../components/UI/Icons';
 import StreamControls from '../components/Controls/StreamControls';
 import AudioSourceList from '../components/Controls/AudioSourceList';
@@ -48,6 +50,13 @@ import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import UploadEstimate from '../components/UI/UploadEstimate';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
+import {
+  clampMiniWidth,
+  parseStoredMiniWidth,
+  MINI_MAX_WIDTH,
+  MINI_MIN_WIDTH,
+  MINI_STEP,
+} from '../utils/miniPlayer';
 import styles from './BroadcastPage.module.css';
 // Barra flutuante e botões do player: as mesmas classes do espectador, para os dois ficarem idênticos
 import viewerStyles from './ViewerPage.module.css';
@@ -124,6 +133,29 @@ const BroadcastPage: React.FC = () => {
       const proximo = !atual;
       localStorage.setItem('kiara:previewAtivo', String(proximo));
       return proximo;
+    });
+  };
+
+  // Miniplayer da própria transmissão: largura e visibilidade lembradas entre sessões
+  const [miniWidth, setMiniWidth] = useState<number>(() =>
+    parseStoredMiniWidth(localStorage.getItem('kiara:miniWidth')),
+  );
+  const [miniVisible, setMiniVisible] = useState<boolean>(
+    () => localStorage.getItem('kiara:miniVisible') !== 'false',
+  );
+
+  const resizeMini = (delta: number) => {
+    setMiniWidth((atual) => {
+      const proximo = clampMiniWidth(atual + delta);
+      localStorage.setItem('kiara:miniWidth', String(proximo));
+      return proximo;
+    });
+  };
+
+  const toggleMini = () => {
+    setMiniVisible((atual) => {
+      localStorage.setItem('kiara:miniVisible', String(!atual));
+      return !atual;
     });
   };
 
@@ -532,8 +564,14 @@ const BroadcastPage: React.FC = () => {
 
                 {/* Retorno local: ocupa o palco todo ou vira miniplayer flutuante (PiP) */}
                 <div
-                  className={`${styles.hostFeed} ${hostIsMini ? styles.hostFeedMini : ''}`}
+                  className={[
+                    styles.hostFeed,
+                    hostIsMini ? styles.hostFeedMini : '',
+                    hostIsMini && !miniVisible ? styles.hostFeedHidden : '',
+                  ].join(' ')}
+                  style={hostIsMini ? ({ '--mini-w': `min(${miniWidth}px, 60vw)` } as React.CSSProperties) : undefined}
                   aria-label={hostIsMini ? 'Sua transmissão (miniplayer)' : 'Sua transmissão'}
+                  aria-hidden={hostIsMini && !miniVisible}
                 >
                   <video
                     ref={previewRef}
@@ -549,6 +587,40 @@ const BroadcastPage: React.FC = () => {
                     </div>
                   )}
                   {hostIsMini && <span className={styles.miniLabel}>Você</span>}
+
+                  {hostIsMini && (
+                    <div className={styles.miniControls} role="group" aria-label="Miniplayer">
+                      <button
+                        type="button"
+                        className={styles.miniBtn}
+                        onClick={() => resizeMini(-MINI_STEP * 2)}
+                        disabled={miniWidth <= MINI_MIN_WIDTH}
+                        title="Diminuir miniplayer"
+                        aria-label="Diminuir miniplayer"
+                      >
+                        <span aria-hidden="true">−</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.miniBtn}
+                        onClick={() => resizeMini(MINI_STEP * 2)}
+                        disabled={miniWidth >= MINI_MAX_WIDTH}
+                        title="Aumentar miniplayer"
+                        aria-label="Aumentar miniplayer"
+                      >
+                        <span aria-hidden="true">+</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.miniBtn}
+                        onClick={toggleMini}
+                        title="Ocultar miniplayer"
+                        aria-label="Ocultar miniplayer"
+                      >
+                        <IconX size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Avisos flutuantes sobre o palco */}
@@ -644,6 +716,19 @@ const BroadcastPage: React.FC = () => {
                         aria-label="Trocar tela ou janela"
                       >
                         <IconScreen size={18} />
+                      </button>
+                    )}
+
+                    {hasCopresenterVideo && (
+                      <button
+                        type="button"
+                        className={`${viewerStyles.iconBtn} ${miniVisible ? viewerStyles.activeBtn : ''}`}
+                        onClick={toggleMini}
+                        title={miniVisible ? 'Ocultar miniplayer da sua tela' : 'Exibir miniplayer da sua tela'}
+                        aria-label={miniVisible ? 'Ocultar miniplayer da sua tela' : 'Exibir miniplayer da sua tela'}
+                        aria-pressed={miniVisible}
+                      >
+                        <IconPictureInPicture size={18} />
                       </button>
                     )}
 

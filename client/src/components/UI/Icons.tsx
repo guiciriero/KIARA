@@ -255,3 +255,10 @@ export const IconUserCheck: React.FC<IconProps> = ({ size = 18, ...props }) => (
     <polyline points="16 11 18 13 22 9" />
   </svg>
 );
+
+export const IconPictureInPicture: React.FC<IconProps> = ({ size = 18, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect width="20" height="14" x="2" y="5" rx="2" />
+    <rect width="8" height="5" x="12" y="12" rx="1" fill="currentColor" stroke="none" />
+  </svg>
+);

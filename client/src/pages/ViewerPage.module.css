@@ -13,11 +13,6 @@
   to { opacity: 1; }
 }
 
-@keyframes panelSlideIn {
-  from { opacity: 0; transform: translateX(28px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
 @keyframes pulseRing {
   0% { transform: scale(1); opacity: 0.55; }
   70%, 100% { transform: scale(2.6); opacity: 0; }
@@ -119,7 +114,54 @@
 .topBarRight {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
+
+/* Mostrar/ocultar o painel de configurações (mesmo padrão do estúdio do host) */
+.settingsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--kiara-border-input);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.settingsToggle svg {
+  transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.settingsToggle:hover {
+  background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-input-hover);
+  color: var(--kiara-text-strong);
+}
+
+.settingsToggle:hover svg {
+  transform: rotate(45deg);
+}
+
+.settingsToggle:active {
+  transform: scale(0.97);
+}
+
+.settingsToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--kiara-ring);
+}
+
+
 
 .leaveBtn {
   background: transparent;
@@ -619,7 +661,41 @@
   user-select: auto;
   overscroll-behavior: contain;
   will-change: transform, opacity;
-  animation: panelSlideIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition:
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 220ms ease,
+    box-shadow 320ms ease,
+    visibility 0s linear 0s;
+}
+
+/* Oculto: fora da tela, invisível e fora da ordem de tabulação (visibility sai após a animação) */
+.coPresenterPanelHidden {
+  transform: translateX(100%);
+  opacity: 0;
+  visibility: hidden;
+  box-shadow: none;
+  pointer-events: none;
+  transition:
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 200ms ease,
+    box-shadow 320ms ease,
+    visibility 0s linear 320ms;
+}
+
+.coPresenterPanelHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 10px 16px;
+  background: var(--kiara-surface);
+  border-bottom: 1px solid var(--kiara-border);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--kiara-text-strong);
 }
 
 .coPresenterPanelSection {
@@ -848,6 +924,14 @@
   .coPresenterToggleBtn span {
     display: none;
   }
+  .settingsToggle span {
+    display: none;
+  }
+  .settingsToggle {
+    min-width: 44px;
+    justify-content: center;
+    padding: 0;
+  }
   .topBarCenter {
     display: none;
   }
@@ -905,7 +989,6 @@
   .unmuteButton,
   .modalBackdrop,
   .modalContent,
-  .coPresenterPanel,
   .coPresenterOverlay,
   .coPresenterPanelSection p[role='status'],
   .coPresenterPanelSection p[role='alert'],
@@ -919,6 +1002,13 @@
   }
   .spinner {
     animation-duration: 2s;
+  }
+  .coPresenterPanel,
+  .coPresenterPanelHidden {
+    transition: none;
+  }
+  .settingsToggle:hover svg {
+    transform: none;
   }
   .unmuteButton:hover,
   .volumeSlider:hover::-webkit-slider-thumb,

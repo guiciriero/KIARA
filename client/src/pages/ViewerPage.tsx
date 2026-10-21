@@ -28,6 +28,7 @@ import {
   IconFullscreen,
   IconExitFullscreen,
   IconActivity,
+  IconSettings,
   IconUsers,
   IconAlertTriangle,
   IconSparkles,
@@ -489,6 +490,22 @@ const ViewerPage: React.FC = () => {
         </div>
 
         <div className={styles.topBarRight}>
+          {state.connectionState === 'connected' && (
+            <button
+              type="button"
+              className={styles.settingsToggle}
+              onClick={() => {
+                setShowCoPresenterPanel((v) => !v);
+                resetHideTimer();
+              }}
+              aria-expanded={showCoPresenterPanel}
+              aria-controls="viewer-settings-panel"
+              title={showCoPresenterPanel ? 'Ocultar painel de configurações' : 'Exibir painel de configurações'}
+            >
+              <IconSettings size={15} />
+              <span>{showCoPresenterPanel ? 'Ocultar Configurações' : 'Exibir Configurações'}</span>
+            </button>
+          )}
           <button
             type="button"
             className={styles.leaveBtn}
@@ -555,18 +572,36 @@ const ViewerPage: React.FC = () => {
       </div>
 
       {/* ── Painel Lateral de Co-apresentação ────────────────────────────── */}
-      {showCoPresenterPanel && state.connectionState === 'connected' && (
+      {/* Sempre montado (com a prévia e a transmissão intactas); ocultar só o desliza para fora */}
+      {state.connectionState === 'connected' && (
         <>
-          <div
-            className={styles.coPresenterOverlay}
-            onClick={() => setShowCoPresenterPanel(false)}
-            aria-hidden="true"
-          />
+          {showCoPresenterPanel && (
+            <div
+              className={styles.coPresenterOverlay}
+              onClick={() => setShowCoPresenterPanel(false)}
+              aria-hidden="true"
+            />
+          )}
           <aside
-            className={styles.coPresenterPanel}
+            id="viewer-settings-panel"
+            className={`${styles.coPresenterPanel} ${!showCoPresenterPanel ? styles.coPresenterPanelHidden : ''}`}
             aria-label="Co-apresentação"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className={styles.coPresenterPanelHeader}>
+              <span>Configurações</span>
+              <button
+                type="button"
+                className={styles.settingsToggle}
+                onClick={() => setShowCoPresenterPanel(false)}
+                tabIndex={showCoPresenterPanel ? 0 : -1}
+                title="Ocultar painel de configurações"
+              >
+                <IconX size={15} />
+                <span>Ocultar Configurações</span>
+              </button>
+            </div>
+
             <div className={styles.coPresenterPanelSection}>
               <StreamControls
                 isSharing={coState.isSharing}

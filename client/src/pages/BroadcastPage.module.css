@@ -617,6 +617,73 @@
   border-color: var(--kiara-text-secondary);
 }
 
+/* Miniplayer oculto: some do palco, mas o vídeo continua montado para voltar sem atraso */
+.hostFeedHidden {
+  opacity: 0;
+  transform: scale(0.9);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Controles de tamanho e ocultar: aparecem ao passar o mouse, focar ou tocar no miniplayer */
+.miniControls {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--transition-base), transform var(--transition-base);
+  z-index: 3;
+}
+
+.hostFeedMini:hover .miniControls,
+.hostFeedMini:focus-within .miniControls {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.miniBtn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--kiara-glass);
+  -webkit-backdrop-filter: var(--kiara-glass-blur);
+  backdrop-filter: var(--kiara-glass-blur);
+  border: 1px solid var(--kiara-glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.miniBtn:hover:not(:disabled) {
+  background: var(--kiara-surface-hover);
+  color: var(--kiara-text-strong);
+}
+
+.miniBtn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.miniBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--kiara-ring);
+}
+
+.miniBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .hostFeedMini .previewDesabilitado {
   min-height: 0;
 }
@@ -1016,6 +1083,15 @@
 
 /* Toque: alvos de pelo menos 44px */
 @media (pointer: coarse) {
+  /* Toque não tem hover: os controles ficam sempre visíveis e com alvo maior */
+  .miniControls {
+    opacity: 1;
+    transform: none;
+  }
+  .miniBtn {
+    width: 36px;
+    height: 36px;
+  }
   .settingsToggle {
     min-height: 44px;
   }
@@ -1052,6 +1128,8 @@
   .settingsToggle:hover svg {
     transform: none;
   }
+  .miniControls,
+  .miniBtn,
   .bodyLayout,
   .mainArea,
   .hostFeed,

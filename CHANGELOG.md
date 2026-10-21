@@ -9,6 +9,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 - **Estúdio do host no padrão do player do espectador:** o palco agora tem player principal, miniplayer flutuante (PiP) e a mesma barra de controles em vidro do espectador. Quando um co-apresentador transmite, a tela dele ocupa o player principal e o retorno local do host vira miniplayer; sem co-apresentador, o retorno do host ocupa o palco inteiro.
 - **Ocultar/Exibir Configurações:** botão no topo recolhe os painéis laterais com transição suave e dá todo o espaço ao vídeo. Com os painéis ocultos continuam à mão, na barra do palco: pausar/retomar, encerrar, copiar link, retorno de tela, trocar tela, som do co-apresentador, reações, telemetria e tela cheia (atalho `F`). Antes de transmitir, o botão "Iniciar Transmissão" aparece no próprio palco.
+- **Miniplayer ajustável:** com um co-apresentador no ar, o host pode aumentar ou diminuir o miniplayer da própria tela (botões − e + sobre ele, de 160 a 480 px) e ocultá-lo para ver só a tela da outra pessoa. O botão de miniplayer na barra do palco traz de volta. Tamanho e visibilidade ficam salvos no navegador.
+- **Ocultar/Exibir Configurações no site do espectador:** o painel "Também transmitir" ganhou o mesmo botão do app, no topo do player, e desliza para fora com transição suave sem interromper a transmissão em andamento.
 - O host passa a receber a tela do co-apresentador (`CopresenterReceiver` / `useCopresenterStream`), reaproveitando o `WebRTCViewer`.
 
 ### Removido
