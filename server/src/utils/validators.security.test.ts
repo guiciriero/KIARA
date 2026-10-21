@@ -4,10 +4,9 @@ import {
   sanitizeStreamConfig,
   sanitizeStreamStats,
   stripUnsafeChars,
-  validateChatPayload,
 } from './validators';
 
-/* Testes de segurança: spoofing de apelido/chat e reconstrução de payloads retransmitidos. */
+/* Testes de segurança: spoofing de apelido e reconstrução de payloads retransmitidos. */
 
 const validConfig = () => ({
   video: { width: 1920, height: 1080, frameRate: 60, codec: 'H264', bitrate: 8000, quality: 'high' },
@@ -64,19 +63,6 @@ describe('stripUnsafeChars / sanitizeNickname', () => {
     expect(sanitizeNickname('  Maria  Silva ')).toBe('Maria Silva');
     expect(Array.from(sanitizeNickname('x'.repeat(100))).length).toBe(24);
     expect(sanitizeNickname(123)).toBe('Convidado');
-  });
-});
-
-describe('validateChatPayload', () => {
-  it('remove bidi/controles da mensagem', () => {
-    expect(validateChatPayload({ text: 'oi\u202E mundo\u0000' })).toEqual({ text: 'oi mundo' });
-  });
-
-  it('rejeita mensagem composta só de caracteres invisíveis, tipos errados e tamanho excessivo', () => {
-    expect(validateChatPayload({ text: '\u200B\u200B' })).toBeNull();
-    expect(validateChatPayload({ text: 5 })).toBeNull();
-    expect(validateChatPayload([])).toBeNull();
-    expect(validateChatPayload({ text: 'a'.repeat(501) })).toBeNull();
   });
 });
 

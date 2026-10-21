@@ -285,7 +285,6 @@ describe('robustez contra payloads malformados', () => {
       'webrtc:ice-candidate',
       'stream:quality-request',
       'stream:stats',
-      'chat:message',
       'chat:reaction',
       'room:respond-join',
       'room:join',
@@ -293,7 +292,7 @@ describe('robustez contra payloads malformados', () => {
       host.emit(ev);
       host.emit(ev, null);
       host.emit(ev, 42);
-      host.emit(ev, { targetId: 123, text: {}, emoji: [] });
+      host.emit(ev, { targetId: 123, emoji: [] });
     }
     await sleep(150);
     expect(host.connected).toBe(true);
@@ -366,56 +365,18 @@ describe('relay WebRTC e controle', () => {
   });
 });
 
-describe('chat e reações', () => {
-  it('distribui mensagens para a sala com o nome do remetente e marca o host', async () => {
-    const host = await server.createClient();
-    const viewer = await server.createClient();
-    const created = await createRoom(host);
-    await joinRoom(viewer, { code: created.code, name: 'Ana' });
-
-    const onHost = waitForEvent<any>(host, 'chat:message');
-    const onViewer = waitForEvent<any>(viewer, 'chat:message');
-    viewer.emit('chat:message', { text: '  oi pessoal  ' });
-    const msg = await onHost;
-    await onViewer;
-    expect(msg.text).toBe('oi pessoal');
-    expect(msg.name).toBe('Ana');
-    expect(msg.fromHost).toBe(false);
-
-    const fromHost = waitForEvent<any>(viewer, 'chat:message');
-    host.emit('chat:message', { text: 'bem-vindos' });
-    const m2 = await fromHost;
-    expect(m2.fromHost).toBe(true);
-    expect(m2.name).toBe('Apresentador');
-  });
-
-  it('rejeita texto vazio, grande demais e emoji fora da lista', async () => {
+describe('reações', () => {
+  it('rejeita emoji fora da lista', async () => {
     const host = await server.createClient();
     const viewer = await server.createClient();
     const created = await createRoom(host);
     await joinRoom(viewer, { code: created.code });
 
     let count = 0;
-    host.on('chat:message', () => (count += 1));
     host.on('chat:reaction', () => (count += 1));
-    viewer.emit('chat:message', { text: '   ' });
-    viewer.emit('chat:message', { text: 'a'.repeat(501) });
     viewer.emit('chat:reaction', { emoji: '💩' });
     await sleep(100);
     expect(count).toBe(0);
-  });
-
-  it('aplica rate limit de 5 mensagens por janela', async () => {
-    const host = await server.createClient();
-    const viewer = await server.createClient();
-    const created = await createRoom(host);
-    await joinRoom(viewer, { code: created.code });
-
-    let count = 0;
-    host.on('chat:message', () => (count += 1));
-    for (let i = 0; i < 12; i += 1) viewer.emit('chat:message', { text: `m${i}` });
-    await sleep(200);
-    expect(count).toBe(5);
   });
 
   it('envia reações válidas para a sala com id único', async () => {
@@ -433,7 +394,7 @@ describe('chat e reações', () => {
     expect(reaction.id.length).toBeGreaterThan(0);
   });
 
-  it('permite atualizar nome do espectador via room:set-name', async () => {
+  it('permite atualizar nome do espectador via room:set-name e exibe nas reações', async () => {
     const host = await server.createClient();
     const viewer = await server.createClient();
     const created = await createRoom(host);
@@ -442,49 +403,43 @@ describe('chat e reações', () => {
     viewer.emit('room:set-name', { name: 'NovoNome' });
     await sleep(50);
 
-    const got = waitForEvent<any>(host, 'chat:message');
-    viewer.emit('chat:message', { text: 'olá com novo nome' });
-    const msg = await got;
-    expect(msg.name).toBe('NovoNome');
+    const got = waitForEvent<any>(host, 'chat:reaction');
+    viewer.emit('chat:reaction', { emoji: '👍' });
+    const reaction = await got;
+    expect(reaction.name).toBe('NovoNome');
   });
 
-  it('permite ativar/desativar chat e reações via room:update-features', async () => {
+  it('permite desativar reações via room:update-features', async () => {
     const host = await server.createClient();
     const viewer = await server.createClient();
-    const created = await createRoom(host, { chatEnabled: true, reactionsEnabled: true });
+    const created = await createRoom(host, { reactionsEnabled: true });
     const joined = await joinRoom(viewer, { code: created.code });
-    expect(joined.chatEnabled).toBe(true);
     expect(joined.reactionsEnabled).toBe(true);
 
     const featuresPromise = waitForEvent<any>(viewer, 'room:features-update');
-    host.emit('room:update-features', { chatEnabled: false, reactionsEnabled: false });
+    host.emit('room:update-features', { reactionsEnabled: false });
     const updatedFeatures = await featuresPromise;
-    expect(updatedFeatures.chatEnabled).toBe(false);
     expect(updatedFeatures.reactionsEnabled).toBe(false);
 
-    let receivedMsg = false;
     let receivedReaction = false;
-    host.on('chat:message', () => (receivedMsg = true));
     host.on('chat:reaction', () => (receivedReaction = true));
 
-    viewer.emit('chat:message', { text: 'não deve passar' });
     viewer.emit('chat:reaction', { emoji: '👍' });
     await sleep(100);
 
-    expect(receivedMsg).toBe(false);
     expect(receivedReaction).toBe(false);
   });
 
-  it('não entrega chat a quem está fora da sala', async () => {
+  it('não entrega reação a quem está fora da sala', async () => {
     const host = await server.createClient();
     const outsider = await server.createClient();
     await createRoom(host);
 
     let leaked = false;
-    host.on('chat:message', () => {
+    host.on('chat:reaction', () => {
       leaked = true;
     });
-    outsider.emit('chat:message', { text: 'intruso' });
+    outsider.emit('chat:reaction', { emoji: '👍' });
     await sleep(100);
     expect(leaked).toBe(false);
   });
@@ -549,18 +504,17 @@ describe('segurança: anti-força-bruta, sanitização e concorrência', () => {
     expect(server.roomManager.listRooms()).toHaveLength(1); // só a sala do host
   });
 
-  it('apelido tentando se passar pelo apresentador é substituído', async () => {
+  it('apelido tentando se passar pelo apresentador é substituído nas reações', async () => {
     const host = await server.createClient();
     const viewer = await server.createClient();
     const created = await createRoom(host);
     await joinRoom(viewer, { code: created.code, name: 'Apresentador (host)' });
 
-    const onHost = waitForEvent<any>(host, 'chat:message');
-    viewer.emit('chat:message', { text: 'oi\u202E' });
-    const msg = await onHost;
-    expect(msg.name).toBe('Convidado');
-    expect(msg.fromHost).toBe(false);
-    expect(msg.text).toBe('oi');
+    const onHost = waitForEvent<any>(host, 'chat:reaction');
+    viewer.emit('chat:reaction', { emoji: '👍' });
+    const reaction = await onHost;
+    expect(reaction.name).toBe('Convidado');
+    expect(reaction.fromHost).toBeUndefined();
   });
 
   it('stream:config-update do host é reconstruído (sem propriedades extras)', async () => {

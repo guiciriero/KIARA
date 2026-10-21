@@ -6,7 +6,6 @@
 import { randomUUID } from 'crypto';
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import type {
-  ChatMessage,
   ReactionEvent,
   RoomErrorPayload,
   RoomCreatedPayload,
@@ -26,7 +25,6 @@ import {
   validateUpdateNamePayload,
   validateJoinRoomPayload,
   validateRespondJoinPayload,
-  validateChatPayload,
   validateReactionPayload,
   validateOfferPayload,
   validateAnswerPayload,
@@ -89,23 +87,6 @@ function recentJoinFailures(socketId: string): number[] {
 
 function registerJoinFailure(socketId: string): void {
   recentJoinFailures(socketId).push(Date.now());
-}
-
-/** Rate limit para chat: 5 mensagens a cada 5 segundos por socket */
-const CHAT_LIMIT_MAX = 5;
-const CHAT_LIMIT_WINDOW_MS = 5_000;
-const chatTimestamps = new Map<string, number[]>();
-
-function checkChatRateLimit(socketId: string): boolean {
-  const now = Date.now();
-  const cutoff = now - CHAT_LIMIT_WINDOW_MS;
-  const timestamps = (chatTimestamps.get(socketId) ?? []).filter((t) => t > cutoff);
-  if (timestamps.length >= CHAT_LIMIT_MAX) {
-    return false;
-  }
-  timestamps.push(now);
-  chatTimestamps.set(socketId, timestamps);
-  return true;
 }
 
 /** Rate limit para reações: 10 reações a cada 5 segundos por socket */
@@ -252,7 +233,6 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
               password: validation.payload?.password,
               requireApproval: validation.payload?.requireApproval,
               privacyMode: privacyEffective,
-              chatEnabled: validation.payload?.chatEnabled,
               reactionsEnabled: validation.payload?.reactionsEnabled,
               preferredCode: validation.payload?.preferredCode,
             });
@@ -294,7 +274,6 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
             hasPassword: Boolean(room.passwordHash),
             requireApproval: room.requireApproval,
             privacyMode: room.privacyMode,
-            chatEnabled: room.chatEnabled,
             reactionsEnabled: room.reactionsEnabled,
           };
 
@@ -373,7 +352,6 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
             hostId: room.hostId,
             viewerCount: room.viewers.size,
             iceServers,
-            chatEnabled: room.chatEnabled,
             reactionsEnabled: room.reactionsEnabled,
           };
           socket.emit('room:joined', joinedPayload);
@@ -700,7 +678,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       }),
     );
 
-    // ── Atualização de funcionalidades da sala (chat / reações) (apenas host) ─
+    // ── Atualização de funcionalidades da sala (reações) (apenas host) ─────────
     socket.on(
       'room:update-features',
       safe(socket, (rawPayload: unknown) => {
@@ -713,15 +691,13 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const room = roomManager.getRoom(roomId);
         if (!room || !room.isActive || room.hostId !== socket.id) return;
 
-        room.chatEnabled = data.chatEnabled;
         room.reactionsEnabled = data.reactionsEnabled;
 
         io.to(roomId).emit('room:features-update', {
-          chatEnabled: room.chatEnabled,
           reactionsEnabled: room.reactionsEnabled,
         });
         logger.info(
-          `Sala ${roomId}: features atualizadas (chat: ${room.chatEnabled}, reações: ${room.reactionsEnabled})`,
+          `Sala ${roomId}: features atualizadas (reações: ${room.reactionsEnabled})`,
         );
       }),
     );
@@ -745,43 +721,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       }),
     );
 
-    // ── Chat: Mensagem de texto ──────────────────────────────────────────────
-    socket.on(
-      'chat:message',
-      safe(socket, (rawPayload: unknown) => {
-        const data = validateChatPayload(rawPayload);
-        if (!data) return;
-
-        const roomId = socketRoomMap.get(socket.id);
-        if (!roomId) return;
-
-        const room = roomManager.getRoom(roomId);
-        if (!room || !room.isActive) return;
-
-        // Se o chat foi desativado pelo apresentador
-        if (!room.chatEnabled) return;
-
-        if (!checkChatRateLimit(socket.id)) return; // Excedente descartado em silêncio
-
-        const isHost = room.hostId === socket.id;
-        const senderName = isHost
-          ? 'Apresentador'
-          : socketNicknames.get(socket.id) || room.viewerNames.get(socket.id) || 'Convidado';
-
-        const message: ChatMessage = {
-          id: randomUUID(),
-          senderId: socket.id,
-          name: senderName,
-          text: data.text,
-          fromHost: isHost,
-          timestamp: Date.now(),
-        };
-
-        io.to(roomId).emit('chat:message', message);
-      }),
-    );
-
-    // ── Chat: Reação com emoji ───────────────────────────────────────────────
+    // ── Reação com emoji ─────────────────────────────────────────────────────
     socket.on(
       'chat:reaction',
       safe(socket, (rawPayload: unknown) => {
@@ -883,7 +823,6 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
     socket.on('disconnect', (reason) => {
       logger.info(`Conexão encerrada: ${socketLogId} (motivo: ${reason})`);
       joinFailures.delete(socket.id);
-      chatTimestamps.delete(socket.id);
       reactionTimestamps.delete(socket.id);
       // SEGURANÇA (vazamento de memória): estes mapas nunca eram limpos na desconexão
       socketNicknames.delete(socket.id);
@@ -944,7 +883,6 @@ async function admitViewerToRoom(
     hostId: room.hostId,
     viewerCount: room.viewers.size,
     iceServers,
-    chatEnabled: room.chatEnabled,
     reactionsEnabled: room.reactionsEnabled,
   };
   socket.emit('room:joined', joinedPayload);

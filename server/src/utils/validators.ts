@@ -8,7 +8,6 @@ import type {
   RoomFeaturesPayload,
   JoinRoomPayload,
   RespondJoinPayload,
-  SendChatPayload,
   SendReactionPayload,
   UpdateNamePayload,
   ReactionEmoji,
@@ -51,7 +50,7 @@ export function stripUnsafeChars(text: string): string {
   return text.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, '');
 }
 
-/** Nomes que fariam um espectador se passar pelo apresentador no chat */
+/** Nomes que fariam um espectador se passar pelo apresentador nas reações */
 const RESERVED_NICKNAME = /apresentador|\(\s*host\s*\)/i;
 
 /**
@@ -103,11 +102,6 @@ export function validateCreateRoomPayload(data: unknown): {
     result.privacyMode = obj.privacyMode;
   }
 
-  if ('chatEnabled' in obj && obj.chatEnabled !== undefined) {
-    if (typeof obj.chatEnabled !== 'boolean') return { valid: false };
-    result.chatEnabled = obj.chatEnabled;
-  }
-
   if ('reactionsEnabled' in obj && obj.reactionsEnabled !== undefined) {
     if (typeof obj.reactionsEnabled !== 'boolean') return { valid: false };
     result.reactionsEnabled = obj.reactionsEnabled;
@@ -127,12 +121,11 @@ export function validateRoomFeaturesPayload(data: unknown): RoomFeaturesPayload 
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const obj = data as Record<string, unknown>;
 
-  if (typeof obj.chatEnabled !== 'boolean' || typeof obj.reactionsEnabled !== 'boolean') {
+  if (typeof obj.reactionsEnabled !== 'boolean') {
     return null;
   }
 
   return {
-    chatEnabled: obj.chatEnabled,
     reactionsEnabled: obj.reactionsEnabled,
   };
 }
@@ -182,19 +175,6 @@ export function validateRespondJoinPayload(data: unknown): RespondJoinPayload | 
     viewerId: obj.viewerId,
     approved: obj.approved,
   };
-}
-
-/** Valida SendChatPayload */
-export function validateChatPayload(data: unknown): SendChatPayload | null {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-  const obj = data as Record<string, unknown>;
-
-  if (typeof obj.text !== 'string') return null;
-  // Remove controles e marcas bidirecionais (spoofing visual) antes de medir o tamanho
-  const text = stripUnsafeChars(obj.text).trim();
-  if (text.length < 1 || text.length > 500) return null;
-
-  return { text };
 }
 
 /** Valida SendReactionPayload */

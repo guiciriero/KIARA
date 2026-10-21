@@ -152,7 +152,6 @@ export type SignalingEvent =
   | 'room:update-features'
   | 'room:features-update'
   | 'room:set-name'
-  | 'chat:message'
   | 'chat:reaction'
   | 'webrtc:offer'
   | 'webrtc:answer'
@@ -216,17 +215,14 @@ export interface CreateRoomPayload {
   requireApproval?: boolean;
   /** Pede conexão somente via relay TURN (esconde o IP do apresentador). */
   privacyMode?: boolean;
-  /** Permite chat na sala (padrão true) */
-  chatEnabled?: boolean;
   /** Permite reações na sala (padrão true) */
   reactionsEnabled?: boolean;
   /** Código preferencial para a sala (ex.: sala permanente) */
   preferredCode?: string;
 }
 
-/** Configurações de funcionalidades da sala (chat e reações) */
+/** Configurações de funcionalidades da sala (reações) */
 export interface RoomFeaturesPayload {
-  chatEnabled: boolean;
   reactionsEnabled: boolean;
 }
 
@@ -242,7 +238,6 @@ export interface RoomCreatedPayload {
   requireApproval: boolean;
   /** true somente se o pedido foi atendido (exige TURN configurado no servidor) */
   privacyMode: boolean;
-  chatEnabled: boolean;
   reactionsEnabled: boolean;
 }
 
@@ -250,7 +245,7 @@ export interface RoomCreatedPayload {
 export interface JoinRoomPayload {
   code: string;
   password?: string;
-  /** Apelido exibido no chat (até 24 caracteres) */
+  /** Apelido exibido nas reações (até 24 caracteres) */
   name?: string;
 }
 
@@ -287,7 +282,6 @@ export interface RoomJoinedPayload {
   hostId: string;
   viewerCount: number;
   iceServers: IceServerConfig[];
-  chatEnabled: boolean;
   reactionsEnabled: boolean;
 }
 
@@ -306,21 +300,6 @@ export interface RespondJoinPayload {
 /** S→host `room:join-cancelled` (quando espectador pendente desconecta) */
 export interface JoinCancelledPayload {
   viewerId: string;
-}
-
-/** S→sala `chat:message` (inclui o remetente) */
-export interface ChatMessage {
-  id: string;
-  senderId: string;
-  name: string;
-  text: string;
-  fromHost: boolean;
-  timestamp: number;
-}
-
-/** C→S `chat:message` */
-export interface SendChatPayload {
-  text: string; // 1 a 500 caracteres
 }
 
 /** Reações permitidas (cada lado mantém sua lista em runtime; aqui só o tipo). */
