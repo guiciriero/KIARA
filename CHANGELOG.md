@@ -5,6 +5,23 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-10-21
+
+### Adicionado
+
+- **Sala permanente com link fixo:** o código da sala é salvo no `localStorage` do host e reutilizado automaticamente entre sessões e reinicializações do servidor. O link já aparece no painel antes de iniciar a transmissão e pode ser compartilhado com antecedência — os espectadores veem uma tela de espera até o host iniciar.
+- **Sala de co-apresentação:** o segundo participante pode pedir permissão para também transmitir a tela dentro da mesma sala, usando o mesmo link. O host aprova ou recusa pelo painel. Ambos têm acesso completo às configurações de qualidade, codec, fontes de áudio e seleção de tela/janela.
+- **Redesenho do estúdio do host:** novo layout em três colunas — painel esquerdo de acesso à sala (link, status ao vivo, configurações da sala, pedidos), área central de preview, painel direito de configurações de transmissão (resolução, FPS, bitrate, codec, áudio). Todos os controles acessíveis sem trocar de página.
+
+### Melhorado
+
+- **Qualidade no macOS:** `resizeMode: 'crop-and-scale'` em telas Retina evita capturar em resolução 2× desnecessária; `degradationPreference: 'balanced'` em qualidade alta/ultra evita drop de frames; H.264 Main profile priorizado antes de High no macOS para melhor suporte a hardware encode (VideoToolbox); `contentHint: 'detail'` em qualidade alta/ultra para transmissão de texto e código; piso de bitrate adaptativo reduzido para 400 kbps em redes com >10% de perda de pacotes.
+- Log de diagnóstico de captura em modo de desenvolvimento (`[KIARA capture]` no console) com resolução real obtida, `devicePixelRatio`, `contentHint` e `frameRate`.
+
+### Adicionado (anterior)
+
+---
+
 ### Adicionado
 
 - Credenciais TURN efêmeras geradas pelo servidor (coturn HMAC via `TURN_URLS`/`TURN_SECRET`, ou Cloudflare Realtime TURN via `CLOUDFLARE_TURN_KEY_ID`/`CLOUDFLARE_TURN_API_TOKEN`).
