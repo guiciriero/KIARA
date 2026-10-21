@@ -5,6 +5,16 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Estúdio do host no padrão do player do espectador:** o palco agora tem player principal, miniplayer flutuante (PiP) e a mesma barra de controles em vidro do espectador. Quando um co-apresentador transmite, a tela dele ocupa o player principal e o retorno local do host vira miniplayer; sem co-apresentador, o retorno do host ocupa o palco inteiro.
+- **Ocultar/Exibir Configurações:** botão no topo recolhe os painéis laterais com transição suave e dá todo o espaço ao vídeo. Com os painéis ocultos continuam à mão, na barra do palco: pausar/retomar, encerrar, copiar link, retorno de tela, trocar tela, som do co-apresentador, reações, telemetria e tela cheia (atalho `F`). Antes de transmitir, o botão "Iniciar Transmissão" aparece no próprio palco.
+- O host passa a receber a tela do co-apresentador (`CopresenterReceiver` / `useCopresenterStream`), reaproveitando o `WebRTCViewer`.
+
+### Removido
+
+- **Chat de texto:** a sala mantém apenas as reações com emoji, que continuam opcionais (o host liga/desliga em "Permitir reações"). Removidos o painel de chat, o evento `chat:message`, o campo `chatEnabled` e o limite de mensagens; o evento `chat:reaction` foi mantido. `ChatPanel` e `useChat` deram lugar a `ReactionBar` (`Reactions.tsx`) e `useReactions`.
+
 ### Alterado
 
 - **Compartilhamento de tela direto:** quem assiste e clica em "Também transmitir" passa a transmitir na hora; a etapa de pedido e aprovação do host foi removida (eventos `room:request-copresent`, `room:respond-copresent` e `room:copresent-request` substituídos por `room:start-copresent` e `room:stop-copresent`). A vaga continua única e é liberada ao parar, sair ou desconectar.
