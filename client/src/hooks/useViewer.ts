@@ -105,6 +105,8 @@ export function useViewer(roomCode: string | undefined) {
         viewerCount: data.viewerCount,
         chatEnabled: data.chatEnabled,
         reactionsEnabled: data.reactionsEnabled,
+        hostId: data.hostId,
+        iceServers: data.iceServers,
       });
 
       // Nunca dois WebRTCViewer ao mesmo tempo

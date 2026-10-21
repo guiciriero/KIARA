@@ -1,8 +1,11 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useViewer } from '../hooks/useViewer';
 import { useChat } from '../hooks/useChat';
+import { useCopresenter } from '../hooks/useCopresenter';
+import { useAudioSources } from '../hooks/useAudioSources';
 import { useSocket } from '../services/SocketContext';
+import { isDisplayCaptureSupported } from '../services/captureService';
 import { isValidRoomCode } from '../utils/viewerLink';
 import {
   deviceSupportsFullscreen,
@@ -14,10 +17,12 @@ import {
   type FullscreenVideo,
 } from '../utils/fullscreen';
 import { useWakeLock } from '../hooks/useWakeLock';
-import type { ViewerQualityPreference } from '@shared/index';
+import type { ViewerQualityPreference, VideoConfig } from '@shared/index';
 import {
   KiaraLogo,
   IconArrowLeft,
+  IconBroadcast,
+  IconX,
   IconVolumeHigh,
   IconVolumeMute,
   IconFullscreen,
@@ -28,6 +33,10 @@ import {
   IconSparkles,
   IconLock,
 } from '../components/UI/Icons';
+import StreamControls from '../components/Controls/StreamControls';
+import VideoConfigPanel from '../components/Controls/VideoConfigPanel';
+import AudioSourceList from '../components/Controls/AudioSourceList';
+import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import ChatPanel, { ReactionOverlay } from '../components/UI/ChatPanel';
@@ -52,6 +61,69 @@ const ViewerPage: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Co-apresentação ───────────────────────────────────────────────────
+  const coPreviewRef = useRef<HTMLVideoElement>(null);
+  const [showCoPresenterPanel, setShowCoPresenterPanel] = useState(false);
+  const [videoConfig, setVideoConfig] = useState<VideoConfig>({
+    width: 1920,
+    height: 1080,
+    frameRate: 60,
+    codec: 'H264',
+    bitrate: 5000,
+    quality: 'high',
+  });
+  const [captureSourceId, setCaptureSourceId] = useState<string | null>(null);
+  const audioHook = useAudioSources();
+  const { setPaused: setAudioPollingPaused } = audioHook;
+  const audioSelection = useMemo(
+    () => audioHook.sources
+      .filter((src) => audioHook.selected.has(src.id))
+      .map((src) => ({ id: src.id, pid: src.processId, volume: src.volume, muted: src.isMuted })),
+    [audioHook.sources, audioHook.selected],
+  );
+  const copresentOptions = useMemo(
+    () => ({ name: nameInput.trim().slice(0, 24) || undefined }),
+    [nameInput],
+  );
+  const copresenter = useCopresenter(
+    socket,
+    state.hostId,
+    state.iceServers,
+    videoConfig,
+    audioSelection,
+    captureSourceId,
+    copresentOptions,
+  );
+  const {
+    state: coState,
+    requestCopresent,
+    stopCopresent,
+    togglePause: toggleCoPause,
+    updateVideoConfig: updateCoVideoConfig,
+  } = copresenter;
+  const captureSupported = isDisplayCaptureSupported() || window.screenShareHost !== undefined;
+
+  useEffect(() => {
+    setAudioPollingPaused(coState.isSharing);
+  }, [coState.isSharing, setAudioPollingPaused]);
+
+  // Conecta o preview local do co-apresentador
+  useEffect(() => {
+    if (coPreviewRef.current) {
+      coPreviewRef.current.srcObject = coState.isSharing ? coState.stream : null;
+    }
+  }, [coState.stream, coState.isSharing, showCoPresenterPanel]);
+
+  // Sala encerrada: a transmissão local não faz mais sentido
+  useEffect(() => {
+    if (state.roomClosed) stopCopresent();
+  }, [state.roomClosed, stopCopresent]);
+
+  const handleCoVideoConfigChange = (newConfig: VideoConfig) => {
+    setVideoConfig(newConfig);
+    if (coState.isSharing) void updateCoVideoConfig(newConfig);
+  };
 
   const handleUpdateName = useCallback(
     (newName: string) => {
@@ -482,6 +554,89 @@ const ViewerPage: React.FC = () => {
         {showStats && state.stats && <StatsOverlay stats={state.stats} />}
       </div>
 
+      {/* ── Painel Lateral de Co-apresentação ────────────────────────────── */}
+      {showCoPresenterPanel && state.connectionState === 'connected' && (
+        <>
+          <div
+            className={styles.coPresenterOverlay}
+            onClick={() => setShowCoPresenterPanel(false)}
+            aria-hidden="true"
+          />
+          <aside
+            className={styles.coPresenterPanel}
+            aria-label="Co-apresentação"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.coPresenterPanelSection}>
+              <StreamControls
+                isSharing={coState.isSharing}
+                isPaused={coState.isPaused}
+                previewAtivo={true}
+                onStart={requestCopresent}
+                startDisabled={!captureSupported || coState.pendingApproval || !state.hostId}
+                onStop={stopCopresent}
+                onTogglePause={toggleCoPause}
+                onTogglePreview={() => {}}
+              />
+
+              {coState.pendingApproval && (
+                <p role="status" aria-live="polite">Aguardando aprovação do host…</p>
+              )}
+              {coState.denied && (
+                <p role="alert">O host não aprovou a co-apresentação.</p>
+              )}
+              {!captureSupported && (
+                <p role="alert">
+                  Este aparelho não consegue compartilhar a tela pelo navegador.
+                </p>
+              )}
+              {coState.error && <p role="alert">{coState.error}</p>}
+
+              {coState.isSharing && (
+                <video
+                  ref={coPreviewRef}
+                  className={styles.coPresenterPreview}
+                  autoPlay
+                  muted
+                  playsInline
+                />
+              )}
+            </div>
+
+            <div className={styles.coPresenterPanelSection}>
+              <VideoConfigPanel
+                config={videoConfig}
+                onChange={handleCoVideoConfigChange}
+                isSharing={coState.isSharing}
+              />
+            </div>
+
+            {audioHook.isDesktop && (
+              <div className={styles.coPresenterPanelSection}>
+                <CaptureSourcePicker
+                  selectedId={captureSourceId}
+                  onSelect={setCaptureSourceId}
+                  isSharing={false}
+                />
+              </div>
+            )}
+
+            <div className={styles.coPresenterPanelSection}>
+              <AudioSourceList
+                sources={audioHook.sources}
+                selected={audioHook.selected}
+                loading={audioHook.loading}
+                onToggle={audioHook.toggleSource}
+                onVolumeChange={audioHook.setVolume}
+                onMuteToggle={audioHook.toggleMute}
+                onRefresh={audioHook.refreshSources}
+                webMode={!audioHook.isDesktop}
+              />
+            </div>
+          </aside>
+        </>
+      )}
+
       {/* Modal para inserção de nome do viewer */}
       {showNameModal && (
         <div className={styles.modalBackdrop}>
@@ -559,6 +714,22 @@ const ViewerPage: React.FC = () => {
         </div>
 
         <div className={styles.bottomBarRight}>
+          {state.connectionState === 'connected' && (
+            <button
+              type="button"
+              className={`${styles.coPresenterToggleBtn} ${showCoPresenterPanel ? styles.activeBtn : ''}`}
+              onClick={() => {
+                setShowCoPresenterPanel((v) => !v);
+                resetHideTimer();
+              }}
+              title="Também transmitir"
+              aria-label="Também transmitir"
+              aria-pressed={showCoPresenterPanel}
+            >
+              {showCoPresenterPanel ? <IconX size={16} /> : <IconBroadcast size={16} />}
+              <span>Também transmitir</span>
+            </button>
+          )}
           {state.connectionState === 'connected' && (
             <ChatPanel
               messages={chat.messages}

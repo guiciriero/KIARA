@@ -13,6 +13,9 @@ import type {
   RoomJoinedPayload,
   JoinRequestPayload,
   JoinCancelledPayload,
+  CopresentRequestNotifyPayload,
+  CopresentResponsePayload,
+  CopresenterChangedPayload,
 } from '@screen-share/shared';
 import type { RoomManager, ManagedRoom } from '../rooms/roomManager';
 import { logger } from '../utils/logger';
@@ -33,6 +36,8 @@ import {
   sanitizeStreamConfig,
   sanitizeStreamStats,
   sanitizeNickname,
+  validateCopresentRequestPayload,
+  validateCopresentRespondPayload,
 } from '../utils/validators';
 
 /** Mapa de socketId → roomId */
@@ -553,8 +558,15 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const targetRoomId = socketRoomMap.get(data.targetId);
         if (targetRoomId !== roomId) return; // Remetente e destino devem estar na mesma sala
 
-        // Um dos dois deve ser o host da sala
-        if (room.hostId !== socket.id && room.hostId !== data.targetId) return;
+        // Sinalização permitida: host↔viewer ou copresentador↔host
+        const senderIsCopresenter = roomManager.isCopresenter(roomId, socket.id);
+        const targetIsCopresenter = roomManager.isCopresenter(roomId, data.targetId);
+        const signalingAllowed =
+          room.hostId === socket.id ||
+          room.hostId === data.targetId ||
+          (senderIsCopresenter && data.targetId === room.hostId) ||
+          (targetIsCopresenter && socket.id === room.hostId);
+        if (!signalingAllowed) return;
 
         io.to(data.targetId).emit('webrtc:offer', {
           senderId: socket.id,
@@ -579,7 +591,15 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const targetRoomId = socketRoomMap.get(data.targetId);
         if (targetRoomId !== roomId) return;
 
-        if (room.hostId !== socket.id && room.hostId !== data.targetId) return;
+        // Sinalização permitida: host↔viewer ou copresentador↔host
+        const senderIsCopresenter = roomManager.isCopresenter(roomId, socket.id);
+        const targetIsCopresenter = roomManager.isCopresenter(roomId, data.targetId);
+        const signalingAllowed =
+          room.hostId === socket.id ||
+          room.hostId === data.targetId ||
+          (senderIsCopresenter && data.targetId === room.hostId) ||
+          (targetIsCopresenter && socket.id === room.hostId);
+        if (!signalingAllowed) return;
 
         io.to(data.targetId).emit('webrtc:answer', {
           senderId: socket.id,
@@ -604,7 +624,15 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const targetRoomId = socketRoomMap.get(data.targetId);
         if (targetRoomId !== roomId) return;
 
-        if (room.hostId !== socket.id && room.hostId !== data.targetId) return;
+        // Sinalização permitida: host↔viewer ou copresentador↔host
+        const senderIsCopresenter = roomManager.isCopresenter(roomId, socket.id);
+        const targetIsCopresenter = roomManager.isCopresenter(roomId, data.targetId);
+        const signalingAllowed =
+          room.hostId === socket.id ||
+          room.hostId === data.targetId ||
+          (senderIsCopresenter && data.targetId === room.hostId) ||
+          (targetIsCopresenter && socket.id === room.hostId);
+        if (!signalingAllowed) return;
 
         io.to(data.targetId).emit('webrtc:ice-candidate', {
           senderId: socket.id,
@@ -790,6 +818,102 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       }),
     );
 
+    // ── Solicitar co-apresentação (viewer → servidor) ─────────────────────────
+    socket.on(
+      'room:request-copresent',
+      safe(socket, async (rawPayload: unknown) => {
+        const data = validateCopresentRequestPayload(rawPayload);
+        if (data === null) return;
+
+        const roomId = socketRoomMap.get(socket.id);
+        if (!roomId) return;
+
+        const room = roomManager.getRoom(roomId);
+        if (!room || !room.isActive) return;
+
+        // Apenas viewers podem pedir co-apresentação (não o host)
+        if (room.hostId === socket.id) return;
+
+        // Já é co-apresentador
+        if (roomManager.isCopresenter(roomId, socket.id)) return;
+
+        // Verifica se já está cheio (addCopresenter retorna false) antes de criar pending
+        if (room.copresenters.size >= 1) {
+          const denyPayload: CopresentResponsePayload = { approved: false };
+          socket.emit('room:copresent-response', denyPayload);
+          return;
+        }
+
+        const name = data.name || socketNicknames.get(socket.id) || room.viewerNames.get(socket.id) || 'Convidado';
+
+        const added = roomManager.addPendingCopresenter(roomId, socket.id, name, () => {
+          // Timeout: nega automaticamente
+          const timeoutPayload: CopresentResponsePayload = { approved: false };
+          socket.emit('room:copresent-response', timeoutPayload);
+          logger.debug(`Co-apresentação expirou para ${socket.id.slice(0, 8)} na sala ${roomId}`);
+        });
+
+        if (!added) return;
+
+        const notifyPayload: CopresentRequestNotifyPayload = {
+          viewerId: socket.id,
+          name,
+        };
+        io.to(room.hostId).emit('room:copresent-request', notifyPayload);
+        logger.info(`Co-apresentação solicitada por ${socket.id.slice(0, 8)} na sala ${roomId}`);
+      }),
+    );
+
+    // ── Responder co-apresentação (host → servidor) ───────────────────────────
+    socket.on(
+      'room:respond-copresent',
+      safe(socket, async (rawPayload: unknown) => {
+        const data = validateCopresentRespondPayload(rawPayload);
+        if (!data) return;
+
+        const roomId = socketRoomMap.get(socket.id);
+        if (!roomId) return;
+
+        const room = roomManager.getRoom(roomId);
+        if (!room || !room.isActive) return;
+
+        // Apenas o host pode responder
+        if (room.hostId !== socket.id) return;
+
+        const pending = roomManager.removePendingCopresenter(roomId, data.viewerId);
+        if (!pending) return; // Pedido não existe ou já expirou
+
+        if (data.approved) {
+          const added = roomManager.addCopresenter(roomId, data.viewerId);
+          if (!added) {
+            // Sala cheia (outro co-apresentador entrou enquanto pendente)
+            const denyPayload: CopresentResponsePayload = { approved: false };
+            io.to(data.viewerId).emit('room:copresent-response', denyPayload);
+            return;
+          }
+
+          const iceServers = await getIceServers(roomId);
+          const approvePayload: CopresentResponsePayload = {
+            approved: true,
+            hostId: room.hostId,
+            iceServers,
+          };
+          io.to(data.viewerId).emit('room:copresent-response', approvePayload);
+
+          const joinedPayload: CopresenterChangedPayload = {
+            copresenterId: data.viewerId,
+            name: pending.name,
+          };
+          io.to(roomId).emit('room:copresenter-joined', joinedPayload);
+          logger.info(`Co-apresentador ${data.viewerId.slice(0, 8)} aprovado na sala ${roomId}`);
+        } else {
+          const denyPayload: CopresentResponsePayload = { approved: false };
+          io.to(data.viewerId).emit('room:copresent-response', denyPayload);
+          logger.info(`Co-apresentador ${data.viewerId.slice(0, 8)} recusado na sala ${roomId}`);
+        }
+      }),
+    );
+
     // ── Sair da sala voluntariamente ─────────────────────────────────────────
     socket.on('room:leave', () => {
       leaveCurrentRoom(socket, io, roomManager);
@@ -907,6 +1031,14 @@ function leaveCurrentRoom(
     roomManager.closeRoom(roomId);
     logger.info(`Sala ${roomId} encerrada porque o apresentador saiu`);
   } else {
+    // Se era co-apresentador, remove e notifica a sala
+    if (roomManager.isCopresenter(roomId, socket.id)) {
+      roomManager.removeCopresenter(roomId, socket.id);
+      const name = socketNicknames.get(socket.id) || room.viewerNames.get(socket.id) || 'Convidado';
+      const leftPayload: CopresenterChangedPayload = { copresenterId: socket.id, name };
+      io.to(roomId).emit('room:copresenter-left', leftPayload);
+    }
+
     // Espectador saiu: notifica o apresentador
     roomManager.removeViewer(roomId, socket.id);
     io.to(room.hostId).emit('room:viewer-left', {

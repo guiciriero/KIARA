@@ -4,7 +4,13 @@
  * servidor ou do WebRTC vira uma ação. O hook useViewer só despacha ações.
  */
 
-import type { StreamStats, ConnectionState, ViewerQualityPreference, RoomErrorCode } from '@shared/index';
+import type {
+  StreamStats,
+  ConnectionState,
+  ViewerQualityPreference,
+  RoomErrorCode,
+  IceServerConfig,
+} from '@shared/index';
 
 export interface ViewerState {
   remoteStream: MediaStream | null;
@@ -26,6 +32,9 @@ export interface ViewerState {
   selectedQuality: ViewerQualityPreference;
   chatEnabled: boolean;
   reactionsEnabled: boolean;
+  /** Socket ID do host (destino do offer WebRTC do co-apresentador) */
+  hostId: string | null;
+  iceServers: IceServerConfig[];
 }
 
 export const INITIAL_VIEWER_STATE: ViewerState = {
@@ -43,11 +52,20 @@ export const INITIAL_VIEWER_STATE: ViewerState = {
   selectedQuality: 'auto',
   chatEnabled: true,
   reactionsEnabled: true,
+  hostId: null,
+  iceServers: [],
 };
 
 export type ViewerAction =
   | { type: 'joining' }
-  | { type: 'joined'; viewerCount: number; chatEnabled?: boolean; reactionsEnabled?: boolean }
+  | {
+      type: 'joined';
+      viewerCount: number;
+      chatEnabled?: boolean;
+      reactionsEnabled?: boolean;
+      hostId?: string;
+      iceServers?: IceServerConfig[];
+    }
   | { type: 'features-update'; chatEnabled: boolean; reactionsEnabled: boolean }
   | { type: 'stream'; stream: MediaStream }
   | { type: 'pending-approval' }
@@ -83,6 +101,8 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
         viewerCount: action.viewerCount,
         chatEnabled: action.chatEnabled !== undefined ? action.chatEnabled : state.chatEnabled,
         reactionsEnabled: action.reactionsEnabled !== undefined ? action.reactionsEnabled : state.reactionsEnabled,
+        hostId: action.hostId !== undefined ? action.hostId : state.hostId,
+        iceServers: action.iceServers !== undefined ? action.iceServers : state.iceServers,
         connectionState: 'connecting',
         error: null,
         errorCode: null,

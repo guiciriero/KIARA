@@ -27,6 +27,10 @@ export interface ManagedRoom extends Room {
   viewers: Set<string>;
   viewerNames: Map<string, string>;
   pendingViewers: Map<string, PendingViewer>;
+  /** Set de socket IDs de co-apresentadores ativos */
+  copresenters: Set<string>;
+  /** Pedidos de co-apresentação pendentes (aguardando aprovação do host) */
+  pendingCopresenters: Map<string, PendingViewer>;
 }
 
 export function getMaxViewersPerRoom(): number {
@@ -161,6 +165,8 @@ export class RoomManager {
       viewers: new Set<string>(),
       viewerNames: new Map<string, string>(),
       pendingViewers: new Map<string, PendingViewer>(),
+      copresenters: new Set<string>(),
+      pendingCopresenters: new Map<string, PendingViewer>(),
     };
 
     this.rooms.set(id, room);
@@ -282,6 +288,78 @@ export class RoomManager {
     return pending;
   }
 
+  /** Adiciona co-apresentador à sala (máx 1 por sala) */
+  addCopresenter(roomId: string, socketId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.isActive) return false;
+    if (room.copresenters.size >= 1) return false;
+    room.copresenters.add(socketId);
+    const logSocket = socketId.slice(0, 8);
+    logger.debug(`Sala ${roomId}: co-apresentador ${logSocket} adicionado`);
+    return true;
+  }
+
+  /** Remove co-apresentador da sala */
+  removeCopresenter(roomId: string, socketId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+    const removed = room.copresenters.delete(socketId);
+    if (removed) {
+      const logSocket = socketId.slice(0, 8);
+      logger.debug(`Sala ${roomId}: co-apresentador ${logSocket} removido`);
+    }
+    return removed;
+  }
+
+  /** Verifica se o socket é co-apresentador da sala */
+  isCopresenter(roomId: string, socketId: string): boolean {
+    const room = this.rooms.get(roomId);
+    return room ? room.copresenters.has(socketId) : false;
+  }
+
+  /** Adiciona pedido de co-apresentação pendente */
+  addPendingCopresenter(
+    roomId: string,
+    viewerId: string,
+    name: string,
+    onTimeout: () => void,
+  ): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.isActive) return false;
+
+    // Se já tinha timeout anterior, limpa
+    const existing = room.pendingCopresenters.get(viewerId);
+    if (existing) {
+      clearTimeout(existing.timeout);
+    }
+
+    const timeout = setTimeout(onTimeout, getJoinApprovalTimeoutMs());
+    if (typeof timeout.unref === 'function') {
+      timeout.unref();
+    }
+
+    room.pendingCopresenters.set(viewerId, {
+      viewerId,
+      name,
+      timeout,
+    });
+
+    return true;
+  }
+
+  /** Remove pedido de co-apresentação pendente e limpa o timer */
+  removePendingCopresenter(roomId: string, viewerId: string): PendingViewer | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) return undefined;
+
+    const pending = room.pendingCopresenters.get(viewerId);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      room.pendingCopresenters.delete(viewerId);
+    }
+    return pending;
+  }
+
   /** Encerra e remove uma sala, cancelando todos os timers pendentes */
   closeRoom(roomId: string): void {
     const room = this.rooms.get(roomId);
@@ -293,6 +371,11 @@ export class RoomManager {
       room.pendingViewers.clear();
       room.viewers.clear();
       room.viewerNames.clear();
+      for (const pending of room.pendingCopresenters.values()) {
+        clearTimeout(pending.timeout);
+      }
+      room.pendingCopresenters.clear();
+      room.copresenters.clear();
 
       this.codeIndex.delete(room.code);
       this.rooms.delete(roomId);

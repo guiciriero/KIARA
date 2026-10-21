@@ -409,6 +409,11 @@ export class WebRTCBroadcaster {
     this.cleanupPeer(viewerId);
   };
 
+  /** Inicia conexão com um peer específico (usado pelo co-apresentador para conectar ao host) */
+  connectToPeer(peerId: string): void {
+    void this.initiateConnection(peerId);
+  }
+
   private setupSocketListeners(): void {
     this.socket.on('webrtc:answer', this.handleAnswer);
     this.socket.on('webrtc:ice-candidate', this.handleIceCandidate);

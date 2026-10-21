@@ -159,7 +159,20 @@ export type SignalingEvent =
   | 'webrtc:ice-candidate'
   | 'stream:config-update'
   | 'stream:quality-request'
-  | 'stream:stats';
+  | 'stream:stats'
+  // ── Co-apresentação ───────────────────────────────────────────────────────
+  /** C→S viewer solicita permissão para também transmitir */
+  | 'room:request-copresent'
+  /** C(host)→S host responde ao pedido de co-apresentação */
+  | 'room:respond-copresent'
+  /** S→host há um pedido de co-apresentação pendente */
+  | 'room:copresent-request'
+  /** S→viewer sua transmissão foi autorizada (ou recusada) pelo host */
+  | 'room:copresent-response'
+  /** S→sala um co-apresentador iniciou a transmissão */
+  | 'room:copresenter-joined'
+  /** S→sala um co-apresentador parou de transmitir */
+  | 'room:copresenter-left';
 
 /** Payload genérico de evento de sinalização */
 export interface SignalingMessage<T = unknown> {
@@ -241,6 +254,40 @@ export interface JoinRoomPayload {
   password?: string;
   /** Apelido exibido no chat (até 24 caracteres) */
   name?: string;
+}
+
+// ─── Co-apresentação ─────────────────────────────────────────────────────────
+
+/** C→S `room:request-copresent` — viewer quer também transmitir */
+export interface CopresentRequestPayload {
+  /** Apelido do co-apresentador (até 24 caracteres) */
+  name?: string;
+}
+
+/** S→host `room:copresent-request` */
+export interface CopresentRequestNotifyPayload {
+  viewerId: string;
+  name: string;
+}
+
+/** C(host)→S resposta à solicitação de co-apresentação */
+export interface CopresentRespondPayload {
+  viewerId: string;
+  approved: boolean;
+}
+
+/** S→viewer `room:copresent-response` */
+export interface CopresentResponsePayload {
+  approved: boolean;
+  /** Socket ID do host (destino dos offers WebRTC quando approved=true) */
+  hostId?: string;
+  iceServers?: IceServerConfig[];
+}
+
+/** S→sala `room:copresenter-joined` / `room:copresenter-left` */
+export interface CopresenterChangedPayload {
+  copresenterId: string;
+  name: string;
 }
 
 /** C→S `room:set-name` */
