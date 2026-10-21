@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBroadcast } from '../hooks/useBroadcast';
+import { useBroadcast, getPermanentRoomCode, clearPermanentRoomCode } from '../hooks/useBroadcast';
 import { useAudioSources } from '../hooks/useAudioSources';
 import { useChat } from '../hooks/useChat';
 import { useSocket } from '../services/SocketContext';
@@ -12,6 +12,9 @@ import {
   IconScreen,
   IconAlertTriangle,
   IconEyeOff,
+  IconCopy,
+  IconCheck,
+  IconRefresh,
 } from '../components/UI/Icons';
 import StreamControls from '../components/Controls/StreamControls';
 import AudioSourceList from '../components/Controls/AudioSourceList';
@@ -29,6 +32,11 @@ import UploadEstimate from '../components/UI/UploadEstimate';
 import ChatPanel, { ReactionOverlay } from '../components/UI/ChatPanel';
 import styles from './BroadcastPage.module.css';
 import type { VideoConfig as VideoConfigType, CreateRoomPayload } from '@shared/index';
+
+/** Monta a URL de preview a partir do código permanente (ou de sessão) */
+function buildPreviewUrl(code: string): string {
+  return `${window.location.origin}/view/${code}`;
+}
 
 const BroadcastPage: React.FC = () => {
   const navigate = useNavigate();
@@ -72,6 +80,32 @@ const BroadcastPage: React.FC = () => {
     [audioHook.sources, audioHook.selected],
   );
 
+  // ── Sala Permanente: link fixo pré-transmissão ──────────────────────────────
+  const [permanentCode, setPermanentCode] = useState<string | null>(() => getPermanentRoomCode());
+  const [copiedPreLink, setCopiedPreLink] = useState(false);
+
+  const handleResetPermanentCode = useCallback(() => {
+    clearPermanentRoomCode();
+    setPermanentCode(null);
+  }, []);
+
+  const handleCopyPreLink = useCallback(async () => {
+    if (!permanentCode) return;
+    const url = buildPreviewUrl(permanentCode);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopiedPreLink(true);
+    setTimeout(() => setCopiedPreLink(false), 2200);
+  }, [permanentCode]);
+
   // Preferência de retorno de tela: lida do localStorage na montagem
   const [previewAtivo, setPreviewAtivo] = useState<boolean>(() => {
     const salvo = localStorage.getItem('kiara:previewAtivo');
@@ -108,6 +142,13 @@ const BroadcastPage: React.FC = () => {
     updateVideoConfig,
     respondJoin,
   } = useBroadcast(videoConfig, audioSelection, captureSourceId, createRoomOptions);
+
+  // Após obter o código real, sincroniza o estado local de permanentCode
+  useEffect(() => {
+    if (state.roomCode) {
+      setPermanentCode(state.roomCode);
+    }
+  }, [state.roomCode]);
 
   const { socket } = useSocket();
   const chat = useChat();
@@ -174,6 +215,10 @@ const BroadcastPage: React.FC = () => {
     }
   }, [state.stream, previewAtivo]);
 
+  // Código efetivo a exibir (ao vivo ou permanente/pré-sessão)
+  const displayCode = state.roomCode ?? permanentCode;
+  const displayUrl = state.inviteUrl ?? (permanentCode ? buildPreviewUrl(permanentCode) : null);
+
   return (
     <div className={styles.studioLayout}>
       {/* ── Barra Superior de Estúdio ────────────────────────────────────── */}
@@ -211,9 +256,12 @@ const BroadcastPage: React.FC = () => {
 
       {/* ── Conteúdo Principal do Estúdio ───────────────────────────────── */}
       <div className={styles.bodyLayout}>
-        {/* Painel Lateral Esquerdo (Controles e Configurações) */}
-        <aside className={styles.sidebar}>
-          <div className={styles.sidebarSection}>
+
+        {/* ── Painel Esquerdo: Acesso à Sala ─────────────────────────────── */}
+        <aside className={styles.sidebarRoom}>
+
+          {/* Seção: Controles de transmissão */}
+          <div className={styles.panelSection}>
             <StreamControls
               isSharing={state.isSharing}
               isPaused={state.isPaused}
@@ -230,8 +278,7 @@ const BroadcastPage: React.FC = () => {
                 <IconAlertTriangle size={16} className={styles.errorIcon} />
                 <span>
                   Este aparelho não consegue compartilhar a tela pelo navegador. Para transmitir, use
-                  um computador (Chrome, Edge ou Firefox) ou o app para Windows. Para assistir, abra o
-                  link da sala aqui mesmo.
+                  um computador (Chrome, Edge ou Firefox) ou o app para Windows.
                 </span>
               </div>
             )}
@@ -251,21 +298,129 @@ const BroadcastPage: React.FC = () => {
             )}
           </div>
 
-          {/* Acesso à sala: senha, aprovação, privacidade */}
+          {/* Seção: Link Fixo da Sala (pré e pós-transmissão) */}
+          <div className={styles.panelSection}>
+            <div className={styles.sectionHeader}>
+              <span className={styles.sectionTitle}>Acesso à Sala</span>
+              {state.isSharing ? (
+                <span className={styles.statusLive}>
+                  <span className={styles.liveDotSmall} />
+                  Ao Vivo
+                </span>
+              ) : (
+                <span className={styles.statusOffline}>Aguardando</span>
+              )}
+            </div>
+
+            {displayCode && displayUrl ? (
+              <div className={styles.permanentLinkCard}>
+                {/* Indicação de link fixo */}
+                <div className={styles.permanentLinkMeta}>
+                  <span className={styles.permanentBadge}>Link Fixo</span>
+                  {!state.isSharing && (
+                    <button
+                      type="button"
+                      className={styles.resetCodeBtn}
+                      onClick={handleResetPermanentCode}
+                      title="Gerar novo código de sala na próxima transmissão"
+                    >
+                      <IconRefresh size={13} />
+                      <span>Novo código</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Código grande */}
+                <div className={styles.codeDisplay}>
+                  <span className={styles.codeDisplayText}>{displayCode}</span>
+                </div>
+
+                {/* URL copiável */}
+                <div className={styles.urlCopyRow}>
+                  <span className={styles.urlDisplayShort} title={displayUrl}>
+                    {displayUrl.replace(/^https?:\/\//, '').substring(0, 42)}
+                    {displayUrl.replace(/^https?:\/\//, '').length > 42 ? '…' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className={`${styles.copyLinkBtn} ${copiedPreLink ? styles.copyLinkBtnCopied : ''}`}
+                    onClick={() => void handleCopyPreLink()}
+                    aria-label="Copiar link da sala"
+                  >
+                    {copiedPreLink ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                    <span>{copiedPreLink ? 'Copiado!' : 'Copiar'}</span>
+                  </button>
+                </div>
+
+                {/* Status e avisos */}
+                {!state.isSharing && (
+                  <p className={styles.permanentNote}>
+                    Este link já pode ser compartilhado. Os espectadores verão uma tela de espera até você iniciar.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className={styles.permanentLinkEmpty}>
+                <p>O link fixo aparecerá aqui após a primeira transmissão.</p>
+              </div>
+            )}
+
+            {/* Selos da sala e avisos (ao vivo) */}
+            {state.isSharing && state.roomCode && (
+              <>
+                <div className={styles.roomBadges}>
+                  <span className={styles.roomBadge}>
+                    {state.hasPassword ? 'Protegida por senha' : 'Sem senha'}
+                  </span>
+                  {state.requireApproval && <span className={styles.roomBadge}>Aprovação manual</span>}
+                  {state.privacyMode && <span className={styles.roomBadge}>Modo privacidade</span>}
+                </div>
+
+                {privacyIgnored && (
+                  <div className={styles.tunnelWarning} role="status">
+                    <IconAlertTriangle size={16} />
+                    <span>Modo privacidade não ativado: servidor sem TURN. IP pode ficar visível.</span>
+                  </div>
+                )}
+                {tunnelDown && (
+                  <div className={styles.tunnelWarning} role="status">
+                    <IconAlertTriangle size={16} />
+                    <span>Túnel público indisponível: link funciona apenas na mesma rede local.</span>
+                  </div>
+                )}
+
+                {/* Link completo ao vivo */}
+                <InviteCode code={state.roomCode} url={state.inviteUrl ?? ''} />
+              </>
+            )}
+          </div>
+
+          {/* Seção: Contagem de espectadores + pedidos de entrada (ao vivo) */}
+          {state.isSharing && (
+            <div className={styles.panelSection}>
+              <JoinRequestsPanel requests={state.pendingRequests} onRespond={respondJoin} />
+            </div>
+          )}
+
+          {/* Seção: Configurações da Sala */}
           <RoomOptionsPanel
             value={roomOptions}
             onChange={handleRoomOptionsChange}
             disabled={state.isSharing}
           />
 
-          {/* Estimativa de upload */}
+          {/* Seção: Estimativa de upload */}
           <UploadEstimate
             bitrateKbps={videoConfig.bitrate}
             viewers={state.isSharing ? state.viewerCount : 1}
             maxViewers={state.isSharing ? state.maxViewers : 0}
           />
+        </aside>
 
-          {/* Configurações de Qualidade */}
+        {/* ── Painel Direito: Configurações de Transmissão + Preview ──────── */}
+        <aside className={styles.sidebarConfig}>
+
+          {/* Configurações de Qualidade de Vídeo */}
           <VideoConfigPanel
             config={videoConfig}
             onChange={handleVideoConfigChange}
@@ -294,7 +449,7 @@ const BroadcastPage: React.FC = () => {
           />
         </aside>
 
-        {/* Área Central: Preview da Transmissão e Informações da Sala */}
+        {/* ── Área Central: Preview da Transmissão ───────────────────────── */}
         <main className={styles.mainArea}>
           <div className={styles.previewContainer}>
             {state.isSharing ? (
@@ -327,7 +482,7 @@ const BroadcastPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Botão de Troca Rápida de Tela / Janela no Web Mode ou Desktop */}
+                  {/* Botão de Troca Rápida de Tela / Janela no Web Mode */}
                   {!audioHook.isDesktop && (
                     <button
                       type="button"
@@ -354,7 +509,7 @@ const BroadcastPage: React.FC = () => {
                 </div>
                 <h3>Pronto para transmitir</h3>
                 <p>
-                  Ajuste a resolução e os canais de áudio na barra lateral e clique em{' '}
+                  Configure a qualidade no painel direito e clique em{' '}
                   <strong>Iniciar Transmissão</strong>.
                 </p>
                 <div className={styles.placeholderSteps}>
@@ -368,50 +523,14 @@ const BroadcastPage: React.FC = () => {
                   </div>
                   <div className={styles.step}>
                     <span className={styles.stepNum}>3</span>
-                    <span>Compartilhe o código</span>
+                    <span>Compartilhe o link</span>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Pedidos de entrada aguardando aprovação */}
-          {state.isSharing && (
-            <JoinRequestsPanel requests={state.pendingRequests} onRespond={respondJoin} />
-          )}
-
-          {/* Card de Compartilhamento da Sala */}
-          {state.isSharing && state.roomCode && (
-            <div className={styles.roomShareSection}>
-              <div className={styles.roomBadges}>
-                <span className={styles.roomBadge}>
-                  {state.hasPassword ? 'Protegida por senha' : 'Sem senha'}
-                </span>
-                {state.requireApproval && <span className={styles.roomBadge}>Entrada com aprovação</span>}
-                {state.privacyMode && <span className={styles.roomBadge}>Modo privacidade ativo</span>}
-              </div>
-              {privacyIgnored && (
-                <div className={styles.tunnelWarning} role="status">
-                  <IconAlertTriangle size={16} />
-                  <span>
-                    O modo privacidade não foi ativado: o servidor não tem TURN configurado. Seu IP
-                    pode ficar visível aos espectadores.
-                  </span>
-                </div>
-              )}
-              {tunnelDown && (
-                <div className={styles.tunnelWarning} role="status">
-                  <IconAlertTriangle size={16} />
-                  <span>
-                    Túnel público indisponível: o link gerado funcionará apenas em computadores da
-                    mesma rede local.
-                  </span>
-                </div>
-              )}
-              <InviteCode code={state.roomCode} url={state.inviteUrl ?? ''} />
-            </div>
-          )}
-
+          {/* Chat Dock (ao vivo) */}
           {state.isSharing && (
             <div className={styles.chatDock}>
               <ChatPanel

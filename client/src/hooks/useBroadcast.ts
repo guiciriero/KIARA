@@ -4,12 +4,17 @@
  * O áudio passa sempre por um BroadcastAudio, cuja faixa de saída é criada no início e
  * nunca trocada. Mudar a seleção de fontes durante a live só altera o grafo de áudio
  * atrás dessa faixa — não há replaceTrack nem renegociação.
+ *
+ * Sala permanente: o código preferencial é lido do localStorage ('kiara:permanentRoomCode')
+ * na montagem e enviado ao servidor como `preferredCode`. Se o servidor aceitar, o mesmo
+ * código é reutilizado entre reinicializações.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCBroadcaster } from '../services/webrtcService';
 import { captureDisplay, stopStream } from '../services/captureService';
+import type { ContentHint } from '../services/captureService';
 import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
 import { addJoinRequest, removeJoinRequest } from '../utils/joinRequests';
@@ -26,6 +31,46 @@ import type {
 } from '@shared/index';
 
 export type { AudioSelectionItem };
+
+/** Chave do localStorage para o código de sala permanente */
+export const PERMANENT_CODE_KEY = 'kiara:permanentRoomCode';
+
+/**
+ * Lê o código de sala permanente do localStorage.
+ * Retorna null se não houver código salvo ou se for inválido.
+ */
+export function getPermanentRoomCode(): string | null {
+  try {
+    const raw = localStorage.getItem(PERMANENT_CODE_KEY);
+    if (!raw) return null;
+    const code = raw.toUpperCase().trim();
+    return /^[A-HJ-NP-Z2-9]{6}$/.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Salva o código de sala permanente no localStorage.
+ */
+function savePermanentRoomCode(code: string): void {
+  try {
+    localStorage.setItem(PERMANENT_CODE_KEY, code.toUpperCase().trim());
+  } catch {
+    // localStorage pode estar desabilitado em contextos privados
+  }
+}
+
+/**
+ * Remove o código de sala permanente do localStorage (gera novo na próxima sessão).
+ */
+export function clearPermanentRoomCode(): void {
+  try {
+    localStorage.removeItem(PERMANENT_CODE_KEY);
+  } catch {
+    // sem-op
+  }
+}
 
 export interface BroadcastState {
   isSharing: boolean;
@@ -54,6 +99,11 @@ export interface BroadcastState {
 }
 
 const ROOM_TIMEOUT_MS = 8000;
+
+/** 'high'/'ultra' priorizam nitidez (texto/código); 'low'/'medium' priorizam fluidez */
+function contentHintFor(quality: VideoConfig['quality']): ContentHint {
+  return quality === 'high' || quality === 'ultra' ? 'detail' : 'motion';
+}
 
 const INITIAL_STATE: BroadcastState = {
   isSharing: false, isPaused: false,
@@ -213,7 +263,11 @@ export function useBroadcast(
 
     try {
       const host = window.screenShareHost;
-      const capture = await captureDisplay(videoConfig, { withAudio: true, captureSourceId });
+      const capture = await captureDisplay(videoConfig, {
+        withAudio: true,
+        captureSourceId,
+        contentHint: contentHintFor(videoConfig.quality),
+      });
       captureStreamRef.current = capture.stream;
 
       const audio = await BroadcastAudio.create(host);
@@ -240,7 +294,16 @@ export function useBroadcast(
         error: audioError,
       }));
 
-      const room = await requestRoom(socket, roomOptionsRef.current);
+      // Inclui o código permanente como preferência (o servidor pode ou não atender)
+      const permanentCode = getPermanentRoomCode();
+      const roomPayload = permanentCode
+        ? { ...roomOptionsRef.current, preferredCode: permanentCode }
+        : roomOptionsRef.current;
+      const room = await requestRoom(socket, roomPayload);
+
+      // Persiste o código recebido (pode ser diferente do preferencial se estava em uso)
+      savePermanentRoomCode(room.code);
+
       setState((s) => ({
         ...s,
         roomId: room.roomId,
@@ -297,6 +360,7 @@ export function useBroadcast(
       const { videoTrack } = await captureDisplay(videoConfig, {
         withAudio: false,
         captureSourceId: newSourceId ?? captureSourceId,
+        contentHint: contentHintFor(videoConfig.quality),
       });
       // O broadcaster troca a faixa no stream compartilhado e para a antiga
       await broadcaster.replaceVideoTrack(videoTrack);

@@ -251,6 +251,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
               privacyMode: privacyEffective,
               chatEnabled: validation.payload?.chatEnabled,
               reactionsEnabled: validation.payload?.reactionsEnabled,
+              preferredCode: validation.payload?.preferredCode,
             });
           } catch (err: any) {
             if (err?.code === 'SERVER_BUSY') {

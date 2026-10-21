@@ -10,6 +10,12 @@ export interface NetworkSample {
   rttMs?: number;
 }
 
+/** Piso padrão do bitrate em congestionamento */
+const MIN_BITRATE_BPS = 800_000;
+/** Piso reduzido para perda severa (> SEVERE_LOSS_PERCENT), aliviando a pressão sobre o encoder */
+const SEVERE_MIN_BITRATE_BPS = 400_000;
+const SEVERE_LOSS_PERCENT = 10;
+
 export class BitrateController {
   private targetBitrateBps: number;
   private currentBitrateBps: number;
@@ -39,6 +45,9 @@ export class BitrateController {
    * AIMD: congestionado (perda > 5% ou RTT > 300 ms) ×2 seguidas ⇒ ×0,75; saudável
    * (perda < 1% e RTT < 150 ms) ×5 ⇒ +10% do alvo. Amostra intermediária decrementa em 1
    * o contador de saudáveis (não o zera) e zera o de congestionadas.
+   *
+   * Piso da redução: max(800 kbps, 25% do alvo); com perda > 10% o piso cai para 400 kbps
+   * (ou 25% do alvo, o que for maior), pois manter 800 kbps em rede muito ruim sobrecarrega o encoder.
    */
   onSample(sample: NetworkSample): number {
     const { lossPercent, rttMs } = sample;
@@ -62,7 +71,8 @@ export class BitrateController {
       this.consecutiveHealthy = 0;
 
       if (this.consecutiveCongested >= 2) {
-        const floor = Math.max(800_000, Math.round(this.targetBitrateBps * 0.25));
+        const minBps = lossPercent > SEVERE_LOSS_PERCENT ? SEVERE_MIN_BITRATE_BPS : MIN_BITRATE_BPS;
+        const floor = Math.max(minBps, Math.round(this.targetBitrateBps * 0.25));
         this.currentBitrateBps = Math.max(floor, Math.round(this.currentBitrateBps * 0.75));
         this.consecutiveCongested = 0;
       }

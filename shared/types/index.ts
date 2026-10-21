@@ -209,6 +209,8 @@ export interface CreateRoomPayload {
   chatEnabled?: boolean;
   /** Permite reações na sala (padrão true) */
   reactionsEnabled?: boolean;
+  /** Código preferencial para a sala (ex.: sala permanente) */
+  preferredCode?: string;
 }
 
 /** Configurações de funcionalidades da sala (chat e reações) */

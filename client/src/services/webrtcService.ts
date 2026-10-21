@@ -2,13 +2,14 @@
  * webrtcService.ts
  *
  * Gerencia as conexões WebRTC entre o apresentador e os espectadores.
- * Prioriza taxa de 60 FPS com 'maintain-framerate', troca dinâmica de faixas de vídeo (replaceTrack),
+ * Prioriza taxa de 60 FPS (degradationPreference conforme a qualidade), troca dinâmica de faixas de vídeo (replaceTrack),
  * resiliência com ICE restart, controle adaptativo de taxa de bits (AIMD) e agregação de métricas.
  */
 
 import type { Socket } from 'socket.io-client';
 import type { RTCIceCandidatePayload, VideoConfig, StreamStats, IceServerConfig } from '@shared/index';
 import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
+import { isMacOS } from './captureService';
 import { BitrateController } from './bitrateController';
 import {
   buildRtcConfig,
@@ -70,17 +71,29 @@ interface PeerConnectionData {
 }
 
 /**
- * Ordena codecs WebRTC priorizando o codec selecionado e perfis High com packetization-mode=1 no H264.
+ * Preferência de degradação do encoder: 'high'/'ultra' e indefinida usam 'balanced' (reduz
+ * resolução e fps sob pressão); 'low'/'medium' mantêm o fps.
+ */
+export function degradationPreferenceFor(quality?: VideoConfig['quality']): RTCDegradationPreference {
+  return quality === 'low' || quality === 'medium' ? 'maintain-framerate' : 'balanced';
+}
+
+/**
+ * Ordena codecs WebRTC priorizando o codec selecionado. No H264, perfis com packetization-mode=1 vêm
+ * primeiro: High (64) em geral; no macOS, Main (4d) antes de High, por ter melhor suporte a
+ * encode por hardware (VideoToolbox).
  */
 export function orderCodecs(
   codecs: readonly RTCRtpCodecCapability[],
   preferredCodecName: string,
+  macOS: boolean = isMacOS(),
 ): RTCRtpCodecCapability[] {
   if (!codecs || codecs.length === 0) return [];
   const preferred = preferredCodecName.toUpperCase();
   const isH264 = preferred === 'H264';
+  const profilePriority = macOS ? ['profile-level-id=4d', 'profile-level-id=64'] : ['profile-level-id=64'];
 
-  const preferredHigh: RTCRtpCodecCapability[] = [];
+  const preferredByProfile: RTCRtpCodecCapability[][] = profilePriority.map(() => []);
   const preferredRest: RTCRtpCodecCapability[] = [];
   const others: RTCRtpCodecCapability[] = [];
 
@@ -91,10 +104,9 @@ export function orderCodecs(
     if (matchesPreferred) {
       if (isH264) {
         const fmtp = (codec.sdpFmtpLine ?? '').toLowerCase();
-        const isHigh = fmtp.includes('profile-level-id=64');
-        const isPacketMode1 = fmtp.includes('packetization-mode=1');
-        if (isHigh && isPacketMode1) {
-          preferredHigh.push(codec);
+        const profileIndex = profilePriority.findIndex((profile) => fmtp.includes(profile));
+        if (profileIndex >= 0 && fmtp.includes('packetization-mode=1')) {
+          preferredByProfile[profileIndex].push(codec);
         } else {
           preferredRest.push(codec);
         }
@@ -106,7 +118,7 @@ export function orderCodecs(
     }
   }
 
-  return [...preferredHigh, ...preferredRest, ...others];
+  return [...preferredByProfile.flat(), ...preferredRest, ...others];
 }
 
 export class WebRTCBroadcaster {
@@ -133,7 +145,7 @@ export class WebRTCBroadcaster {
   setLocalStream(stream: MediaStream): void {
     this.localStream = stream;
     for (const track of stream.getVideoTracks()) {
-      if ('contentHint' in track) {
+      if ('contentHint' in track && !track.contentHint) {
         track.contentHint = 'motion';
       }
     }
@@ -143,7 +155,7 @@ export class WebRTCBroadcaster {
   }
 
   async replaceVideoTrack(newTrack: MediaStreamTrack): Promise<void> {
-    if ('contentHint' in newTrack) {
+    if ('contentHint' in newTrack && !newTrack.contentHint) {
       newTrack.contentHint = 'motion';
     }
 
@@ -190,7 +202,7 @@ export class WebRTCBroadcaster {
       if (!params.encodings || params.encodings.length === 0) {
         params.encodings = [{}];
       }
-      params.degradationPreference = 'maintain-framerate';
+      params.degradationPreference = degradationPreferenceFor(config?.quality);
       const fps = config?.frameRate || 60;
       const baseBitrateKbps = config?.bitrate || 5000;
       const targetBitrateKbps = qualityPref?.maxBitrateKbps
@@ -309,7 +321,7 @@ export class WebRTCBroadcaster {
           if (params.encodings && params.encodings[0]) {
             params.encodings[0].maxBitrate = newBitrate;
             params.encodings[0].maxFramerate = this.videoConfig.frameRate || 60;
-            params.degradationPreference = 'maintain-framerate';
+            params.degradationPreference = degradationPreferenceFor(this.videoConfig.quality);
             void videoSender.setParameters(params).catch(() => {});
           }
         }

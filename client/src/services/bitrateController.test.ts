@@ -41,6 +41,20 @@ describe('BitrateController', () => {
     expect(controller.getCurrentBitrateBps()).toBe(800000);
   });
 
+  it('reduz o piso para 400 kbps quando a perda é severa (> 10%)', () => {
+    const controller = new BitrateController(2000); // piso = max(400k, 500k) = 500k
+    for (let i = 0; i < 30; i++) {
+      controller.onSample({ lossPercent: 15, rttMs: 400 });
+    }
+    expect(controller.getCurrentBitrateBps()).toBe(500000);
+
+    const small = new BitrateController(1000); // piso = max(400k, 250k) = 400k
+    for (let i = 0; i < 30; i++) {
+      small.onSample({ lossPercent: 15, rttMs: 400 });
+    }
+    expect(small.getCurrentBitrateBps()).toBe(400000);
+  });
+
   it('recupera bitrate gradualmente (+10% do alvo) após 5 amostras saudáveis consecutivas respeitando o teto', () => {
     const controller = new BitrateController(5000); // 5M bps, +10% = +500k bps
     // Força redução inicial

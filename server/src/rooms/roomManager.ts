@@ -103,6 +103,7 @@ export class RoomManager {
       privacyMode?: boolean;
       chatEnabled?: boolean;
       reactionsEnabled?: boolean;
+      preferredCode?: string;
     },
   ): Promise<ManagedRoom> {
     if (this.rooms.size >= getMaxRooms()) {
@@ -112,7 +113,22 @@ export class RoomManager {
     }
 
     const id = randomUUID();
-    const code = this.generateCode();
+    let code: string;
+    const candidateCode =
+      typeof options?.preferredCode === 'string'
+        ? options.preferredCode.toUpperCase().trim()
+        : undefined;
+
+    if (
+      candidateCode &&
+      /^[A-HJ-NP-Z2-9]{6}$/.test(candidateCode) &&
+      !this.codeIndex.has(candidateCode)
+    ) {
+      code = candidateCode;
+    } else {
+      code = this.generateCode();
+    }
+
     const maxViewers = getMaxViewersPerRoom();
 
     let passwordSalt: Buffer | undefined;

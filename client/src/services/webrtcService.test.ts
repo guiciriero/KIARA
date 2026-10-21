@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { orderCodecs, WebRTCBroadcaster, WebRTCViewer } from './webrtcService';
+import { orderCodecs, degradationPreferenceFor, WebRTCBroadcaster, WebRTCViewer } from './webrtcService';
 import type { RTCRtpCodecCapability } from './webrtcService';
 import {
   FakeSocket,
@@ -79,6 +79,42 @@ describe('webrtcService', () => {
 
     it('retorna array vazio para lista vazia de codecs', () => {
       expect(orderCodecs([], 'H264')).toEqual([]);
+    });
+
+    it('no macOS prioriza H264 Main (4d) antes de High (64)', () => {
+      const codecs: RTCRtpCodecCapability[] = [
+        { mimeType: 'video/VP8', clockRate: 90000 },
+        {
+          mimeType: 'video/H264',
+          clockRate: 90000,
+          sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=640c1f',
+        },
+        {
+          mimeType: 'video/H264',
+          clockRate: 90000,
+          sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4d001f',
+        },
+        {
+          mimeType: 'video/H264',
+          clockRate: 90000,
+          sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f',
+        },
+      ];
+      const ordered = orderCodecs(codecs, 'H264', true);
+      expect(ordered[0].sdpFmtpLine).toContain('profile-level-id=4d');
+      expect(ordered[1].sdpFmtpLine).toContain('profile-level-id=64');
+      expect(ordered[2].sdpFmtpLine).toContain('profile-level-id=42e01f');
+      expect(ordered[3].mimeType).toBe('video/VP8');
+    });
+  });
+
+  describe('degradationPreferenceFor', () => {
+    it('usa balanced para high/ultra/indefinida e maintain-framerate para low/medium', () => {
+      expect(degradationPreferenceFor('high')).toBe('balanced');
+      expect(degradationPreferenceFor('ultra')).toBe('balanced');
+      expect(degradationPreferenceFor(undefined)).toBe('balanced');
+      expect(degradationPreferenceFor('low')).toBe('maintain-framerate');
+      expect(degradationPreferenceFor('medium')).toBe('maintain-framerate');
     });
   });
 

@@ -1,3 +1,12 @@
+/* BroadcastPage.module.css — Layout de 3 colunas do Estúdio KIARA
+ *
+ * Referências de design:
+ * - OBS Studio: dois painéis laterais com controles e preview central
+ * - Loom: link de compartilhamento proeminente antes de iniciar
+ * - Linear/Vercel: hierarquia de seções com separadores e headers de seção
+ * - Discord Stage: badge de status ao vivo integrado ao painel de sala
+ */
+
 .studioLayout {
   display: flex;
   flex-direction: column;
@@ -7,6 +16,7 @@
   overflow: hidden;
 }
 
+/* ── Top Bar ─────────────────────────────────────────────────────── */
 .topBar {
   display: flex;
   align-items: center;
@@ -15,6 +25,7 @@
   background: var(--kiara-surface);
   border-bottom: 1px solid var(--kiara-border);
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .topBarLeft {
@@ -30,6 +41,9 @@
   padding: 5px 10px;
   font-size: 0.78rem;
   border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .backBtn:hover {
@@ -74,31 +88,225 @@
   color: var(--kiara-text-strong);
 }
 
+/* ── Layout Corpo: 3 colunas (sala | preview | config) ───────────── */
 .bodyLayout {
   flex: 1;
-  display: flex;
+  display: grid;
+  /* Esquerda (sala): fixo 280px | Centro (preview): flexível | Direita (config): fixo 280px */
+  grid-template-columns: 280px 1fr 280px;
+  grid-template-areas: "room main config";
   overflow: hidden;
+  min-height: 0;
 }
 
-/* ── Painel Lateral ─────────────────────────────────────────────── */
-.sidebar {
-  width: 320px;
-  min-width: 300px;
+/* ── Painéis Laterais Compartilhados ─────────────────────────────── */
+.sidebarRoom {
+  grid-area: room;
   background: var(--kiara-surface);
   border-right: 1px solid var(--kiara-border);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 0;
   overflow-y: auto;
+  min-width: 0;
 }
 
-.sidebarSection {
+.sidebarConfig {
+  grid-area: config;
+  background: var(--kiara-surface);
+  border-left: 1px solid var(--kiara-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* ── Seções dos Painéis ──────────────────────────────────────────── */
+.panelSection {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 14px 14px;
+  border-bottom: 1px solid var(--kiara-border-subtle);
 }
 
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.sectionTitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--kiara-text-muted);
+}
+
+.statusLive {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--kiara-live);
+  letter-spacing: 0.03em;
+}
+
+.liveDotSmall {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--kiara-live);
+  animation: kiaraPulse 2s ease-in-out infinite;
+}
+
+.statusOffline {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--kiara-text-muted);
+}
+
+/* ── Card de Link Fixo ───────────────────────────────────────────── */
+.permanentLinkCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.permanentLinkMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.permanentBadge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--kiara-cool);
+  background: var(--kiara-cool-subtle);
+  border: 1px solid rgba(157, 180, 255, 0.15);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+}
+
+.resetCodeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--kiara-border);
+  color: var(--kiara-text-muted);
+  font-size: 0.65rem;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.resetCodeBtn:hover {
+  border-color: var(--kiara-border-active);
+  color: var(--kiara-text-secondary);
+  background: var(--kiara-surface-hover);
+}
+
+.codeDisplay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+}
+
+.codeDisplayText {
+  font-family: var(--font-mono);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--kiara-text-strong);
+  user-select: all;
+}
+
+.urlCopyRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--kiara-bg);
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  min-width: 0;
+}
+
+.urlDisplayShort {
+  flex: 1;
+  font-size: 0.72rem;
+  color: var(--kiara-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  user-select: all;
+  min-width: 0;
+}
+
+.copyLinkBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--kiara-surface-hover);
+  border: 1px solid var(--kiara-border-active);
+  color: var(--kiara-text-secondary);
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.copyLinkBtn:hover {
+  background: var(--kiara-surface-active);
+  color: var(--kiara-text);
+  border-color: var(--kiara-border-strong);
+}
+
+.copyLinkBtnCopied {
+  color: var(--kiara-live) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  background: var(--kiara-live-subtle) !important;
+}
+
+.permanentNote {
+  font-size: 0.7rem;
+  color: var(--kiara-text-muted);
+  line-height: 1.4;
+}
+
+.permanentLinkEmpty {
+  padding: 12px;
+  background: var(--kiara-surface-raised);
+  border: 1px dashed var(--kiara-border-active);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.permanentLinkEmpty p {
+  font-size: 0.75rem;
+  color: var(--kiara-text-muted);
+}
+
+/* ── Erros e alertas ─────────────────────────────────────────────── */
 .errorBox {
   display: flex;
   align-items: flex-start;
@@ -120,18 +328,19 @@
 
 /* ── Área Principal de Preview ──────────────────────────────────── */
 .mainArea {
-  flex: 1;
+  grid-area: main;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px;
   overflow-y: auto;
   background: var(--kiara-bg);
+  min-width: 0;
 }
 
 .previewContainer {
   flex: 1;
-  min-height: 360px;
+  min-height: 260px;
   background: var(--kiara-bg);
   border: 1px solid var(--kiara-border);
   border-radius: var(--radius-lg);
@@ -198,6 +407,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--kiara-live);
+  animation: kiaraPulse 2s ease-in-out infinite;
 }
 
 .pausedIndicator {
@@ -297,17 +507,7 @@
   justify-content: center;
 }
 
-/* ── Seção de Compartilhamento da Sala ──────────────────────────── */
-.roomShareSection {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: var(--kiara-surface);
-  border: 1px solid var(--kiara-border);
-  border-radius: var(--radius-lg);
-  padding: 14px 18px;
-}
-
+/* ── Avisos de túnel/privacidade ─────────────────────────────────── */
 .tunnelWarning {
   display: flex;
   align-items: center;
@@ -317,31 +517,78 @@
   border: 1px solid rgba(234, 179, 8, 0.2);
   border-radius: var(--radius-sm);
   color: var(--kiara-warning);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+/* ── Selos da sala ───────────────────────────────────────────────── */
+.roomBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.roomBadge {
+  font-size: 0.65rem;
+  color: var(--kiara-text-secondary);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-full);
+  padding: 2px 9px;
+}
+
+/* ── Chat Dock ───────────────────────────────────────────────────── */
+.chatDock {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* ── Responsividade ─────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .bodyLayout {
+    /* Em telas médias: 2 colunas (config vai para baixo do preview) */
+    grid-template-columns: 280px 1fr;
+    grid-template-areas:
+      "room main"
+      "room config";
+    grid-template-rows: auto;
+  }
+  .sidebarConfig {
+    border-left: none;
+    border-top: 1px solid var(--kiara-border);
+    max-height: none;
+    overflow: visible;
+    grid-area: config;
+  }
+}
+
 @media (max-width: 900px) {
-  /* A página inteira rola; cada bloco usa a altura de que precisa (nada de painel com rolagem interna) */
   .studioLayout {
     height: auto;
     min-height: 100dvh;
   }
   .bodyLayout {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "room"
+      "config";
+    grid-template-rows: auto;
     overflow: visible;
   }
-  .sidebar {
-    width: 100%;
-    min-width: unset;
+  .sidebarRoom {
     border-right: none;
-    border-bottom: 1px solid var(--kiara-border);
-    max-height: none;
+    border-top: 1px solid var(--kiara-border);
     overflow: visible;
-    order: 2;
+    max-height: none;
+  }
+  .sidebarConfig {
+    border-left: none;
+    border-top: 1px solid var(--kiara-border);
+    overflow: visible;
+    max-height: none;
   }
   .mainArea {
-    order: 1;
     overflow: visible;
     padding: 12px;
   }
@@ -380,24 +627,8 @@
   .chatDock {
     justify-content: stretch;
   }
-}
-
-/* ── Selos da sala e dock do chat ───────────────────────────────── */
-.roomBadges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.roomBadge {
-  font-size: 0.7rem;
-  color: var(--kiara-text-secondary);
-  border: 1px solid var(--kiara-border-active);
-  border-radius: var(--radius-full);
-  padding: 2px 10px;
-}
-
-.chatDock {
-  display: flex;
-  justify-content: flex-end;
+  .codeDisplayText {
+    font-size: 1.25rem;
+    letter-spacing: 0.15em;
+  }
 }

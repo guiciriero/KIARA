@@ -18,6 +18,24 @@ export function isValidRoomCode(code: unknown): code is string {
   return typeof code === 'string' && CODE_RE.test(code);
 }
 
+/** Gera um código de sala aleatório de 6 caracteres do alfabeto válido */
+export function generateRoomCode(): string {
+  const chars = ROOM_CODE_ALPHABET;
+  let code = '';
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const array = new Uint8Array(ROOM_CODE_LENGTH);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
+      code += chars[array[i] % chars.length];
+    }
+  } else {
+    for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+  }
+  return code;
+}
+
 /**
  * Normaliza um código digitado: remove espaços/hífens e põe em maiúsculas.
  * Devolve `null` se o resultado não for um código válido.

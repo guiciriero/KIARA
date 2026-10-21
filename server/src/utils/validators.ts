@@ -112,6 +112,12 @@ export function validateCreateRoomPayload(data: unknown): {
     result.reactionsEnabled = obj.reactionsEnabled;
   }
 
+  if ('preferredCode' in obj && obj.preferredCode !== undefined && obj.preferredCode !== null) {
+    if (typeof obj.preferredCode === 'string') {
+      result.preferredCode = obj.preferredCode;
+    }
+  }
+
   return { valid: true, payload: result };
 }
 

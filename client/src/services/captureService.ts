@@ -15,17 +15,40 @@ export interface CaptureResult {
   audioTracks: MediaStreamTrack[];
 }
 
+export type ContentHint = 'motion' | 'detail';
+
+export interface CaptureOptions {
+  withAudio: boolean;
+  /** (desktop) fonte escolhida na interface; vale só para esta chamada */
+  captureSourceId?: string | null;
+  /** 'motion' prioriza fluidez; 'detail' prioriza nitidez de texto/código (padrão: 'motion') */
+  contentHint?: ContentHint;
+}
+
+export function isMacOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const platform = navigator.platform || '';
+  return /^Mac/i.test(platform) || (!platform && /Mac OS X|Macintosh/i.test(navigator.userAgent || ''));
+}
+
 function buildConstraints(config: VideoConfig, withAudio: boolean): DisplayMediaStreamOptions {
   const targetFps = config.frameRate || 60;
+  const mac = isMacOS();
+  const retina = mac && (window.devicePixelRatio || 1) > 1;
+  // Em telas Retina a captura nativa é 2x; limitar ao tamanho pedido evita encodar o dobro de pixels
+  const maxWidth = retina ? config.width : 3840;
+  const maxHeight = retina ? config.height : 2160;
   return {
     video: {
-      width: { ideal: config.width, max: 3840 },
-      height: { ideal: config.height, max: 2160 },
+      width: { ideal: config.width, max: maxWidth },
+      height: { ideal: config.height, max: maxHeight },
       frameRate: { ideal: targetFps, max: Math.max(targetFps, 120) },
-      // Otimizações de renderização/captura: evita throttling artificial do compositor
-      resizeMode: 'none',
+      // macOS: deixa o navegador escalar a captura Retina; demais: resolução nativa sem reescala
+      resizeMode: mac ? 'crop-and-scale' : 'none',
       cursor: 'always',
     } as MediaTrackConstraints,
+    selfBrowserSurface: 'exclude',
+    surfaceSwitching: 'include',
     // Sem processamento: eco/ruído/AGC degradam o áudio de jogos e músicas
     audio: withAudio
       ? ({
@@ -35,7 +58,20 @@ function buildConstraints(config: VideoConfig, withAudio: boolean): DisplayMedia
           autoGainControl: false,
         } as MediaTrackConstraints)
       : false,
-  };
+  } as DisplayMediaStreamOptions;
+}
+
+function logCapture(config: VideoConfig, track: MediaStreamTrack): void {
+  if (!import.meta.env.DEV) return;
+  const settings = track.getSettings?.() ?? {};
+  // eslint-disable-next-line no-console
+  console.debug('[KIARA capture]', {
+    requested: { width: config.width, height: config.height, frameRate: config.frameRate || 60 },
+    actual: { width: settings.width, height: settings.height, frameRate: settings.frameRate },
+    devicePixelRatio: window.devicePixelRatio,
+    macOS: isMacOS(),
+    contentHint: track.contentHint,
+  });
 }
 
 /**
@@ -52,7 +88,7 @@ export function isDisplayCaptureSupported(): boolean {
 
 export async function captureDisplay(
   config: VideoConfig,
-  { withAudio, captureSourceId }: { withAudio: boolean; captureSourceId?: string | null },
+  { withAudio, captureSourceId, contentHint = 'motion' }: CaptureOptions,
 ): Promise<CaptureResult> {
   const host = window.screenShareHost;
 
@@ -70,8 +106,7 @@ export async function captureDisplay(
       stopStream(stream);
       throw new MediaError('no-video');
     }
-    // 'motion' prioriza fluidez e taxa máxima de FPS sobre nitidez estática
-    videoTrack.contentHint = 'motion';
+    videoTrack.contentHint = contentHint;
 
     // Tenta aplicar restrições de frameRate diretamente na faixa para garantir que o browser não limite a 30fps
     try {
@@ -82,6 +117,8 @@ export async function captureDisplay(
     } catch {
       // Ignora se o browser/driver não aceitar applyConstraints dinâmico
     }
+
+    logCapture(config, videoTrack);
 
     return { stream, videoTrack, audioTracks: stream.getAudioTracks() };
   } catch (err) {
