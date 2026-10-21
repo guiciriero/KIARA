@@ -5,6 +5,12 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Unreleased]
 
+### Alterado
+
+- **Compartilhamento de tela direto:** quem assiste e clica em "Também transmitir" passa a transmitir na hora; a etapa de pedido e aprovação do host foi removida (eventos `room:request-copresent`, `room:respond-copresent` e `room:copresent-request` substituídos por `room:start-copresent` e `room:stop-copresent`). A vaga continua única e é liberada ao parar, sair ou desconectar.
+- **Link fixo como único link:** o código da sala é gerado na primeira visita, guardado no `localStorage` e usado em toda transmissão. Removidos o botão "Novo código" e o painel de convite dinâmico (`InviteCode`).
+- **Interface modernizada:** novos tokens de sombra e movimento, microinterações e transições em CSS, cartões da Home com halo frio, barra do player em vidro leve, bolhas de chat e painéis com entrada suave, mantendo a identidade preta do KIARA.
+
 ## [1.1.0] — 2026-10-21
 
 ### Adicionado

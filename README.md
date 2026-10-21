@@ -32,7 +32,8 @@ Se preferir, abra a página inicial no navegador, digite o código de 6 caracter
 ### Dicas
 
 - O app precisa ficar aberto no computador de quem transmite.
-- O link muda a cada vez que o app é aberto. Quando você fecha, a sala acaba (e toda sala expira sozinha após 12 horas).
+- O link é fixo: o código da sua sala fica salvo neste computador e é o mesmo em toda transmissão, então dá para compartilhá-lo antes de iniciar (quem abrir vê uma tela de espera). Quando você encerra, a sala fecha (e toda sala expira sozinha após 12 horas).
+- Quem assiste pode clicar em **Também transmitir** e compartilhar a própria tela na mesma sala, na hora, sem pedir permissão a ninguém (só uma pessoa por vez, além de você).
 - Quem tiver o link e o código consegue assistir, a menos que você proteja a sala. Antes de iniciar, em **Acesso à sala**, dá para definir uma **senha** (4 a 64 caracteres) e marcar **Aprovar cada entrada**: cada pessoa aparece na tela como pedido e você clica em Aprovar ou Negar.
 - O **Modo privacidade** esconde seu IP dos espectadores, fazendo o vídeo passar por um servidor de retransmissão (TURN). Só funciona se o servidor tiver TURN configurado; depois de iniciar, a sala mostra se ele foi ativado de fato.
 - No celular dá para **assistir** (com tela cheia, tela sempre acesa e chat), mas **não transmitir**: os navegadores de Android e iPhone não permitem compartilhar a tela. Para transmitir, use um computador ou o app para Windows.
@@ -296,7 +297,7 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 - Salas podem ter senha (guardada só como hash scrypt) e aprovação manual. Tentativas erradas de senha ou código são limitadas por conexão.
 - O servidor usa Helmet (CSP, HSTS em produção), limite de requisições, limite de conexões por IP e valida todo payload de Socket.IO.
 - Para reportar uma vulnerabilidade, veja [`SECURITY.md`](SECURITY.md).
-- O túnel é temporário: as salas e os links mudam a cada sessão e nada fica gravado.
+- O túnel é temporário: o endereço do túnel pode mudar a cada sessão e nada fica gravado no servidor.
 
 ---
 
