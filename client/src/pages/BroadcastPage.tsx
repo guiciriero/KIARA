@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBroadcast, getPermanentRoomCode, clearPermanentRoomCode } from '../hooks/useBroadcast';
+import { useBroadcast } from '../hooks/useBroadcast';
 import { useAudioSources } from '../hooks/useAudioSources';
 import { useChat } from '../hooks/useChat';
 import { useSocket } from '../services/SocketContext';
@@ -14,7 +14,6 @@ import {
   IconEyeOff,
   IconCopy,
   IconCheck,
-  IconRefresh,
 } from '../components/UI/Icons';
 import StreamControls from '../components/Controls/StreamControls';
 import AudioSourceList from '../components/Controls/AudioSourceList';
@@ -26,17 +25,12 @@ import RoomOptionsPanel, {
 } from '../components/Controls/RoomOptionsPanel';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
-import InviteCode from '../components/UI/InviteCode';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import UploadEstimate from '../components/UI/UploadEstimate';
 import ChatPanel, { ReactionOverlay } from '../components/UI/ChatPanel';
+import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import styles from './BroadcastPage.module.css';
 import type { VideoConfig as VideoConfigType, CreateRoomPayload } from '@shared/index';
-
-/** Monta a URL de preview a partir do código permanente (ou de sessão) */
-function buildPreviewUrl(code: string): string {
-  return `${window.location.origin}/view/${code}`;
-}
 
 const BroadcastPage: React.FC = () => {
   const navigate = useNavigate();
@@ -80,31 +74,16 @@ const BroadcastPage: React.FC = () => {
     [audioHook.sources, audioHook.selected],
   );
 
-  // ── Sala Permanente: link fixo pré-transmissão ──────────────────────────────
-  const [permanentCode, setPermanentCode] = useState<string | null>(() => getPermanentRoomCode());
-  const [copiedPreLink, setCopiedPreLink] = useState(false);
+  // ── Link fixo: o mesmo código em todas as transmissões, disponível antes de iniciar ──
+  const [roomCode] = useState<string>(() => getOrCreatePermanentRoomCode());
+  /** Origem pública do link: no app desktop vem do túnel; no navegador, do próprio site */
+  const [linkOrigin, setLinkOrigin] = useState<string>(() => window.location.origin);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleResetPermanentCode = useCallback(() => {
-    clearPermanentRoomCode();
-    setPermanentCode(null);
+  useEffect(() => () => {
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
   }, []);
-
-  const handleCopyPreLink = useCallback(async () => {
-    if (!permanentCode) return;
-    const url = buildPreviewUrl(permanentCode);
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = url;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-    }
-    setCopiedPreLink(true);
-    setTimeout(() => setCopiedPreLink(false), 2200);
-  }, [permanentCode]);
 
   // Preferência de retorno de tela: lida do localStorage na montagem
   const [previewAtivo, setPreviewAtivo] = useState<boolean>(() => {
@@ -127,7 +106,9 @@ const BroadcastPage: React.FC = () => {
     let cancelled = false;
     hostApp.getPublicUrl()
       .then((publicUrl) => {
-        if (!cancelled && publicUrl === null) setTunnelDown(true);
+        if (cancelled) return;
+        if (publicUrl === null) setTunnelDown(true);
+        else setLinkOrigin(publicUrl);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -142,13 +123,6 @@ const BroadcastPage: React.FC = () => {
     updateVideoConfig,
     respondJoin,
   } = useBroadcast(videoConfig, audioSelection, captureSourceId, createRoomOptions);
-
-  // Após obter o código real, sincroniza o estado local de permanentCode
-  useEffect(() => {
-    if (state.roomCode) {
-      setPermanentCode(state.roomCode);
-    }
-  }, [state.roomCode]);
 
   const { socket } = useSocket();
   const chat = useChat();
@@ -215,9 +189,25 @@ const BroadcastPage: React.FC = () => {
     }
   }, [state.stream, previewAtivo]);
 
-  // Código efetivo a exibir (ao vivo ou permanente/pré-sessão)
-  const displayCode = state.roomCode ?? permanentCode;
-  const displayUrl = state.inviteUrl ?? (permanentCode ? buildPreviewUrl(permanentCode) : null);
+  // O servidor confirma o código; antes de transmitir vale o código fixo local
+  const displayCode = state.roomCode ?? roomCode;
+  const displayUrl = state.inviteUrl ?? buildPermanentLink(linkOrigin, displayCode);
+
+  const handleCopyLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(displayUrl);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = displayUrl;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopiedLink(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopiedLink(false), 2200);
+  }, [displayUrl]);
 
   return (
     <div className={styles.studioLayout}>
@@ -312,61 +302,39 @@ const BroadcastPage: React.FC = () => {
               )}
             </div>
 
-            {displayCode && displayUrl ? (
-              <div className={styles.permanentLinkCard}>
-                {/* Indicação de link fixo */}
-                <div className={styles.permanentLinkMeta}>
-                  <span className={styles.permanentBadge}>Link Fixo</span>
-                  {!state.isSharing && (
-                    <button
-                      type="button"
-                      className={styles.resetCodeBtn}
-                      onClick={handleResetPermanentCode}
-                      title="Gerar novo código de sala na próxima transmissão"
-                    >
-                      <IconRefresh size={13} />
-                      <span>Novo código</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Código grande */}
-                <div className={styles.codeDisplay}>
-                  <span className={styles.codeDisplayText}>{displayCode}</span>
-                </div>
-
-                {/* URL copiável */}
-                <div className={styles.urlCopyRow}>
-                  <span className={styles.urlDisplayShort} title={displayUrl}>
-                    {displayUrl.replace(/^https?:\/\//, '').substring(0, 42)}
-                    {displayUrl.replace(/^https?:\/\//, '').length > 42 ? '…' : ''}
-                  </span>
-                  <button
-                    type="button"
-                    className={`${styles.copyLinkBtn} ${copiedPreLink ? styles.copyLinkBtnCopied : ''}`}
-                    onClick={() => void handleCopyPreLink()}
-                    aria-label="Copiar link da sala"
-                  >
-                    {copiedPreLink ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                    <span>{copiedPreLink ? 'Copiado!' : 'Copiar'}</span>
-                  </button>
-                </div>
-
-                {/* Status e avisos */}
-                {!state.isSharing && (
-                  <p className={styles.permanentNote}>
-                    Este link já pode ser compartilhado. Os espectadores verão uma tela de espera até você iniciar.
-                  </p>
-                )}
+            <div className={styles.permanentLinkCard}>
+              <div className={styles.permanentLinkMeta}>
+                <span className={styles.permanentBadge}>Link Fixo</span>
               </div>
-            ) : (
-              <div className={styles.permanentLinkEmpty}>
-                <p>O link fixo aparecerá aqui após a primeira transmissão.</p>
+
+              <div className={styles.codeDisplay}>
+                <span className={styles.codeDisplayText}>{displayCode}</span>
               </div>
-            )}
+
+              <div className={styles.urlCopyRow}>
+                <span className={styles.urlDisplayShort} title={displayUrl}>
+                  {displayUrl.replace(/^https?:\/\//, '')}
+                </span>
+                <button
+                  type="button"
+                  className={`${styles.copyLinkBtn} ${copiedLink ? styles.copyLinkBtnCopied : ''}`}
+                  onClick={() => void handleCopyLink()}
+                  aria-label="Copiar link da sala"
+                >
+                  {copiedLink ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                  <span>{copiedLink ? 'Copiado!' : 'Copiar'}</span>
+                </button>
+              </div>
+
+              {!state.isSharing && (
+                <p className={styles.permanentNote}>
+                  Este link é sempre o mesmo e já pode ser compartilhado. Os espectadores verão uma tela de espera até você iniciar.
+                </p>
+              )}
+            </div>
 
             {/* Selos da sala e avisos (ao vivo) */}
-            {state.isSharing && state.roomCode && (
+            {state.isSharing && (
               <>
                 <div className={styles.roomBadges}>
                   <span className={styles.roomBadge}>
@@ -388,9 +356,6 @@ const BroadcastPage: React.FC = () => {
                     <span>Túnel público indisponível: link funciona apenas na mesma rede local.</span>
                   </div>
                 )}
-
-                {/* Link completo ao vivo */}
-                <InviteCode code={state.roomCode} url={state.inviteUrl ?? ''} />
               </>
             )}
           </div>

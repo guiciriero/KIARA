@@ -5,9 +5,8 @@
  * nunca trocada. Mudar a seleção de fontes durante a live só altera o grafo de áudio
  * atrás dessa faixa — não há replaceTrack nem renegociação.
  *
- * Sala permanente: o código preferencial é lido do localStorage ('kiara:permanentRoomCode')
- * na montagem e enviado ao servidor como `preferredCode`. Se o servidor aceitar, o mesmo
- * código é reutilizado entre reinicializações.
+ * Link fixo: o código da sala vem sempre de utils/permanentRoom (localStorage) e é enviado ao
+ * servidor como `preferredCode`. Não há código alternativo: o apresentador usa sempre o mesmo link.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -19,6 +18,7 @@ import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
 import { addJoinRequest, removeJoinRequest } from '../utils/joinRequests';
 import { isCancellation, toMediaError } from '../services/mediaError';
+import { getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import type {
   VideoConfig,
   StreamStats,
@@ -31,46 +31,6 @@ import type {
 } from '@shared/index';
 
 export type { AudioSelectionItem };
-
-/** Chave do localStorage para o código de sala permanente */
-export const PERMANENT_CODE_KEY = 'kiara:permanentRoomCode';
-
-/**
- * Lê o código de sala permanente do localStorage.
- * Retorna null se não houver código salvo ou se for inválido.
- */
-export function getPermanentRoomCode(): string | null {
-  try {
-    const raw = localStorage.getItem(PERMANENT_CODE_KEY);
-    if (!raw) return null;
-    const code = raw.toUpperCase().trim();
-    return /^[A-HJ-NP-Z2-9]{6}$/.test(code) ? code : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Salva o código de sala permanente no localStorage.
- */
-function savePermanentRoomCode(code: string): void {
-  try {
-    localStorage.setItem(PERMANENT_CODE_KEY, code.toUpperCase().trim());
-  } catch {
-    // localStorage pode estar desabilitado em contextos privados
-  }
-}
-
-/**
- * Remove o código de sala permanente do localStorage (gera novo na próxima sessão).
- */
-export function clearPermanentRoomCode(): void {
-  try {
-    localStorage.removeItem(PERMANENT_CODE_KEY);
-  } catch {
-    // sem-op
-  }
-}
 
 export interface BroadcastState {
   isSharing: boolean;
@@ -294,15 +254,11 @@ export function useBroadcast(
         error: audioError,
       }));
 
-      // Inclui o código permanente como preferência (o servidor pode ou não atender)
-      const permanentCode = getPermanentRoomCode();
-      const roomPayload = permanentCode
-        ? { ...roomOptionsRef.current, preferredCode: permanentCode }
-        : roomOptionsRef.current;
-      const room = await requestRoom(socket, roomPayload);
-
-      // Persiste o código recebido (pode ser diferente do preferencial se estava em uso)
-      savePermanentRoomCode(room.code);
+      // Link fixo: sempre pede o mesmo código ao servidor
+      const room = await requestRoom(socket, {
+        ...roomOptionsRef.current,
+        preferredCode: getOrCreatePermanentRoomCode(),
+      });
 
       setState((s) => ({
         ...s,
