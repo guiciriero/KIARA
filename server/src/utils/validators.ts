@@ -19,8 +19,7 @@ import type {
   QualityRequestPayload,
   StreamStats,
   ViewerQualityPreference,
-  CopresentRequestPayload,
-  CopresentRespondPayload,
+  CopresentStartPayload,
 } from '@screen-share/shared';
 
 export const ALLOWED_REACTIONS: readonly ReactionEmoji[] = ['👍', '❤️', '😂', '😮', '👏', '🔥'] as const;
@@ -482,13 +481,13 @@ export function isValidStreamStats(stats: unknown): stats is StreamStats {
   return sanitizeStreamStats(stats) !== null;
 }
 
-/** Valida CopresentRequestPayload (name opcional, máx 24 chars) */
-export function validateCopresentRequestPayload(data: unknown): CopresentRequestPayload | null {
+/** Valida CopresentStartPayload (name opcional, máx 24 chars) */
+export function validateCopresentStartPayload(data: unknown): CopresentStartPayload | null {
   if (data === null || data === undefined) return {};
   if (typeof data !== 'object' || Array.isArray(data)) return null;
   const obj = data as Record<string, unknown>;
 
-  const result: CopresentRequestPayload = {};
+  const result: CopresentStartPayload = {};
   if ('name' in obj && obj.name !== undefined && obj.name !== null) {
     if (typeof obj.name !== 'string') return null;
     const name = sanitizeNickname(obj.name);
@@ -497,18 +496,4 @@ export function validateCopresentRequestPayload(data: unknown): CopresentRequest
   }
 
   return result;
-}
-
-/** Valida CopresentRespondPayload */
-export function validateCopresentRespondPayload(data: unknown): CopresentRespondPayload | null {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-  const obj = data as Record<string, unknown>;
-
-  if (typeof obj.viewerId !== 'string' || obj.viewerId.trim().length === 0) return null;
-  if (typeof obj.approved !== 'boolean') return null;
-
-  return {
-    viewerId: obj.viewerId,
-    approved: obj.approved,
-  };
 }

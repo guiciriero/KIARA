@@ -160,14 +160,12 @@ export type SignalingEvent =
   | 'stream:config-update'
   | 'stream:quality-request'
   | 'stream:stats'
-  // ── Co-apresentação ───────────────────────────────────────────────────────
-  /** C→S viewer solicita permissão para também transmitir */
-  | 'room:request-copresent'
-  /** C(host)→S host responde ao pedido de co-apresentação */
-  | 'room:respond-copresent'
-  /** S→host há um pedido de co-apresentação pendente */
-  | 'room:copresent-request'
-  /** S→viewer sua transmissão foi autorizada (ou recusada) pelo host */
+  // ── Co-apresentação (direta, sem aprovação do host) ───────────────────────
+  /** C→S viewer reivindica a vaga de co-apresentador e começa a transmitir */
+  | 'room:start-copresent'
+  /** C→S co-apresentador libera a vaga ao parar de transmitir */
+  | 'room:stop-copresent'
+  /** S→viewer resposta à reivindicação da vaga (aceita ou ocupada) */
   | 'room:copresent-response'
   /** S→sala um co-apresentador iniciou a transmissão */
   | 'room:copresenter-joined'
@@ -258,30 +256,18 @@ export interface JoinRoomPayload {
 
 // ─── Co-apresentação ─────────────────────────────────────────────────────────
 
-/** C→S `room:request-copresent` — viewer quer também transmitir */
-export interface CopresentRequestPayload {
+/** C→S `room:start-copresent` — viewer começa a transmitir também (sem aprovação) */
+export interface CopresentStartPayload {
   /** Apelido do co-apresentador (até 24 caracteres) */
   name?: string;
 }
 
-/** S→host `room:copresent-request` */
-export interface CopresentRequestNotifyPayload {
-  viewerId: string;
-  name: string;
-}
-
-/** C(host)→S resposta à solicitação de co-apresentação */
-export interface CopresentRespondPayload {
-  viewerId: string;
-  approved: boolean;
-}
-
 /** S→viewer `room:copresent-response` */
 export interface CopresentResponsePayload {
-  approved: boolean;
-  /** Socket ID do host (destino dos offers WebRTC quando approved=true) */
+  /** false = a vaga de co-apresentador já está ocupada */
+  accepted: boolean;
+  /** Socket ID do host (destino dos offers WebRTC quando accepted=true) */
   hostId?: string;
-  iceServers?: IceServerConfig[];
 }
 
 /** S→sala `room:copresenter-joined` / `room:copresenter-left` */

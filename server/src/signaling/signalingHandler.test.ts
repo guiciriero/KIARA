@@ -610,3 +610,98 @@ describe('segurança: anti-força-bruta, sanitização e concorrência', () => {
     expect(stats.connectionQuality).toBe('good');
   });
 });
+
+describe('co-apresentação direta (sem aprovação do host)', () => {
+  it('espectador inicia na hora; host e sala são notificados e o host recebe o hostId', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(viewer, { code: created.code, name: 'Maria' });
+
+    const joinedOnHost = waitForEvent<any>(host, 'room:copresenter-joined');
+    const response = waitForEvent<any>(viewer, 'room:copresent-response');
+    viewer.emit('room:start-copresent', { name: 'Maria' });
+
+    expect(await response).toEqual({ accepted: true, hostId: host.id });
+    expect((await joinedOnHost).copresenterId).toBe(viewer.id);
+  });
+
+  it('a vaga é única: o segundo espectador recebe accepted=false', async () => {
+    const host = await server.createClient();
+    const v1 = await server.createClient();
+    const v2 = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(v1, { code: created.code });
+    await joinRoom(v2, { code: created.code });
+
+    const first = waitForEvent<any>(v1, 'room:copresent-response');
+    v1.emit('room:start-copresent', {});
+    expect((await first).accepted).toBe(true);
+
+    const second = waitForEvent<any>(v2, 'room:copresent-response');
+    v2.emit('room:start-copresent', {});
+    expect((await second).accepted).toBe(false);
+  });
+
+  it('room:stop-copresent libera a vaga e avisa a sala', async () => {
+    const host = await server.createClient();
+    const v1 = await server.createClient();
+    const v2 = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(v1, { code: created.code });
+    await joinRoom(v2, { code: created.code });
+
+    const ok = waitForEvent<any>(v1, 'room:copresent-response');
+    v1.emit('room:start-copresent', {});
+    await ok;
+
+    const left = waitForEvent<any>(host, 'room:copresenter-left');
+    v1.emit('room:stop-copresent');
+    expect((await left).copresenterId).toBe(v1.id);
+
+    const again = waitForEvent<any>(v2, 'room:copresent-response');
+    v2.emit('room:start-copresent', {});
+    expect((await again).accepted).toBe(true);
+  });
+
+  it('o host não pode co-apresentar e quem não está na sala é ignorado', async () => {
+    const host = await server.createClient();
+    const outsider = await server.createClient();
+    await createRoom(host);
+
+    let got = false;
+    host.on('room:copresent-response', () => { got = true; });
+    outsider.on('room:copresent-response', () => { got = true; });
+    host.emit('room:start-copresent', {});
+    outsider.emit('room:start-copresent', {});
+    await sleep(150);
+    expect(got).toBe(false);
+  });
+
+  it('desconectar o co-apresentador libera a vaga', async () => {
+    const host = await server.createClient();
+    const v1 = await server.createClient();
+    const created = await createRoom(host);
+    await joinRoom(v1, { code: created.code });
+
+    const ok = waitForEvent<any>(v1, 'room:copresent-response');
+    v1.emit('room:start-copresent', {});
+    await ok;
+
+    const v1Id = v1.id;
+    const left = waitForEvent<any>(host, 'room:copresenter-left');
+    v1.disconnect();
+    expect((await left).copresenterId).toBe(v1Id);
+  });
+});
+
+describe('link fixo: código preferencial', () => {
+  it('reutiliza o código pedido quando está livre e gera outro se estiver em uso', async () => {
+    const h1 = await server.createClient();
+    const h2 = await server.createClient();
+    const first = await createRoom(h1, { preferredCode: 'ABC234' });
+    expect(first.code).toBe('ABC234');
+    const second = await createRoom(h2, { preferredCode: 'ABC234' });
+    expect(second.code).not.toBe('ABC234');
+  });
+});

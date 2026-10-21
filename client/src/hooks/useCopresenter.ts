@@ -1,8 +1,10 @@
 /**
- * Hook do co-apresentador: um espectador que, com aprovação do host, também transmite.
+ * Hook do co-apresentador: um espectador que também transmite a própria tela.
  *
- * Não cria sala: continua como viewer e, ao ser aprovado, captura a tela e envia o offer
- * WebRTC direto ao host (`broadcaster.connectToPeer(hostId)`), sem esperar `room:viewer-joined`.
+ * Sem etapa de permissão: o clique em "Iniciar" captura a tela na hora (o seletor nativo do
+ * navegador é o único consentimento), reivindica a vaga única no servidor e envia o offer
+ * WebRTC direto ao host (`broadcaster.connectToPeer(hostId)`). Se a vaga estiver ocupada,
+ * a captura é desfeita e o usuário é avisado.
  * O áudio passa por um BroadcastAudio, como em useBroadcast.
  */
 
@@ -13,11 +15,11 @@ import { captureDisplay, stopStream } from '../services/captureService';
 import type { ContentHint } from '../services/captureService';
 import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
-import { toMediaError } from '../services/mediaError';
+import { isCancellation, toMediaError } from '../services/mediaError';
 import type {
   VideoConfig,
   IceServerConfig,
-  CopresentRequestPayload,
+  CopresentStartPayload,
   CopresentResponsePayload,
 } from '@shared/index';
 
@@ -27,10 +29,8 @@ export interface CopresenterState {
   /** Cópia só de vídeo da captura, para o preview local */
   stream: MediaStream | null;
   error: string | null;
-  /** Aguardando o host aprovar */
-  pendingApproval: boolean;
-  /** O host recusou */
-  denied: boolean;
+  /** Capturando a tela / aguardando o servidor confirmar a vaga */
+  starting: boolean;
 }
 
 const INITIAL_STATE: CopresenterState = {
@@ -38,14 +38,15 @@ const INITIAL_STATE: CopresenterState = {
   isPaused: false,
   stream: null,
   error: null,
-  pendingApproval: false,
-  denied: false,
+  starting: false,
 };
 
 /** 'high'/'ultra' priorizam nitidez (texto/código); 'low'/'medium' priorizam fluidez */
 function contentHintFor(quality: VideoConfig['quality']): ContentHint {
   return quality === 'high' || quality === 'ultra' ? 'detail' : 'motion';
 }
+
+const CLAIM_TIMEOUT_MS = 8000;
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Ocorreu um erro inesperado. Tente novamente.';
@@ -59,8 +60,8 @@ export function useCopresenter(
   audioSelection: AudioSelectionItem[],
   /** (desktop) ID da tela/janela escolhida na interface */
   captureSourceId: string | null,
-  /** Dados enviados com o pedido (ex.: apelido) */
-  roomOptions?: CopresentRequestPayload,
+  /** Dados enviados ao iniciar (ex.: apelido) */
+  roomOptions?: CopresentStartPayload,
 ) {
   const broadcasterRef = useRef<WebRTCBroadcaster | null>(null);
   const audioRef = useRef<BroadcastAudio | null>(null);
@@ -68,6 +69,8 @@ export function useCopresenter(
   const streamRef = useRef<MediaStream | null>(null);
   /** Stream bruto do getDisplayMedia; guarda as faixas de áudio do sistema no modo web */
   const captureStreamRef = useRef<MediaStream | null>(null);
+  /** true entre o clique em Iniciar e a transmissão estar no ar (evita cliques duplos) */
+  const startingRef = useRef(false);
 
   const latest = useRef({ hostId, iceServers, videoConfig, audioSelection, captureSourceId, roomOptions });
   latest.current = { hostId, iceServers, videoConfig, audioSelection, captureSourceId, roomOptions };
@@ -87,7 +90,11 @@ export function useCopresenter(
     captureStreamRef.current = null;
   }, []);
 
-  useEffect(() => release, [release]);
+  // Ao desmontar, libera a captura e a vaga de co-apresentador
+  useEffect(() => () => {
+    if (broadcasterRef.current) socket?.emit('room:stop-copresent');
+    release();
+  }, [release, socket]);
 
   // Aplica ao vivo a seleção de fontes, volume e mute
   useEffect(() => {
@@ -98,24 +105,64 @@ export function useCopresenter(
     });
   }, [audioSelection]);
 
-  /** Para a transmissão local sem sair da sala */
+  /** Para a transmissão local sem sair da sala e libera a vaga no servidor */
   const stopCopresent = useCallback(() => {
+    const wasActive = broadcasterRef.current !== null || startingRef.current;
+    startingRef.current = false;
     release();
     setState(INITIAL_STATE);
-  }, [release]);
+    if (wasActive) socket?.emit('room:stop-copresent');
+  }, [release, socket]);
 
-  const startSharing = useCallback(async (targetId: string, targetIce: IceServerConfig[]) => {
-    if (!socket) return;
+  /** Aguarda a resposta do servidor à reivindicação da vaga */
+  const claimSlot = useCallback(
+    (payload: CopresentStartPayload) =>
+      new Promise<CopresentResponsePayload>((resolve, reject) => {
+        if (!socket) {
+          reject(new Error('Não foi possível conectar ao servidor. Recarregue a página e tente novamente.'));
+          return;
+        }
+        const done = () => {
+          clearTimeout(timer);
+          socket.off('room:copresent-response', onResponse);
+        };
+        const onResponse = (data: CopresentResponsePayload) => { done(); resolve(data); };
+        const timer = setTimeout(() => {
+          done();
+          reject(new Error('O servidor demorou muito para responder. Tente novamente.'));
+        }, CLAIM_TIMEOUT_MS);
+        socket.on('room:copresent-response', onResponse);
+        socket.emit('room:start-copresent', payload);
+      }),
+    [socket],
+  );
+
+  /** Captura a tela e começa a transmitir ao host, sem pedir permissão a ninguém */
+  const startCopresent = useCallback(async () => {
+    if (!socket || startingRef.current || broadcasterRef.current) return;
     const cfg = latest.current;
+    startingRef.current = true;
+    setState({ ...INITIAL_STATE, starting: true });
 
+    let claimed = false;
     try {
       const host = window.screenShareHost;
+      // 1. Seletor nativo: se o usuário cancelar, nada foi reivindicado ainda
       const capture = await captureDisplay(cfg.videoConfig, {
         withAudio: true,
         captureSourceId: cfg.captureSourceId,
         contentHint: contentHintFor(cfg.videoConfig.quality),
       });
       captureStreamRef.current = capture.stream;
+
+      // 2. Reivindica a vaga única de co-apresentador
+      claimed = true;
+      const response = await claimSlot({ ...cfg.roomOptions });
+      const targetId = response.hostId ?? cfg.hostId;
+      if (!response.accepted) {
+        throw new Error('Já existe outra pessoa transmitindo nesta sala.');
+      }
+      if (!targetId) throw new Error('Não foi possível identificar o apresentador.');
 
       const audio = await BroadcastAudio.create(host);
       audioRef.current = audio;
@@ -134,7 +181,7 @@ export function useCopresenter(
 
       // maxViewers 1: o co-apresentador só envia para o host, nunca para outros espectadores
       const broadcaster = new WebRTCBroadcaster(socket, cfg.videoConfig, {
-        iceServers: targetIce,
+        iceServers: cfg.iceServers,
         privacyMode: false,
         maxViewers: 1,
       });
@@ -145,6 +192,7 @@ export function useCopresenter(
       // O usuário clicou em "Parar compartilhamento" no seletor nativo
       capture.videoTrack.onended = stopCopresent;
 
+      startingRef.current = false;
       setState({
         ...INITIAL_STATE,
         isSharing: true,
@@ -152,50 +200,16 @@ export function useCopresenter(
         error: audioError,
       });
     } catch (err) {
+      startingRef.current = false;
       release();
-      setState({ ...INITIAL_STATE, error: toMediaError(err).message });
+      if (claimed) socket.emit('room:stop-copresent');
+      setState({
+        ...INITIAL_STATE,
+        // Cancelar o seletor não é erro a exibir
+        error: isCancellation(toMediaError(err)) ? null : toMediaError(err).message,
+      });
     }
-  }, [socket, release, stopCopresent]);
-
-  // Resposta do host ao pedido de co-apresentação
-  useEffect(() => {
-    if (!socket) return;
-    const onResponse = (data: CopresentResponsePayload) => {
-      if (!data.approved) {
-        setState((s) => ({ ...s, pendingApproval: false, denied: true }));
-        return;
-      }
-      const targetId = data.hostId ?? latest.current.hostId;
-      if (!targetId) {
-        setState((s) => ({
-          ...s,
-          pendingApproval: false,
-          error: 'Não foi possível identificar o apresentador.',
-        }));
-        return;
-      }
-      setState((s) => ({ ...s, pendingApproval: false, denied: false }));
-      void startSharing(targetId, data.iceServers ?? latest.current.iceServers);
-    };
-    socket.on('room:copresent-response', onResponse);
-    return () => {
-      socket.off('room:copresent-response', onResponse);
-    };
-  }, [socket, startSharing]);
-
-  /** Pede ao host para também transmitir */
-  const requestCopresent = useCallback(() => {
-    if (!socket) {
-      setState((s) => ({
-        ...s,
-        error: 'Não foi possível conectar ao servidor. Recarregue a página e tente novamente.',
-      }));
-      return;
-    }
-    setState({ ...INITIAL_STATE, pendingApproval: true });
-    const payload: CopresentRequestPayload = { ...latest.current.roomOptions };
-    socket.emit('room:request-copresent', payload);
-  }, [socket]);
+  }, [socket, claimSlot, release, stopCopresent]);
 
   const togglePause = useCallback(() => {
     const track = streamRef.current?.getVideoTracks()[0];
@@ -209,5 +223,5 @@ export function useCopresenter(
     await broadcasterRef.current?.updateVideoConfig(partial);
   }, []);
 
-  return { state, requestCopresent, stopCopresent, togglePause, updateVideoConfig };
+  return { state, startCopresent, stopCopresent, togglePause, updateVideoConfig };
 }

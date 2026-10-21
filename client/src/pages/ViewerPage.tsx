@@ -97,7 +97,7 @@ const ViewerPage: React.FC = () => {
   );
   const {
     state: coState,
-    requestCopresent,
+    startCopresent,
     stopCopresent,
     togglePause: toggleCoPause,
     updateVideoConfig: updateCoVideoConfig,
@@ -572,18 +572,15 @@ const ViewerPage: React.FC = () => {
                 isSharing={coState.isSharing}
                 isPaused={coState.isPaused}
                 previewAtivo={true}
-                onStart={requestCopresent}
-                startDisabled={!captureSupported || coState.pendingApproval || !state.hostId}
+                onStart={() => void startCopresent()}
+                startDisabled={!captureSupported || coState.starting || !state.hostId}
                 onStop={stopCopresent}
                 onTogglePause={toggleCoPause}
                 onTogglePreview={() => {}}
               />
 
-              {coState.pendingApproval && (
-                <p role="status" aria-live="polite">Aguardando aprovação do host…</p>
-              )}
-              {coState.denied && (
-                <p role="alert">O host não aprovou a co-apresentação.</p>
+              {coState.starting && (
+                <p role="status" aria-live="polite">Iniciando transmissão…</p>
               )}
               {!captureSupported && (
                 <p role="alert">
