@@ -1,0 +1,263 @@
+/**
+ * PixelShihTzu — mini Shih Tzu em pixel art (sprite feito no projeto, ver spriteData.ts).
+ *
+ * - `followCursor`: o mini passeia pela tela (portal em document.body, pointer-events: none)
+ *   em direção ao cursor, parando a uma pequena distância dele. Em dispositivos touch
+ *   segue o último toque. Sem movimento do cursor por `idleTimeoutMs`, ou com o mouse
+ *   fora da janela / aba oculta / janela sem foco, ele senta (e depois dorme).
+ * - sem `followCursor`: renderiza inline, apenas com as animações de idle/sono.
+ *
+ * Desempenho: um único loop de requestAnimationFrame fora do ciclo de renderização do React;
+ * o canvas só é redesenhado quando muda o frame e a posição só é escrita no DOM quando muda.
+ */
+
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import styles from './PixelShihTzu.module.css';
+import { CLIPS, PALETTE, SPRITE_H, SPRITE_W, type SpriteAnim } from './spriteData';
+import {
+  DEFAULT_PET_CONFIG,
+  createPetState,
+  getPetFrame,
+  stepPet,
+  type PetConfig,
+  type PetInput,
+  type PetState,
+} from './followerEngine';
+
+export type PetStartCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+export interface PixelShihTzuProps {
+  /** Se true, passeia pela tela perseguindo o cursor (ou o último toque). */
+  followCursor?: boolean;
+  /** Escala inteira do sprite (1 pixel do sprite = `scale` pixels da tela). */
+  scale?: number;
+  /** Posição inicial (só com followCursor): canto da janela ou coordenadas em px. */
+  startPosition?: PetStartCorner | { x: number; y: number };
+  /** Tempo (ms) sem o cursor se mover até o Shitzu parar de perseguir. */
+  idleTimeoutMs?: number;
+  /** Velocidade máxima, em px/s. */
+  speed?: number;
+  /** Distância (px) ao cursor em que ele para. Padrão: derivada da escala. */
+  stopDistance?: number;
+  /** Tempo (ms) em idle até deitar para dormir. */
+  sleepAfterMs?: number;
+  /** z-index do modo followCursor. */
+  zIndex?: number;
+  className?: string;
+}
+
+/** Margem (px) do canto da janela na posição inicial. */
+const CORNER_MARGIN = 28;
+
+// ── Cache de frames (ImageData 1x) ────────────────────────────────────────────
+const frameCache = new Map<string, ImageData>();
+
+const parseHex = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+const getFrameData = (ctx: CanvasRenderingContext2D, anim: SpriteAnim, frame: number): ImageData => {
+  const key = `${anim}:${frame}`;
+  const cached = frameCache.get(key);
+  if (cached) return cached;
+
+  const rows = CLIPS[anim].frames[frame];
+  const img = ctx.createImageData(SPRITE_W, SPRITE_H);
+  for (let y = 0; y < SPRITE_H; y++) {
+    for (let x = 0; x < SPRITE_W; x++) {
+      const color = PALETTE[rows[y][x]];
+      if (!color) continue;
+      const [r, g, b] = parseHex(color);
+      const i = (y * SPRITE_W + x) * 4;
+      img.data[i] = r;
+      img.data[i + 1] = g;
+      img.data[i + 2] = b;
+      img.data[i + 3] = 255;
+    }
+  }
+  frameCache.set(key, img);
+  return img;
+};
+
+const startXY = (
+  start: NonNullable<PixelShihTzuProps['startPosition']>,
+  w: number,
+  h: number,
+  vw: number,
+  vh: number,
+): { x: number; y: number } => {
+  if (typeof start === 'object') return start;
+  const left = CORNER_MARGIN + w / 2;
+  const top = CORNER_MARGIN + h / 2;
+  return {
+    x: start.endsWith('left') ? left : vw - left,
+    y: start.startsWith('top') ? top : vh - top,
+  };
+};
+
+const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
+  followCursor = false,
+  scale = 3,
+  startPosition = 'bottom-right',
+  idleTimeoutMs = DEFAULT_PET_CONFIG.idleTimeoutMs,
+  speed = DEFAULT_PET_CONFIG.speed,
+  stopDistance,
+  sleepAfterMs = DEFAULT_PET_CONFIG.sleepAfterMs,
+  zIndex = 90,
+  className = '',
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [reduced, setReduced] = useState(prefersReducedMotion);
+  const intScale = Math.max(1, Math.round(scale));
+
+  // Acompanha mudanças da preferência do sistema
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const startKey =
+    typeof startPosition === 'object' ? `${startPosition.x},${startPosition.y}` : startPosition;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+
+    const w = SPRITE_W * intScale;
+    const h = SPRITE_H * intScale;
+
+    const draw = (anim: SpriteAnim, frame: number) => {
+      ctx.putImageData(getFrameData(ctx, anim, frame), 0, 0);
+    };
+
+    const start = startXY(startPosition, w, h, window.innerWidth, window.innerHeight);
+
+    // prefers-reduced-motion: pose estática, sem loop nem perseguição
+    if (reduced) {
+      draw('idle', 0);
+      if (followCursor) {
+        const x = Math.round((start.x - w / 2) / intScale) * intScale;
+        const y = Math.round((start.y - h / 2) / intScale) * intScale;
+        canvas.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+      return;
+    }
+
+    const cfg: PetConfig = {
+      ...DEFAULT_PET_CONFIG,
+      speed,
+      idleTimeoutMs,
+      sleepAfterMs,
+      stopDistance: stopDistance ?? w / 2 + 24,
+    };
+
+    const pet: PetState = createPetState(start.x, start.y);
+
+    // Entrada do usuário (mutável, fora do React)
+    const input: PetInput = { targetX: null, targetY: null, active: false };
+    let lastMoveAt = -Infinity;
+    let pointerInside = true;
+    let rafId = 0;
+    let lastT = 0;
+    let lastAnim: SpriteAnim | null = null;
+    let lastFrame = -1;
+    let lastTransform = '';
+
+    const onPointer = (e: PointerEvent) => {
+      input.targetX = e.clientX;
+      input.targetY = e.clientY;
+      lastMoveAt = performance.now();
+      pointerInside = true;
+    };
+    const onLeave = () => {
+      pointerInside = false;
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        pointerInside = false;
+      } else {
+        lastT = 0; // evita um dt gigante ao voltar para a aba
+      }
+    };
+
+    const tick = (t: number) => {
+      rafId = requestAnimationFrame(tick);
+      const dt = lastT === 0 ? 0 : Math.min(0.05, (t - lastT) / 1000);
+      lastT = t;
+
+      input.active =
+        followCursor && pointerInside && !document.hidden && t - lastMoveAt < cfg.idleTimeoutMs;
+      stepPet(pet, dt, input, cfg);
+
+      const { anim, frame } = getPetFrame(pet);
+      if (anim !== lastAnim || frame !== lastFrame) {
+        draw(anim, frame);
+        lastAnim = anim;
+        lastFrame = frame;
+      }
+
+      if (followCursor) {
+        // Mantém dentro da janela (também cobre resize)
+        const maxX = Math.max(w / 2, window.innerWidth - w / 2);
+        const maxY = Math.max(h / 2, window.innerHeight - h / 2);
+        pet.x = Math.min(maxX, Math.max(w / 2, pet.x));
+        pet.y = Math.min(maxY, Math.max(h / 2, pet.y));
+        // Pixel perfeito: posição sempre em múltiplos da escala
+        const px = Math.round((pet.x - w / 2) / intScale) * intScale;
+        const py = Math.round((pet.y - h / 2) / intScale) * intScale;
+        const transform = `translate3d(${px}px, ${py}px, 0) scaleX(${pet.facing})`;
+        if (transform !== lastTransform) {
+          canvas.style.transform = transform;
+          lastTransform = transform;
+        }
+      }
+    };
+
+    if (followCursor) {
+      window.addEventListener('pointermove', onPointer, { passive: true });
+      window.addEventListener('pointerdown', onPointer, { passive: true });
+      document.documentElement.addEventListener('mouseleave', onLeave);
+      window.addEventListener('blur', onLeave);
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('pointerdown', onPointer);
+      document.documentElement.removeEventListener('mouseleave', onLeave);
+      window.removeEventListener('blur', onLeave);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+    // startPosition é representado por startKey (evita reiniciar com objetos novos a cada render)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followCursor, intScale, startKey, idleTimeoutMs, speed, stopDistance, sleepAfterMs, reduced]);
+
+  const canvas = (
+    <canvas
+      ref={canvasRef}
+      className={`${followCursor ? styles.floating : styles.inline} ${className}`}
+      style={{
+        width: SPRITE_W * intScale,
+        height: SPRITE_H * intScale,
+        ...(followCursor ? { zIndex } : null),
+      }}
+      width={SPRITE_W}
+      height={SPRITE_H}
+      aria-hidden="true"
+    />
+  );
+
+  return followCursor ? createPortal(canvas, document.body) : canvas;
+};
+
+export default PixelShihTzu;

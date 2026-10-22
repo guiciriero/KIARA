@@ -1,0 +1,35 @@
+/* ── Mini Shih Tzu em pixel art ─────────────────────────────────────────
+   Renderização pixel perfeita: o canvas tem a resolução nativa do sprite e é
+   ampliado pelo navegador com vizinho mais próximo (escala inteira via width/height). */
+
+.floating,
+.inline {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  image-rendering: -moz-crisp-edges;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35));
+}
+
+/* Passeia pela tela: posição/espelhamento controlados por transform no loop */
+.floating {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.inline {
+  position: relative;
+  flex-shrink: 0;
+}
+
+@media print {
+  .floating {
+    display: none;
+  }
+}
