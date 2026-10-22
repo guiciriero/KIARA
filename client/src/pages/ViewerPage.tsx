@@ -36,9 +36,6 @@ import {
   IconActivity,
   IconSettings,
   IconUsers,
-  IconAlertTriangle,
-  IconSparkles,
-  IconLock,
 } from '../components/UI/Icons';
 import StreamControls from '../components/Controls/StreamControls';
 import VideoConfigPanel from '../components/Controls/VideoConfigPanel';
@@ -47,6 +44,7 @@ import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
+import ShihTzuMascot from '../components/UI/ShihTzuMascot';
 import styles from './ViewerPage.module.css';
 
 const ViewerPage: React.FC = () => {
@@ -447,9 +445,7 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard}>
-          <div className={`${styles.messageIconWrap} ${styles.errorIconWrap}`}>
-            <IconAlertTriangle size={36} />
-          </div>
+          <ShihTzuMascot state="error" size={110} speech="Código de sala inválido..." />
           <h2>Código inválido</h2>
           <p>O código deve ter 6 caracteres (letras e números). Confira o link recebido.</p>
           <button type="button" className={styles.btnPrimary} onClick={() => navigate('/')}>
@@ -465,9 +461,11 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard} role="alert">
-          <div className={styles.messageIconWrap}>
-            <IconSparkles size={36} />
-          </div>
+          <ShihTzuMascot
+            state="idle"
+            size={110}
+            speech={state.hostDisconnected ? 'Transmissão encerrada! Até a próxima 🐾' : 'Sala indisponível no momento...'}
+          />
           <h2>{state.hostDisconnected ? 'Transmissão finalizada' : 'Sala indisponível'}</h2>
           <p>
             {state.hostDisconnected
@@ -487,9 +485,7 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <form className={styles.messageCard} onSubmit={handleSubmitPassword}>
-          <div className={styles.messageIconWrap}>
-            <IconLock size={32} />
-          </div>
+          <ShihTzuMascot state="locked" size={100} speech="Esta sala tem senha! 🔒" />
           <h2>Sala protegida</h2>
           <p>Digite a senha enviada pelo apresentador.</p>
           <label htmlFor="kiara-viewer-name" className={styles.fieldLabel}>Seu apelido (opcional)</label>
@@ -535,7 +531,7 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard} role="status" aria-live="polite">
-          <div className={styles.spinner} />
+          <ShihTzuMascot state="connecting" size={110} speech="Esperando o host aprovar... 🐾" />
           <h2>Aguardando aprovação</h2>
           <p>O apresentador precisa aceitar a sua entrada. Mantenha esta página aberta.</p>
           <button type="button" className={styles.btnSecondary} onClick={handleLeave}>
@@ -578,9 +574,7 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard} role="alert">
-          <div className={`${styles.messageIconWrap} ${styles.errorIconWrap}`}>
-            <IconAlertTriangle size={36} />
-          </div>
+          <ShihTzuMascot state="error" size={110} speech="Ops! Houve um imprevisto na conexão." />
           <h2>{info.title}</h2>
           <p>{info.text}</p>
           <button type="button" className={styles.btnPrimary} onClick={handleLeave}>
@@ -660,7 +654,11 @@ const ViewerPage: React.FC = () => {
         {/* Loading / Reconectando */}
         {state.connectionState !== 'connected' && (
           <div className={styles.loadingOverlay} role="status" aria-live="polite">
-            <div className={styles.spinner} />
+            <ShihTzuMascot
+              state="connecting"
+              size={120}
+              speech={state.connectionState === 'reconnecting' ? 'Buscando sinal da live... 🐾' : 'Aguardando o vídeo começar... ✨'}
+            />
             <h3>
               {state.connectionState === 'reconnecting'
                 ? 'Tentando restabelecer conexão…'

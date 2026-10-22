@@ -52,6 +52,7 @@ import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
+import ShihTzuMascot from '../components/UI/ShihTzuMascot';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import {
   clampMiniWidth,
@@ -874,9 +875,7 @@ const BroadcastPage: React.FC = () => {
               </>
             ) : (
               <div className={styles.placeholderState}>
-                <div className={styles.placeholderIconBox}>
-                  <IconScreen size={44} />
-                </div>
+                <ShihTzuMascot state="idle" size={130} speech="Tudo pronto para entrar ao vivo! 🐾" />
                 <h3>Pronto para transmitir</h3>
                 <p>
                   Configure a qualidade no painel direito e clique em{' '}
