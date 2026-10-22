@@ -4,7 +4,7 @@
  * - Nunca intercepta /socket.io, /download, /health, não-GET ou outras origens.
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `kiara-shell-${CACHE_VERSION}`;
 const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/icon.svg', '/icon-maskable.svg'];
 const BYPASS_PREFIXES = ['/socket.io', '/download', '/health'];
