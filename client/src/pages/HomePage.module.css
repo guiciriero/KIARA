@@ -103,6 +103,10 @@
   gap: 10px;
 }
 
+.heroMascot {
+  margin-bottom: var(--space-2);
+}
+
 .title {
   font-size: var(--text-xl);
   font-weight: 600;

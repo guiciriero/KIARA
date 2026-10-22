@@ -53,6 +53,7 @@ import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import ShihTzuMascot from '../components/UI/ShihTzuMascot';
+import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import {
   clampMiniWidth,
@@ -895,6 +896,8 @@ const BroadcastPage: React.FC = () => {
                     <span>Compartilhe o link</span>
                   </div>
                 </div>
+
+                <PixelShihTzu scale={3} className={styles.placeholderPixelPet} />
 
                 {/* Com os painéis ocultos, o início da transmissão continua à mão */}
                 {!isSettingsVisible && (

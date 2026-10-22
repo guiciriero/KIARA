@@ -45,6 +45,7 @@ import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import ShihTzuMascot from '../components/UI/ShihTzuMascot';
+import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import styles from './ViewerPage.module.css';
 
 const ViewerPage: React.FC = () => {
@@ -665,6 +666,7 @@ const ViewerPage: React.FC = () => {
                 : 'Aguardando o vídeo do apresentador…'}
             </h3>
             <p>Conexão direta em andamento</p>
+            <PixelShihTzu scale={3} className={styles.loadingPixelPet} />
           </div>
         )}
 

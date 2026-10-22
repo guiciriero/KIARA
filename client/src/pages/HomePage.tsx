@@ -10,6 +10,8 @@ import {
 } from '../components/UI/Icons';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import UpdateButton from '../components/UI/UpdateButton';
+import ShihTzuMascot from '../components/UI/ShihTzuMascot';
+import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import styles from './HomePage.module.css';
 
 const HomePage: React.FC = () => {
@@ -70,6 +72,7 @@ const HomePage: React.FC = () => {
       {/* ── Conteúdo Central Minimalista ─────────────────────────────────── */}
       <main className={styles.main}>
         <div className={styles.heroText}>
+          <ShihTzuMascot state="idle" size={96} className={styles.heroMascot} />
           <h1 className={styles.title}>
             Compartilhamento de tela direto, sem atrito.
           </h1>
@@ -156,6 +159,9 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Mini Shih Tzu em pixel art: passeia pela tela seguindo o cursor (não bloqueia cliques) */}
+      <PixelShihTzu followCursor />
     </div>
   );
 };
