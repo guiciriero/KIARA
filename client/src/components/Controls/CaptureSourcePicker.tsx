@@ -56,7 +56,6 @@ const CaptureSourcePicker: React.FC<Props> = ({ selectedId, onSelect, disabled =
         <div className={styles.titleGroup}>
           <IconScreen size={16} className={styles.icon} />
           <span className={styles.title}>Tela ou Janela</span>
-          {isSharing && <span className={styles.liveHint}>Troca ao vivo ativa</span>}
         </div>
         <button
           type="button"

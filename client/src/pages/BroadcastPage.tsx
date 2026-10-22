@@ -51,7 +51,6 @@ import RoomOptionsPanel, {
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
-import UploadEstimate from '../components/UI/UploadEstimate';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import {
@@ -586,12 +585,6 @@ const BroadcastPage: React.FC = () => {
             disabled={state.isSharing}
           />
 
-          {/* Seção: Estimativa de upload */}
-          <UploadEstimate
-            bitrateKbps={videoConfig.bitrate}
-            viewers={state.isSharing ? state.viewerCount : 1}
-            maxViewers={state.isSharing ? state.maxViewers : 0}
-          />
           </div>
         </aside>
 
@@ -746,7 +739,7 @@ const BroadcastPage: React.FC = () => {
                   <div className={viewerStyles.bottomBarLeft}>
                     <div className={viewerStyles.liveIndicator}>
                       <span className={viewerStyles.liveDot} />
-                      <span>AO VIVO · {videoConfig.frameRate} FPS</span>
+                      <span>AO VIVO</span>
                     </div>
 
                     <button

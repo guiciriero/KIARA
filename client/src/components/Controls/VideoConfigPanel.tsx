@@ -28,7 +28,6 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
           <IconSettings size={16} className={styles.icon} />
           <span className={styles.title}>Qualidade de Vídeo</span>
         </div>
-        {isSharing && <span className={styles.liveBadge}>Ao Vivo (Adaptativo)</span>}
       </div>
 
       {/* Seleção de Resolução em Chips/Pills Modernos */}
