@@ -77,8 +77,22 @@ const BroadcastPage: React.FC = () => {
   const [showStats, setShowStats] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isNativePip, setIsNativePip] = useState(false);
+  const [hudMessage, setHudMessage] = useState<string | null>(null);
+  const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** O som do co-apresentador começa mudo para evitar eco com o áudio que ele recebe */
   const [copresenterMuted, setCopresenterMuted] = useState(true);
+
+  const showHud = useCallback((message: string) => {
+    setHudMessage(message);
+    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+    hudTimerRef.current = setTimeout(() => {
+      setHudMessage(null);
+    }, 1800);
+  }, []);
+
+  useEffect(() => () => {
+    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+  }, []);
 
   const [videoConfig, setVideoConfig] = useState<VideoConfigType>({
     width: 1920,
@@ -282,25 +296,32 @@ const BroadcastPage: React.FC = () => {
   const handleToggleFullscreen = useCallback(async () => {
     if (!stageRef.current) return;
     try {
-      await toggleFullscreen(document as FullscreenDocument, stageRef.current as unknown as FullscreenTarget);
+      const res = await toggleFullscreen(document as FullscreenDocument, stageRef.current as unknown as FullscreenTarget);
+      if (res === 'entered') showHud('Tela cheia ativada');
+      else if (res === 'exited') showHud('Tela cheia desativada');
     } catch (err) {
       console.warn('[KIARA] Erro ao alternar tela cheia:', err);
     }
-  }, []);
+  }, [showHud]);
 
   const handleToggleNativePip = useCallback(async () => {
     const targetVideo = copresenterVideoRef.current || previewRef.current;
     if (!targetVideo) return;
     try {
-      await togglePictureInPicture(targetVideo);
+      const entered = await togglePictureInPicture(targetVideo);
+      showHud(entered ? 'Picture-in-Picture ativado' : 'Picture-in-Picture fechado');
     } catch (err) {
       console.warn('[KIARA] Erro ao alternar Picture-in-Picture:', err);
     }
-  }, []);
+  }, [showHud]);
 
   const toggleSettings = useCallback(() => {
-    setIsSettingsVisible((v) => !v);
-  }, []);
+    setIsSettingsVisible((v) => {
+      const next = !v;
+      showHud(next ? 'Painéis de configuração exibidos' : 'Painéis ocultados (Foco na tela)');
+      return next;
+    });
+  }, [showHud]);
 
   // Sincroniza estado de PiP para vídeos do host/coapresentador
   useEffect(() => {
@@ -378,6 +399,13 @@ const BroadcastPage: React.FC = () => {
 
   return (
     <div className={styles.studioLayout}>
+      {/* ── HUD Flutuante de Feedback ─────────────────────────────────── */}
+      {hudMessage && (
+        <div className={viewerStyles.hudNotification} role="status" aria-live="polite">
+          <span>{hudMessage}</span>
+        </div>
+      )}
+
       {/* ── Barra Superior de Estúdio ────────────────────────────────────── */}
       <header className={styles.topBar}>
         <div className={styles.topBarLeft}>

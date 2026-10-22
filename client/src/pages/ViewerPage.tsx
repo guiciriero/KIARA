@@ -26,6 +26,7 @@ import {
   KiaraLogo,
   IconArrowLeft,
   IconBroadcast,
+  IconScreen,
   IconX,
   IconVolumeHigh,
   IconVolumeMute,
@@ -65,9 +66,24 @@ const ViewerPage: React.FC = () => {
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
+  const [isCoverMode, setIsCoverMode] = useState(false);
+  const [hudMessage, setHudMessage] = useState<string | null>(null);
+  const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showControls, setShowControls] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showHud = useCallback((message: string) => {
+    setHudMessage(message);
+    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+    hudTimerRef.current = setTimeout(() => {
+      setHudMessage(null);
+    }, 1800);
+  }, []);
+
+  useEffect(() => () => {
+    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+  }, []);
 
   // ── Co-apresentação ───────────────────────────────────────────────────
   const coPreviewRef = useRef<HTMLVideoElement>(null);
@@ -282,6 +298,7 @@ const ViewerPage: React.FC = () => {
       }
     }
     setIsMuted(false);
+    showHud('Áudio da transmissão ativado');
     resetHideTimer();
   };
 
@@ -290,6 +307,7 @@ const ViewerPage: React.FC = () => {
     const nextMuted = !isMuted;
     videoRef.current.muted = nextMuted;
     setIsMuted(nextMuted);
+    showHud(nextMuted ? 'Áudio silenciado (Mudo)' : 'Áudio ativado');
     resetHideTimer();
   };
 
@@ -309,11 +327,13 @@ const ViewerPage: React.FC = () => {
   const handleToggleFullscreen = async () => {
     if (!containerRef.current) return;
     try {
-      await toggleFullscreen(
+      const res = await toggleFullscreen(
         document as FullscreenDocument,
         containerRef.current as unknown as FullscreenTarget,
         videoRef.current as unknown as FullscreenVideo | null,
       );
+      if (res === 'entered') showHud('Tela cheia ativada');
+      else if (res === 'exited') showHud('Tela cheia desativada');
     } catch (err) {
       console.warn('[KIARA] Erro ao alternar tela cheia:', err);
     }
@@ -323,15 +343,29 @@ const ViewerPage: React.FC = () => {
   const handleTogglePip = async () => {
     if (!videoRef.current) return;
     try {
-      await togglePictureInPicture(videoRef.current);
+      const entered = await togglePictureInPicture(videoRef.current);
+      showHud(entered ? 'Picture-in-Picture ativado' : 'Picture-in-Picture fechado');
     } catch (err) {
       console.warn('[KIARA] Erro ao alternar Picture-in-Picture:', err);
     }
     resetHideTimer();
   };
 
+  const handleToggleCoverMode = () => {
+    setIsCoverMode((prev) => {
+      const next = !prev;
+      showHud(next ? 'Enquadramento: Preencher Tela' : 'Enquadramento: Proporção Original');
+      return next;
+    });
+    resetHideTimer();
+  };
+
   const toggleSettingsPanel = () => {
-    setShowCoPresenterPanel((v) => !v);
+    setShowCoPresenterPanel((v) => {
+      const next = !v;
+      showHud(next ? 'Painel de configurações exibido' : 'Painel de configurações ocultado');
+      return next;
+    });
     resetHideTimer();
   };
 
@@ -365,18 +399,20 @@ const ViewerPage: React.FC = () => {
     join({ password: passwordInput, name: nameInput.trim() || undefined });
   };
 
-  // Atalhos: F = tela cheia, M = mutar, P = Picture-in-Picture, S/C = painéis laterais
+  // Atalhos: F = tela cheia, M = mutar, P = Picture-in-Picture, S/C = painéis laterais, Z = enquadramento
   const shortcutsRef = useRef({
     fullscreen: handleToggleFullscreen,
     mute: handleToggleMute,
     pip: handleTogglePip,
     toggleSettings: toggleSettingsPanel,
+    toggleCover: handleToggleCoverMode,
   });
   shortcutsRef.current = {
     fullscreen: handleToggleFullscreen,
     mute: handleToggleMute,
     pip: handleTogglePip,
     toggleSettings: toggleSettingsPanel,
+    toggleCover: handleToggleCoverMode,
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -397,6 +433,9 @@ const ViewerPage: React.FC = () => {
       } else if (key === 's' || key === 'c') {
         e.preventDefault();
         shortcutsRef.current.toggleSettings();
+      } else if (key === 'z') {
+        e.preventDefault();
+        shortcutsRef.current.toggleCover();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -555,12 +594,18 @@ const ViewerPage: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className={styles.playerLayout}
+      className={`${styles.playerLayout} ${!showControls && state.connectionState === 'connected' ? styles.cursorHidden : ''}`}
       onPointerMove={(e) => {
         if (e.pointerType === 'mouse') resetHideTimer();
       }}
       onClick={handleSurfaceClick}
     >
+      {/* ── HUD Flutuante de Feedback ─────────────────────────────────── */}
+      {hudMessage && (
+        <div className={styles.hudNotification} role="status" aria-live="polite">
+          <span>{hudMessage}</span>
+        </div>
+      )}
       {/* ── Barra Superior Flutuante do Player ────────────────────────────── */}
       <header className={`${styles.topBar} ${!showControls ? styles.hidden : ''}`}>
         <div className={styles.topBarLeft}>
@@ -607,8 +652,11 @@ const ViewerPage: React.FC = () => {
         </div>
       </header>
 
-      {/* ── Área Central do Vídeo ────────────────────────────────────────── */}
+      {/* ── Área Central do Vídeo (Foco Total e Máxima Resolução) ───────── */}
       <div className={styles.videoViewport}>
+        {/* Aura ambiente sutil */}
+        {state.connectionState === 'connected' && <div className={styles.ambientAura} />}
+
         {/* Loading / Reconectando */}
         {state.connectionState !== 'connected' && (
           <div className={styles.loadingOverlay} role="status" aria-live="polite">
@@ -628,7 +676,7 @@ const ViewerPage: React.FC = () => {
           muted={isMuted}
           playsInline
           preload="auto"
-          className={styles.videoElement}
+          className={`${styles.videoElement} ${isCoverMode ? styles.videoCover : ''}`}
           onLoadedMetadata={() => {
             if (videoRef.current && videoRef.current.paused) {
               videoRef.current.play().catch(() => {});
@@ -903,6 +951,21 @@ const ViewerPage: React.FC = () => {
               aria-label="Telemetria da transmissão"
             >
               <IconActivity size={18} />
+            </button>
+          )}
+
+          {/* Botão de Enquadramento (Fit / Fill) */}
+          {state.connectionState === 'connected' && (
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${isCoverMode ? styles.activeBtn : ''}`}
+              onClick={handleToggleCoverMode}
+              title={isCoverMode ? 'Modo de enquadramento: Ajustar proporção (Z)' : 'Modo de enquadramento: Preencher tela (Z)'}
+              aria-label={isCoverMode ? 'Ajustar proporção original' : 'Preencher tela'}
+              aria-keyshortcuts="Z"
+              aria-pressed={isCoverMode}
+            >
+              <IconScreen size={18} />
             </button>
           )}
 
