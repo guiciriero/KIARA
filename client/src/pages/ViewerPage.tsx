@@ -16,6 +16,10 @@ import {
   type FullscreenTarget,
   type FullscreenVideo,
 } from '../utils/fullscreen';
+import {
+  isPictureInPictureSupported,
+  togglePictureInPicture,
+} from '../utils/pip';
 import { useWakeLock } from '../hooks/useWakeLock';
 import type { ViewerQualityPreference, VideoConfig } from '@shared/index';
 import {
@@ -27,6 +31,7 @@ import {
   IconVolumeMute,
   IconFullscreen,
   IconExitFullscreen,
+  IconPictureInPicture,
   IconActivity,
   IconSettings,
   IconUsers,
@@ -59,6 +64,7 @@ const ViewerPage: React.FC = () => {
   const [isMuted, setIsMuted] = useState(true);
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPip, setIsPip] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -153,27 +159,66 @@ const ViewerPage: React.FC = () => {
     setShowNameModal(false);
   };
 
-  // Conecta o stream remoto ao elemento <video> e garante o autoplay
+  // Conecta o stream remoto ao elemento <video> e garante a reprodução sem tela preta no mobile
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !state.remoteStream) return;
+    const stream = state.remoteStream;
+    if (!video || !stream) return;
+
+    // Garante propriedades nativas essenciais para navegadores mobile (iOS Safari e Android)
+    video.muted = isMuted;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', 'true');
+    video.setAttribute('webkit-playsinline', 'true');
 
     // Só reatribui se o srcObject for diferente (evita rebind desnecessário)
-    if (video.srcObject !== state.remoteStream) {
-      video.srcObject = state.remoteStream;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
     }
 
-    // Força play() — alguns browsers (Safari/Firefox) precisam de chamada explícita
-    // após rebind do srcObject mesmo com autoPlay=true
-    if (video.paused) {
-      video.play().catch((err) => {
-        // AbortError é esperado quando o usuário navega antes do play resolver
-        if ((err as Error)?.name !== 'AbortError') {
-          console.warn('[KIARA:viewer] Erro ao iniciar reprodução automática:', err);
-        }
-      });
+    const attemptPlay = () => {
+      if (video.paused) {
+        video.play().catch((err) => {
+          if ((err as Error)?.name !== 'AbortError') {
+            console.warn('[KIARA:viewer] Erro ao iniciar reprodução automática:', err);
+          }
+        });
+      }
+    };
+
+    attemptPlay();
+
+    // No mobile, a faixa de vídeo começa em estado 'muted' e dispara 'unmute' assim que
+    // os primeiros pacotes de imagem chegam da rede; disparamos play() para começar a renderizar
+    const videoTracks = stream.getVideoTracks();
+    for (const track of videoTracks) {
+      track.addEventListener('unmute', attemptPlay);
     }
-  }, [state.remoteStream]);
+
+    return () => {
+      for (const track of videoTracks) {
+        track.removeEventListener('unmute', attemptPlay);
+      }
+    };
+  }, [state.remoteStream, isMuted]);
+
+  // Sincroniza estado de Picture-in-Picture
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onEnterPip = () => setIsPip(true);
+    const onLeavePip = () => setIsPip(false);
+
+    video.addEventListener('enterpictureinpicture', onEnterPip);
+    video.addEventListener('leavepictureinpicture', onLeavePip);
+
+    return () => {
+      video.removeEventListener('enterpictureinpicture', onEnterPip);
+      video.removeEventListener('leavepictureinpicture', onLeavePip);
+    };
+  }, []);
 
   // Aplica o volume local ao <video>
   useEffect(() => {
@@ -275,8 +320,24 @@ const ViewerPage: React.FC = () => {
     resetHideTimer();
   };
 
+  const handleTogglePip = async () => {
+    if (!videoRef.current) return;
+    try {
+      await togglePictureInPicture(videoRef.current);
+    } catch (err) {
+      console.warn('[KIARA] Erro ao alternar Picture-in-Picture:', err);
+    }
+    resetHideTimer();
+  };
+
+  const toggleSettingsPanel = () => {
+    setShowCoPresenterPanel((v) => !v);
+    resetHideTimer();
+  };
+
   // iPhone só tem tela cheia pelo player do <video>; sem nenhum suporte, o botão some
   const fullscreenSupported = deviceSupportsFullscreen();
+  const pipSupported = isPictureInPictureSupported();
 
   /** Mouse: mostra os controles. Toque: um toque no vídeo alterna mostrar/esconder */
   const handleSurfaceClick = (e: React.MouseEvent) => {
@@ -304,9 +365,19 @@ const ViewerPage: React.FC = () => {
     join({ password: passwordInput, name: nameInput.trim() || undefined });
   };
 
-  // Atalhos: F = tela cheia, M = mutar (ignorados enquanto se digita em campos)
-  const shortcutsRef = useRef({ fullscreen: handleToggleFullscreen, mute: handleToggleMute });
-  shortcutsRef.current = { fullscreen: handleToggleFullscreen, mute: handleToggleMute };
+  // Atalhos: F = tela cheia, M = mutar, P = Picture-in-Picture, S/C = painéis laterais
+  const shortcutsRef = useRef({
+    fullscreen: handleToggleFullscreen,
+    mute: handleToggleMute,
+    pip: handleTogglePip,
+    toggleSettings: toggleSettingsPanel,
+  });
+  shortcutsRef.current = {
+    fullscreen: handleToggleFullscreen,
+    mute: handleToggleMute,
+    pip: handleTogglePip,
+    toggleSettings: toggleSettingsPanel,
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -320,6 +391,12 @@ const ViewerPage: React.FC = () => {
       } else if (key === 'm') {
         e.preventDefault();
         shortcutsRef.current.mute();
+      } else if (key === 'p') {
+        e.preventDefault();
+        void shortcutsRef.current.pip();
+      } else if (key === 's' || key === 'c') {
+        e.preventDefault();
+        shortcutsRef.current.toggleSettings();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -509,16 +586,13 @@ const ViewerPage: React.FC = () => {
             <button
               type="button"
               className={styles.settingsToggle}
-              onClick={() => {
-                setShowCoPresenterPanel((v) => !v);
-                resetHideTimer();
-              }}
+              onClick={toggleSettingsPanel}
               aria-expanded={showCoPresenterPanel}
               aria-controls="viewer-settings-panel"
-              title={showCoPresenterPanel ? 'Ocultar painel de configurações' : 'Exibir painel de configurações'}
+              title={showCoPresenterPanel ? 'Ocultar abas laterais (S)' : 'Exibir abas laterais (S)'}
             >
               <IconSettings size={15} />
-              <span>{showCoPresenterPanel ? 'Ocultar Configurações' : 'Exibir Configurações'}</span>
+              <span>{showCoPresenterPanel ? 'Ocultar Painel' : 'Exibir Painel'}</span>
             </button>
           )}
           <button
@@ -551,10 +625,20 @@ const ViewerPage: React.FC = () => {
         <video
           ref={videoRef}
           autoPlay
-          muted
+          muted={isMuted}
           playsInline
-          preload="none"
+          preload="auto"
           className={styles.videoElement}
+          onLoadedMetadata={() => {
+            if (videoRef.current && videoRef.current.paused) {
+              videoRef.current.play().catch(() => {});
+            }
+          }}
+          onCanPlay={() => {
+            if (videoRef.current && videoRef.current.paused) {
+              videoRef.current.play().catch(() => {});
+            }
+          }}
         />
 
         {/* Botão Central de Desmutar (Unmute Overlay) */}
@@ -819,6 +903,21 @@ const ViewerPage: React.FC = () => {
               aria-label="Telemetria da transmissão"
             >
               <IconActivity size={18} />
+            </button>
+          )}
+
+          {/* Botão de Picture-in-Picture (Janela Flutuante) */}
+          {pipSupported && state.connectionState === 'connected' && (
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${isPip ? styles.activeBtn : ''}`}
+              onClick={handleTogglePip}
+              title={isPip ? 'Sair de janela flutuante (PiP) (P)' : 'Assistir em janela flutuante (PiP) (P)'}
+              aria-label={isPip ? 'Sair do Picture-in-Picture' : 'Assistir em janela flutuante Picture-in-Picture'}
+              aria-keyshortcuts="P"
+              aria-pressed={isPip}
+            >
+              <IconPictureInPicture size={18} />
             </button>
           )}
 

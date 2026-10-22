@@ -29,33 +29,7 @@ const HomePage: React.FC = () => {
 
     const parsed = parseViewerInput(code);
     if (parsed.kind === 'invalid') {
-      setCodeError(
-        isInstalledApp
-          ? 'Insira o link completo enviado pelo apresentador.'
-          : 'Insira o código de 6 caracteres ou o link completo da transmissão.',
-      );
-      return;
-    }
-
-    if (isInstalledApp) {
-      if (parsed.kind === 'code') {
-        setCodeError(
-          'No aplicativo instalado, cole o link completo recebido. ' +
-          'O código de 6 caracteres funciona diretamente no navegador da transmissão.',
-        );
-        return;
-      }
-      const hostApp = host.app as typeof host.app | undefined;
-      if (!hostApp) {
-        setCodeError('Versão legada do aplicativo. Atualize para abrir links externos.');
-        return;
-      }
-      try {
-        await hostApp.openViewerLink(parsed.url);
-        setCodeInfo('Abrindo transmissão no seu navegador padrão…');
-      } catch {
-        setCodeError('Não foi possível abrir o link. Verifique o endereço e tente novamente.');
-      }
+      setCodeError('Insira o código de 6 caracteres ou o link completo da transmissão.');
       return;
     }
 
@@ -63,6 +37,7 @@ const HomePage: React.FC = () => {
       navigate(`/view/${parsed.code}`);
       return;
     }
+
     if (parsed.origin === window.location.origin) {
       navigate(`/view/${parsed.code}`);
     } else {
@@ -136,9 +111,7 @@ const HomePage: React.FC = () => {
             </div>
 
             <p className={styles.cardDesc}>
-              {isInstalledApp
-                ? 'Cole o link completo da transmissão para abrir.'
-                : 'Insira o código de 6 caracteres ou o link da sala.'}
+              Insira o código de 6 caracteres ou o link da sala para assistir.
             </p>
 
             <div className={styles.inputContainer}>
@@ -148,8 +121,8 @@ const HomePage: React.FC = () => {
                   id="kiara-join-input"
                   aria-invalid={codeError !== ''}
                   aria-describedby={codeError ? 'kiara-join-error' : undefined}
-                  aria-label={isInstalledApp ? 'Link da transmissão' : 'Código ou link da transmissão'}
-                  placeholder={isInstalledApp ? 'Cole o link' : 'Código ou link'}
+                  aria-label="Código ou link da transmissão"
+                  placeholder="Código ou link da sala"
                   maxLength={MAX_INPUT_LENGTH}
                   value={code}
                   autoComplete="off"
@@ -161,11 +134,7 @@ const HomePage: React.FC = () => {
                   }}
                   onBlur={() => {
                     if (code.trim() !== '' && parseViewerInput(code).kind === 'invalid') {
-                      setCodeError(
-                        isInstalledApp
-                          ? 'Insira o link completo enviado pelo apresentador.'
-                          : 'Insira o código de 6 caracteres ou o link completo da transmissão.',
-                      );
+                      setCodeError('Insira o código de 6 caracteres ou o link completo da transmissão.');
                     }
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && void handleJoin()}
@@ -175,7 +144,7 @@ const HomePage: React.FC = () => {
                   type="button"
                   className={styles.btnViewer}
                   onClick={() => void handleJoin()}
-                  disabled={!isInstalledApp && !connected}
+                  disabled={!connected}
                 >
                   <span>Entrar</span>
                 </button>

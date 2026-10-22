@@ -14,6 +14,10 @@ import {
   type FullscreenTarget,
 } from '../utils/fullscreen';
 import {
+  isPictureInPictureSupported,
+  togglePictureInPicture,
+} from '../utils/pip';
+import {
   KiaraLogo,
   IconArrowLeft,
   IconUsers,
@@ -72,6 +76,7 @@ const BroadcastPage: React.FC = () => {
   const [isSettingsVisible, setIsSettingsVisible] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isNativePip, setIsNativePip] = useState(false);
   /** O som do co-apresentador começa mudo para evitar eco com o áudio que ele recebe */
   const [copresenterMuted, setCopresenterMuted] = useState(true);
 
@@ -272,6 +277,8 @@ const BroadcastPage: React.FC = () => {
   }, []);
 
   const fullscreenSupported = deviceSupportsFullscreen();
+  const pipSupported = isPictureInPictureSupported();
+
   const handleToggleFullscreen = useCallback(async () => {
     if (!stageRef.current) return;
     try {
@@ -281,17 +288,69 @@ const BroadcastPage: React.FC = () => {
     }
   }, []);
 
-  // Atalho F = tela cheia (ignorado enquanto se digita em campos)
-  const fullscreenShortcutRef = useRef(handleToggleFullscreen);
-  fullscreenShortcutRef.current = handleToggleFullscreen;
+  const handleToggleNativePip = useCallback(async () => {
+    const targetVideo = copresenterVideoRef.current || previewRef.current;
+    if (!targetVideo) return;
+    try {
+      await togglePictureInPicture(targetVideo);
+    } catch (err) {
+      console.warn('[KIARA] Erro ao alternar Picture-in-Picture:', err);
+    }
+  }, []);
+
+  const toggleSettings = useCallback(() => {
+    setIsSettingsVisible((v) => !v);
+  }, []);
+
+  // Sincroniza estado de PiP para vídeos do host/coapresentador
+  useEffect(() => {
+    const v1 = previewRef.current;
+    const v2 = copresenterVideoRef.current;
+    const onEnterPip = () => setIsNativePip(true);
+    const onLeavePip = () => setIsNativePip(false);
+
+    v1?.addEventListener('enterpictureinpicture', onEnterPip);
+    v1?.addEventListener('leavepictureinpicture', onLeavePip);
+    v2?.addEventListener('enterpictureinpicture', onEnterPip);
+    v2?.addEventListener('leavepictureinpicture', onLeavePip);
+
+    return () => {
+      v1?.removeEventListener('enterpictureinpicture', onEnterPip);
+      v1?.removeEventListener('leavepictureinpicture', onLeavePip);
+      v2?.removeEventListener('enterpictureinpicture', onEnterPip);
+      v2?.removeEventListener('leavepictureinpicture', onLeavePip);
+    };
+  }, [hasCopresenterVideo, previewAtivo]);
+
+  // Atalhos: F = tela cheia, S/C = ocultar/exibir abas laterais, P = Picture-in-Picture
+  const shortcutsRef = useRef({
+    fullscreen: handleToggleFullscreen,
+    toggleSettings,
+    togglePip: handleToggleNativePip,
+  });
+  shortcutsRef.current = {
+    fullscreen: handleToggleFullscreen,
+    toggleSettings,
+    togglePip: handleToggleNativePip,
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== 'f') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
-      e.preventDefault();
-      void fullscreenShortcutRef.current();
+      const key = e.key.toLowerCase();
+      if (key === 'f') {
+        e.preventDefault();
+        void shortcutsRef.current.fullscreen();
+      } else if (key === 's' || key === 'c') {
+        e.preventDefault();
+        shortcutsRef.current.toggleSettings();
+      } else if (key === 'p') {
+        e.preventDefault();
+        void shortcutsRef.current.togglePip();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -340,13 +399,13 @@ const BroadcastPage: React.FC = () => {
           <button
             type="button"
             className={`${styles.settingsToggle} ${!isSettingsVisible ? styles.settingsToggleOff : ''}`}
-            onClick={() => setIsSettingsVisible((v) => !v)}
+            onClick={toggleSettings}
             aria-expanded={isSettingsVisible}
             aria-controls="studio-room-panel studio-config-panel"
-            title={isSettingsVisible ? 'Ocultar painéis de configuração' : 'Exibir painéis de configuração'}
+            title={isSettingsVisible ? 'Ocultar abas laterais (S)' : 'Exibir abas laterais (S)'}
           >
             <IconSettings size={15} />
-            <span>{isSettingsVisible ? 'Ocultar Configurações' : 'Exibir Configurações'}</span>
+            <span>{isSettingsVisible ? 'Ocultar Painéis' : 'Exibir Painéis'}</span>
           </button>
 
           <ConnectionBadge state={state.connectionState} />
@@ -727,6 +786,20 @@ const BroadcastPage: React.FC = () => {
                         title={miniVisible ? 'Ocultar miniplayer da sua tela' : 'Exibir miniplayer da sua tela'}
                         aria-label={miniVisible ? 'Ocultar miniplayer da sua tela' : 'Exibir miniplayer da sua tela'}
                         aria-pressed={miniVisible}
+                      >
+                        <IconPictureInPicture size={18} />
+                      </button>
+                    )}
+
+                    {pipSupported && (
+                      <button
+                        type="button"
+                        className={`${viewerStyles.iconBtn} ${isNativePip ? viewerStyles.activeBtn : ''}`}
+                        onClick={() => void handleToggleNativePip()}
+                        title={isNativePip ? 'Sair de janela flutuante (PiP) (P)' : 'Assistir em janela flutuante (PiP) (P)'}
+                        aria-label={isNativePip ? 'Sair do Picture-in-Picture' : 'Assistir em janela flutuante Picture-in-Picture'}
+                        aria-keyshortcuts="P"
+                        aria-pressed={isNativePip}
                       >
                         <IconPictureInPicture size={18} />
                       </button>

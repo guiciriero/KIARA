@@ -95,7 +95,7 @@ function buildProdCsp(origin) {
     "img-src 'self' data: blob:",
     "media-src 'self' blob: mediastream:",
     "font-src 'self' data:",
-    `connect-src 'self' ${origin} ${wsOrigin}`,
+    `connect-src 'self' ${origin} ${wsOrigin} https: wss: ws:`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'none'",
@@ -274,8 +274,7 @@ function assertScreenAccess() {
 
 // ─── Validação de URL para openViewerLink ────────────────────────────────────
 
-const VIEW_CODE_RE = /^\/view\/[A-HJ-NP-Z2-9]{6}$/;
-const CLOUDFLARE_HOSTNAME_RE = /^[a-z0-9-]+\.trycloudflare\.com$/;
+const VIEW_CODE_RE = /^\/view\/[A-HJ-NP-Z2-9]{6}\/?$/i;
 
 function validateViewerUrl(urlString) {
   let u;
@@ -284,21 +283,12 @@ function validateViewerUrl(urlString) {
   } catch {
     throw new Error('O link fornecido não é uma URL válida.');
   }
-  if (u.protocol !== 'https:') {
+  const isDevHost = DEV_HOSTS.has(u.hostname);
+  if (u.protocol !== 'https:' && !(isDevHost && u.protocol === 'http:')) {
     throw new Error('O link deve usar HTTPS.');
   }
   if (u.username || u.password) {
     throw new Error('O link não deve conter credenciais.');
-  }
-  if (u.port && u.port !== '443') {
-    throw new Error('Porta inesperada no link.');
-  }
-  const isTrycloudflare = CLOUDFLARE_HOSTNAME_RE.test(u.hostname);
-  const isPublicOrigin = publicUrl && u.origin === publicUrl;
-  if (!isTrycloudflare && !isPublicOrigin) {
-    throw new Error(
-      'O link deve ser do domínio trycloudflare.com ou da origem pública do app.'
-    );
   }
   if (!VIEW_CODE_RE.test(u.pathname)) {
     throw new Error(
@@ -306,6 +296,15 @@ function validateViewerUrl(urlString) {
     );
   }
   return u.href;
+}
+
+function isViewerUrl(urlString) {
+  try {
+    validateViewerUrl(urlString);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── IPC ─────────────────────────────────────────────────────────────────────
@@ -357,7 +356,11 @@ function registerIpc() {
 
   handle('app:open-viewer-link', async (urlString) => {
     const href = validateViewerUrl(urlString);
-    await shell.openExternal(href);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      await mainWindow.loadURL(href);
+    } else {
+      await shell.openExternal(href);
+    }
   });
 
   // ── Atualização do app ───────────────────────────────────────────────────
@@ -419,10 +422,10 @@ function registerPermissions() {
   const allowed = new Set(['display-capture', 'media']);
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const url = (details && details.requestingUrl) || (webContents && webContents.getURL()) || '';
-    callback(allowed.has(permission) && isTrustedUrl(url));
+    callback(allowed.has(permission) && (isTrustedUrl(url) || isViewerUrl(url)));
   });
   ses.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-    return allowed.has(permission) && isTrustedUrl(requestingOrigin);
+    return allowed.has(permission) && (isTrustedUrl(requestingOrigin) || isViewerUrl(requestingOrigin));
   });
 }
 
@@ -556,7 +559,7 @@ function createWindow() {
   });
 
   const guardNavigation = (event, url) => {
-    if (isTrustedUrl(url)) return;
+    if (isTrustedUrl(url) || isViewerUrl(url)) return;
     event.preventDefault();
     openExternalSafe(url);
   };

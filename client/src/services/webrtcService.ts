@@ -98,7 +98,9 @@ export function orderCodecs(
   if (!codecs || codecs.length === 0) return [];
   const preferred = preferredCodecName.toUpperCase();
   const isH264 = preferred === 'H264';
-  const profilePriority = macOS ? ['profile-level-id=4d', 'profile-level-id=64'] : ['profile-level-id=64'];
+  const profilePriority = macOS
+    ? ['profile-level-id=4d', 'profile-level-id=64', 'profile-level-id=42']
+    : ['profile-level-id=64', 'profile-level-id=4d', 'profile-level-id=42'];
 
   const preferredByProfile: RTCRtpCodecCapability[][] = profilePriority.map(() => []);
   const preferredRest: RTCRtpCodecCapability[] = [];
@@ -708,12 +710,19 @@ export class WebRTCViewer {
     this.pc = pc;
     this.remoteStream = new MediaStream();
 
-    // ontrack: compatível com Chrome, Firefox e Safari
-    // Firefox pode não preencher event.streams — adicionamos a track manualmente
+    // Adiciona transceivers de recebimento para máxima compatibilidade em navegadores móveis (Safari iOS / Android)
+    try {
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+    } catch {
+      // Ignora em navegadores sem suporte a addTransceiver
+    }
+
+    // ontrack: compatível com Chrome, Firefox e Safari (desktop e mobile)
     pc.ontrack = (event) => {
       if (this.destroyed || pc !== this.pc) return;
 
-      const stream = event.streams[0] ?? this.remoteStream!;
+      const stream = event.streams[0] ?? this.remoteStream ?? new MediaStream();
 
       // Garante que a track está no stream acumulado
       if (event.track && !stream.getTracks().includes(event.track)) {
