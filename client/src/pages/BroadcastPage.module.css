@@ -935,10 +935,6 @@
   justify-content: center;
 }
 
-.placeholderPixelPet {
-  margin-top: 10px;
-}
-
 /* ── Avisos de túnel/privacidade ─────────────────────────────────── */
 .tunnelWarning {
   display: flex;

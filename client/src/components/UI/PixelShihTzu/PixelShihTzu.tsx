@@ -5,7 +5,8 @@
  *   em direção ao cursor, parando a uma pequena distância dele. Em dispositivos touch
  *   segue o último toque. Sem movimento do cursor por `idleTimeoutMs`, ou com o mouse
  *   fora da janela / aba oculta / janela sem foco, ele senta (e depois dorme).
- * - sem `followCursor`: renderiza inline, apenas com as animações de idle/sono.
+ * - sem `followCursor`: renderiza inline (mascote da marca) em loop numa `pose` fixa,
+ *   com balão de fala opcional (`speech`).
  *
  * Desempenho: um único loop de requestAnimationFrame fora do ciclo de renderização do React;
  * o canvas só é redesenhado quando muda o frame e a posição só é escrita no DOM quando muda.
@@ -27,7 +28,14 @@ import {
 
 export type PetStartCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 
+/** Pose do modo inline: sentado respirando, andando no lugar (procurando) ou dormindo. */
+export type PetPose = 'idle' | 'walk' | 'sleep';
+
 export interface PixelShihTzuProps {
+  /** Modo inline: animação em loop (padrão: idle). */
+  pose?: PetPose;
+  /** Modo inline: balão de fala acima do Shitzu. */
+  speech?: string;
   /** Se true, passeia pela tela perseguindo o cursor (ou o último toque). */
   followCursor?: boolean;
   /** Escala inteira do sprite (1 pixel do sprite = `scale` pixels da tela). */
@@ -101,6 +109,8 @@ const prefersReducedMotion = (): boolean =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
+  pose = 'idle',
+  speech,
   followCursor = false,
   scale = 3,
   startPosition = 'bottom-right',
@@ -142,13 +152,31 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
 
     // prefers-reduced-motion: pose estática, sem loop nem perseguição
     if (reduced) {
-      draw('idle', 0);
+      draw(followCursor ? 'idle' : pose, 0);
       if (followCursor) {
         const x = Math.round((start.x - w / 2) / intScale) * intScale;
         const y = Math.round((start.y - h / 2) / intScale) * intScale;
         canvas.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       }
       return;
+    }
+
+    // Modo inline: só repete o clip da pose escolhida
+    if (!followCursor) {
+      const clip = CLIPS[pose];
+      const t0 = performance.now();
+      let id = 0;
+      let last = -1;
+      const loop = (t: number) => {
+        id = requestAnimationFrame(loop);
+        const frame = Math.floor(((t - t0) / 1000) * clip.fps) % clip.frames.length;
+        if (frame !== last) {
+          draw(pose, frame);
+          last = frame;
+        }
+      };
+      id = requestAnimationFrame(loop);
+      return () => cancelAnimationFrame(id);
     }
 
     const cfg: PetConfig = {
@@ -240,12 +268,12 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
     };
     // startPosition é representado por startKey (evita reiniciar com objetos novos a cada render)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [followCursor, intScale, startKey, idleTimeoutMs, speed, stopDistance, sleepAfterMs, reduced]);
+  }, [followCursor, pose, intScale, startKey, idleTimeoutMs, speed, stopDistance, sleepAfterMs, reduced]);
 
   const canvas = (
     <canvas
       ref={canvasRef}
-      className={`${followCursor ? styles.floating : styles.inline} ${className}`}
+      className={followCursor ? `${styles.floating} ${className}` : styles.sprite}
       style={{
         width: SPRITE_W * intScale,
         height: SPRITE_H * intScale,
@@ -257,7 +285,14 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
     />
   );
 
-  return followCursor ? createPortal(canvas, document.body) : canvas;
+  if (followCursor) return createPortal(canvas, document.body);
+
+  return (
+    <div className={`${styles.inline} ${className}`}>
+      {speech && <div className={styles.speechBubble}>{speech}</div>}
+      {canvas}
+    </div>
+  );
 };
 
 export default PixelShihTzu;

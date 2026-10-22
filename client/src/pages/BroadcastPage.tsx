@@ -52,7 +52,6 @@ import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
-import ShihTzuMascot from '../components/UI/ShihTzuMascot';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import {
@@ -876,7 +875,7 @@ const BroadcastPage: React.FC = () => {
               </>
             ) : (
               <div className={styles.placeholderState}>
-                <ShihTzuMascot state="idle" size={130} speech="Tudo pronto para entrar ao vivo! 🐾" />
+                <PixelShihTzu pose="idle" scale={6} speech="Tudo pronto para entrar ao vivo! 🐾" />
                 <h3>Pronto para transmitir</h3>
                 <p>
                   Configure a qualidade no painel direito e clique em{' '}
@@ -896,8 +895,6 @@ const BroadcastPage: React.FC = () => {
                     <span>Compartilhe o link</span>
                   </div>
                 </div>
-
-                <PixelShihTzu scale={3} className={styles.placeholderPixelPet} />
 
                 {/* Com os painéis ocultos, o início da transmissão continua à mão */}
                 {!isSettingsVisible && (

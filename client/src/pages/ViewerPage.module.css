@@ -306,10 +306,6 @@
   color: var(--kiara-text-muted);
 }
 
-.loadingPixelPet {
-  margin-top: 8px;
-}
-
 /* ── Unmute Overlay ─────────────────────────────────────────────── */
 .unmuteOverlay {
   position: absolute;

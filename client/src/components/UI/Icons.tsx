@@ -5,14 +5,22 @@ interface IconProps extends React.SVGProps<SVGSVGElement> {
   className?: string;
 }
 
-/** Logotipo da KIARA: shih tzu (public/favicon.svg), o mesmo ícone do app e da aba. */
+/** Logotipo da KIARA: shih tzu em pixel art (public/favicon.svg), o mesmo ícone do app e da aba. */
 export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
   size = 24,
   withText = true,
   className,
 }) => (
   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', verticalAlign: 'middle', userSelect: 'none' }}>
-    <img src="/favicon.svg" width={size} height={size} alt="" className={className} draggable={false} />
+    <img
+      src="/favicon.svg"
+      width={size}
+      height={size}
+      alt=""
+      className={className}
+      draggable={false}
+      style={{ imageRendering: 'pixelated' }}
+    />
     {withText && (
       <span
         style={{
