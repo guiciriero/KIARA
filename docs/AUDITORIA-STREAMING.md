@@ -2,13 +2,13 @@
 
 Branch: `audit/streaming-1080p60` · Data: auditoria feita sobre `d6fc1cd` · Máquina de teste: Ryzen 5 5600, RTX 3070 (NVENC/NVDEC), Windows, Ethernet 1 Gbps, monitor 2560x1440@99 Hz, Chrome 156.
 
-> **Leia primeiro (limites honestos da medição).** Os benchmarks abaixo rodam em **Chrome real, loopback na mesma máquina e mesma página**. Medem bem: encode, bandwidth-estimation (GCC), pacing do WebRTC, jitter buffer, decode e apresentação. **Não medem:** captura de tela do SO, o app Electron empacotado (não há `electron.exe` nem MSVC nesta máquina para compilá-lo), rede real, Wi-Fi, TURN nem Brasil↔exterior. "100% de fluidez" depende de hardware e rede; a seção 6 diz onde estão os limites.
+> **Leia primeiro (limites honestos da medição).** Os benchmarks abaixo rodam em **Chrome real, loopback na mesma máquina e mesma página**. Medem bem: encode, bandwidth-estimation (GCC), pacing do WebRTC, jitter buffer, decode e apresentação. **Não medem:** captura de tela do SO, o app Electron empacotado (os PoCs da seção 4.2 rodam no Electron 44.7.2 avulso, não no instalador empacotado), rede real, Wi-Fi, TURN nem Brasil↔exterior. "100% de fluidez" depende de hardware e rede; a seção 6 diz onde estão os limites.
 
 ---
 
 ## 0. Resumo executivo
 
-1. **O app desktop hoje é Electron + `getDisplayMedia` + WebRTC P2P mesh.** Ele NÃO usa captura DXGI zero-copy nem encode nativo. O módulo C++ de vídeo (`native/src/screen_capture.cpp`) **está compilado e empacotado, mas nunca é chamado** (nenhum `startCapture`/`listCaptureSources` em `desktop/` ou `client/`). Só o áudio por aplicativo (WASAPI) é realmente usado.
+1. **O app desktop hoje é Electron + `getDisplayMedia` + WebRTC P2P mesh.** Ele NÃO usa captura DXGI zero-copy nem encode nativo. O módulo C++ de vídeo (`native/src/screen_capture.cpp`) **está compilado e empacotado, mas nunca é chamado** (nenhum `startCapture`/`listCaptureSources` em `desktop/` ou `client/`). Só o áudio por aplicativo (WASAPI) é realmente usado. **Atualização:** agora existe também `shared_capture.cpp` (DXGI zero-copy), ainda não ligado ao app; PoC medido na seção 4.2 (captura→encode 50 → 60 fps).
 2. **Achado de maior impacto (corrigido e medido):** o Chrome só lê `x-google-start/max-bitrate` da descrição **remota**. O broadcaster é quem envia o offer, então essas dicas só valem se vierem na **answer** do espectador, e o código nunca as devolvia. Resultado medido: o GCC partia de baixo, caía para 720p/540p e ficava `qualityLimitation=bandwidth` **mesmo em Ethernet gigabit sem perda**. Com a correção, 1080p é mantido em 3/3 rodadas (antes: 0/3).
 3. **O servidor não é um SFU.** É só sinalização Socket.IO. Cada espectador recebe um fluxo separado do PC do apresentador (mesh). Com 8 espectadores a 15 Mbps = 120 Mbps de upload. Isso invalida a meta de qualidade para mais de 1–2 espectadores.
 4. **A versão web já existe e funciona** (viewer React + `<video>` + WebRTC). É o lado mais maduro do projeto.
@@ -212,53 +212,63 @@ Limites: (a) o benchmark roda encode e decode no **mesmo** Chrome/GPU, então o 
 
 ---
 
-### 4.1 Captura nativa de vídeo: verificação do toolchain (feita com `node-gyp` de verdade)
+### 4.1 Captura nativa de vídeo: toolchain (RESOLVIDO)
 
-Rodei `npm install --ignore-scripts` + `npx node-gyp configure` em `native/` (node-gyp 13.1.0, Node 22.12.0). Resultado:
+Na primeira verificação o `node-gyp configure` falhou (sem workload C++ nem Windows SDK; não escrevi C++ às cegas). Depois que você instalou a workload "Desenvolvimento para desktop com C++", `npx node-gyp rebuild` em `native/` compila (MSVC 14.51.36231, Windows SDK 10.0.26100.0) e o `.node` exporta as funções esperadas. Observação: `node-gyp build` incremental deu `LNK1103` (objeto corrompido); use sempre `rebuild`.
 
-```
-find VS checking VS2026 (18.10.12306.391) found at: C:\Program Files\Microsoft Visual Studio\18\Community
-find VS - found "Visual Studio C++ core features"
-find VS - missing any VC++ toolset
-gyp ERR! Could not find any Visual Studio installation to use
-```
+### 4.2 Captura nativa: resultados medidos (E0–E4)
 
-Confirmado no disco: `...\18\Community\VC` só tem `Auxiliary` e `Redist` (sem `Tools\MSVC`, ou seja, sem `cl.exe`), e não existe `C:\Program Files (x86)\Windows Kits\10`. **Não compila nesta máquina; não escrevi código C++.** (O CI `build-windows.yml` compila o addon no runner `windows-latest`, mas isso só valida o código atual, que não é a captura nova.)
+Todas as medições: RTX 3070, Ryzen 5 5600, monitor 0 = 2560x1440@99 Hz, página animada em rAF (barra vermelha em `n*29 mod largura`), Electron 44.7.2 (Chromium 152) onde indicado. Scripts em `client/e2e/`.
 
-**O que instalar (Visual Studio Installer → Modificar → Visual Studio Community 2026):**
-1. Workload **"Desenvolvimento para desktop com C++"** (`Microsoft.VisualStudio.Workload.NativeDesktop`). Ela traz o conjunto de ferramentas MSVC x64/x86 (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) e normalmente o **Windows 11 SDK** marcado por padrão.
-2. Confirme na aba "Componentes individuais" que há um **Windows 11 SDK (10.0.2xxxx)** ou **Windows 10 SDK (10.0.19041+)** marcado. Para a etapa WGC convém o SDK recente (WinRT `Windows.Graphics.Capture`).
-3. Opcional, mesma tela: "C++/WinRT" (vem com a workload) e "Ferramentas de build do C++ CMake" não são necessárias para `node-gyp`.
+**E0 — toolchain:** ok (acima).
 
-Alternativa por linha de comando (não executei; os nomes dos componentes vêm da documentação do VS, não foram validados nesta máquina): `"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files\Microsoft Visual Studio\18\Community" --add Microsoft.VisualStudio.Workload.NativeDesktop --includeRecommended`.
+**E1 — captura DXGI nativa existente (com readback CPU)**
+- *Bug encontrado:* no monitor 0 todos os frames vinham **pretos**. Causa medida: o 1º frame da duplicação tem `LastPresentTime==0` e formato `R16G16B16A16_FLOAT` (sem imagem), e o código o enviava como se fosse BGRA. O rótulo `format:"bgra"` era fixo, mesmo para outros formatos. Corrigido: frames sem imagem são descartados e o frame expõe `dxgiFormat`/`hasImage`.
+- *Teto de ~31 fps:* a causa era o **timer do Windows a 15,6 ms** (`sleep_until` arredonda para 2 ticks = ~31 ms), mais deriva por usar `frameStart` de "agora" a cada ciclo. Correção: `timeBeginPeriod(1)` + prazo absoluto. Evidência: **30,2–31,4 → 54–55 → 57,7 callbacks/s** (3 execuções, intervalo p50 16,6 ms, p99 ~21 ms).
+- Linha de base nativa válida (barra decodificada, 100 % dos frames distintos): **57,7 fps reais**, mas ~850 MB/s copiados para o JS e ~80 % de um núcleo do Node. Dados: [`benchmarks/native-dxgi-after.json`](benchmarks/native-dxgi-after.json).
 
-**Como eu valido depois de você instalar:** `cd native; npm install --ignore-scripts; npx node-gyp rebuild` e depois `node -e "require('./build/Release/screen_capture.node')"`. Só então começo o plano abaixo.
+**E2 — o que o Windows consegue entregar (WGC standalone, `GraphicsCaptureSession`, sem readback)**
+| Configuração | fps medido | intervalo p50 |
+|---|---|---|
+| WGC padrão | 49,8–50,0 | 20 ms |
+| WGC + CopyResource GPU→GPU | 50,0 | 20 ms |
+| WGC com `MinUpdateInterval=0` | **99,8–99,9** (= refresh do monitor) | 10 ms |
+| WGC com `MinUpdateInterval=16,6 ms` | 50,0 | 20 ms |
+Leitura: o WGC padrão é limitado a ~50 fps nesta tela (99 Hz); com `MinUpdateInterval` o teto sobe ao refresh. **Hipótese não verificada:** o `getDisplayMedia` do Chromium usa WGC com intervalo padrão, o que explicaria o teto ~50 no Electron.
 
-### 4.2 Plano em etapas pequenas (só depois do toolchain compilar)
+**Captura do Electron 44 (`getDisplayMedia` via `desktopCapturer`, o caminho que o app usa)** — [`e2e/electron-capture-probe.cjs`](../client/e2e/electron-capture-probe.cjs):
+- 1080p60: **48,5–50,0 fps** em 3 de 4 execuções (2 delas com ~49,8); numa sequência posterior caiu para **~31,7–32 fps** e para **38,7–39,3 fps** a 1440p. Ou seja, a captura do Electron **oscila entre ~32 e ~50 fps** entre execuções; **não identifiquei a causa dessa variação** (nenhum processo órfão; suspeita não confirmada: estado do compositor/MPO/ocultação da janela). O Chrome 156 deu 31–43 fps.
 
-| Etapa | Entrega | Como medir | Critério de parar |
-|---|---|---|---|
-| E0 | `node-gyp rebuild` ok + smoke test | carrega o `.node` | não compila → parar e reportar |
-| E1 | Harness Node (sem Electron) que chama o `startCapture` DXGI **existente** e conta frames/s sobre a mesma página animada do `capture-probe.mjs` | fps real, intervalos p50/p99 | dá a linha de base nativa *com* readback (hipótese: já ≥ getDisplayMedia, mas o readback custa CPU) |
-| E2 | Captura WGC (`Windows.Graphics.Capture`) entregando `ID3D11Texture2D` **sem** readback | fps real + uso de CPU/GPU | se não passar de ~60 fps estáveis, não seguir |
-| E3 | Encode por hardware a partir da textura (hipótese de caminho: Media Foundation `IMFTransform` de H.264/HEVC, que usa NVENC/AMF/QSV conforme a GPU, em vez de três SDKs) | ms/frame, bitstream Annex-B válido | encode > 8 ms/frame a 1080p60 → rever |
-| E4 | Ligar ao WebRTC. **Este é o ponto de maior risco e não está resolvido:** `RTCRtpSender` não aceita frames já codificados vindos de fora. Opções a avaliar, em ordem de custo: (a) entregar os frames capturados ao renderer como `VideoFrame` → `MediaStreamTrackGenerator` e deixar o Chromium codificar (troca só a captura; mantém NVENC do Chromium; custo de cópia a medir); (b) `RTCRtpScriptTransform` substituindo o payload (frágil); (c) transporte próprio (UDP/Pion/Rust, é o caminho "estrutural"). | fps apresentado e G2G de ponta a ponta no Electron | se (a) não chegar a ~55 fps no espectador, considerar (c) |
+**Captura DXGI zero-copy implementada** (`native/src/shared_capture.cpp`, funções `startSharedCapture/releaseSharedFrame/stopSharedCapture`): cada frame é copiado GPU→GPU para uma textura BGRA compartilhada (NT handle) de um anel de 4 slots; o JS recebe só o handle (8 bytes). Sem readback, sem `memcpy` de 15 MB por frame. Mede **60,0 fps** de entrega ao renderer (`gotFramesPerSec` 59,4–60,1, 0–5 descartes em ~670).
 
-Recomendo começar por E1 e E2 (medem o ganho de captura isolado), e decidir E4 com esses números na mão. Nada disso foi medido ainda.
+**E3 — encode nativo por Media Foundation: NÃO implementado.** Decisão técnica registrada abaixo (E4): o Chromium já codifica por hardware (`MediaFoundationVideoEncodeAccelerator`, "NVIDIA H.264/HEVC Encoder MFT", medido) a 4,7–7,3 ms/frame, então um encoder nativo próprio não acrescenta nada enquanto o transporte for o `RTCPeerConnection`, que não aceita frames já codificados.
 
+**E4 — ligação ao WebRTC (opção "a"): PROVADA em protótipo** — [`e2e/electron-native-poc.cjs`](../client/e2e/electron-native-poc.cjs). Pipeline: addon (DXGI→textura compartilhada) → `sharedTexture.importSharedTexture` (main) → `sendSharedTexture` → `getVideoFrame()` (renderer, textura na GPU) → `MediaStreamTrackGenerator` → `RTCPeerConnection` loopback (encode/decode do Chromium). Funciona com `contextIsolation:true` e `sandbox:true` (as mesmas flags do `desktop/src/main.js`). Nenhum erro de transferência (`sendErrors=0`).
+
+Comparação no mesmo harness, 1080p60, 15 Mbps pedido, H.265 (`--scale=1.3333` no nativo porque a captura é 2560x1440; no `gdm` o Chromium já reduz para 1080p), 3 pares alternados:
+
+| Origem | fps de captura→encode | fps apresentado (rVFC) | encode ms | freezes |
+|---|---|---|---|---|
+| `getDisplayMedia` | **49,4 / 50,0 / 50,0** | 42,1 / 43,0 / 42,4 | 5,5–6,0 | 0 |
+| Nativa zero-copy | **60,1 / 60,0 / 60,1** | 45,2 / 44,4 / 44,9 | 5,7–6,2 | 0 |
+
+- **Ganho medido na captura/encode: ~50 → 60 fps (+20 %)**, estável, com o mesmo encoder por hardware.
+- **O fps apresentado no espectador subiu só ~42 → ~45**, e não 60. Os intervalos apresentados ficam em 30 ms (p50) em várias execuções (mas 10 ms em outras), o que aponta para a **cadência de apresentação da janela de teste** (vsync/compositor com a janela pequena e parcialmente coberta), **não** para a captura. Não consegui isolar essa causa; o `shownFps` deste harness não deve ser lido como o fps do espectador real.
+- **Itens que este PoC NÃO prova:** latência vidro-a-vidro (não medida com o caminho nativo); custo de CPU/GPU; comportamento em janelas/jogos em tela cheia exclusiva; HDR/10-bit; vários monitores (monitor 1 é rotacionado e a rotação não é tratada); recuperação de `DXGI_ERROR_ACCESS_LOST` (a thread só encerra); áudio/sincronia A/V; qualidade de imagem (bitrates reais variaram entre execuções, 0,2–3,7 Mbps, porque a cena sintética é muito simples).
+- **Não integrei o caminho nativo ao app** (`captureService.ts`, `desktop/`, preload, tipo `ScreenShareHostApi`): o ganho de apresentação no espectador ainda não está demonstrado e a integração toca IPC, ciclo de vida e `contextIsolation`. Recomendo decidir depois de medir G2G com este caminho.
 ## 5. Pendências e decisões suas
 
-0. **Instalar a workload C++ + Windows SDK** (seção 4.1) para destravar a captura nativa. Sem isso, o item fica parado.
+0. **Integrar ou não a captura nativa ao app** (seção 4.2): o PoC prova o caminho e o ganho de captura (~50→60 fps), mas falta medir G2G e o fps do espectador real antes de mexer em IPC/preload/`captureService`. Sugestão: medir G2G primeiro; se o ganho se confirmar, integrar atrás de um interruptor (`getDisplayMedia` continua como fallback).
 1. **Escopo da reescrita:** manter Electron (rápido, teto ~43 fps de captura) ou investir em captura/encode nativos (semanas, ganho grande)? Eu recomendo o nativo.
 2. **Hospedagem:** pagar um VPS/nó em São Paulo? (custo mensal + banda de saída). Sem isso, sem UDP próprio e sem SFU.
 3. **HEVC como padrão:** já implementado como modo `auto` (seção 2.5), com H.264 de fallback por espectador. Decida se mantém `auto` como padrão ou volta a H.264 fixo; a escolha manual continua no painel.
 4. **Gravar sessões reais de FPS** (CS2/Valorant/Warzone) para validar qualidade de imagem com VMAF; eu não tenho esses jogos aqui.
-5. **Medir o Electron empacotado:** esta máquina não tem Visual Studio com C++ nem `electron.exe` empacotado; rode `npm run bench` e o `capture-probe.mjs` dentro do app instalado para confirmar as seções 2.3 e 2.5 (em especial se o Chromium do Electron 44 reporta HEVC como `powerEfficient`).
+5. **Medir o Electron empacotado:** medi o Electron 44.7.2 avulso (captura e PoC); rode `npm run bench` e o `capture-probe.mjs` dentro do app instalado para confirmar as seções 2.3 e 2.5. No Electron avulso o encoder foi `MediaFoundationVideoEncodeAccelerator` (NVIDIA H.264/HEVC MFT), isto é, o HEVC por hardware funciona lá.
 6. **Segurança:** trocar o `TURN_SECRET` do `docker-compose.yml` antes de qualquer deploy.
 
 ## 6. Limites honestos da meta "100% de fluidez"
 
-- **60 fps a partir de um desktop** só existe se o capturador entregar 60 fps. Medido: Chrome entrega 31–43 fps; WGC/DXGI nativo pode chegar a 60, mas **não foi medido aqui**.
+- **60 fps a partir de um desktop** só existe se o capturador entregar 60 fps. Medido: Chrome 156 entrega 31–43 fps; o Electron 44 oscilou entre ~32 e ~50 fps; a captura DXGI nativa entregou 57,7 fps (com readback) e 60 fps (zero-copy, PoC); WGC standalone chega a 99,8 fps com `MinUpdateInterval=0` (seção 4.2).
 - **0 frames dropados** é alcançável em LAN/fibra com a pilha corrigida (medido: `framesDropped=0` em todas as células), mas "fluido" no olho exige apresentação regular; medi 3,6–10,6 % dos intervalos >40 ms mesmo no melhor caso, causados por vsync a 99 Hz + jitter buffer.
 - **< 60 ms glass-to-glass** exige remover o jitter buffer do Chromium (60–105 ms no loopback). Só um pipeline próprio de decode (WebCodecs/nativo) consegue isso. No loopback o melhor caso medido foi ~95 ms (HEVC), **sem** contar captura do SO nem rede.
 - **Wi-Fi, 4G e TURN** adicionam 20–150+ ms e perda: nenhuma otimização elimina isso; só FEC + bitrate adaptativo reduzem o impacto.
@@ -273,6 +283,10 @@ cd client
 npm run bench -- --codec H264,H265 --bitrate 15000 --duration 15 --warmup 8
 node e2e/bench.mjs --codec H264 --bitrate 15000 --duration 15 --warmup 8 --out ../docs/benchmarks/x.json
 node e2e/capture-probe.mjs            # mede getDisplayMedia (abre uma janela do Chrome e captura a tela)
+node e2e/native-capture-bench.mjs --duration 8   # captura DXGI nativa (precisa de native/build; node-gyp rebuild)
+# Electron avulso (npm i electron@44.7.2 num diretório temporário; não é dependência do client):
+<electron.exe> e2e/electron-capture-probe.cjs --secs=6
+<electron.exe> e2e/electron-native-poc.cjs --source=native --codec=H265 --scale=1.3333 --isolated=1 --secs=8   # --source=gdm compara com getDisplayMedia
 ```
 
 Dados brutos: [`docs/benchmarks/matrix-after.json`](benchmarks/matrix-after.json) e [`docs/benchmarks/matrix-before-h264.json`](benchmarks/matrix-before-h264.json).

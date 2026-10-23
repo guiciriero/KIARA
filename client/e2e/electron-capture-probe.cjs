@@ -19,7 +19,7 @@ const x=c.getContext('2d');let n=0;
 
 const PROBE = (s) => `(async () => {
   const res = [];
-  for (const [w, h, f, mode] of [[1920, 1080, 60, 'none'], [1920, 1080, 60, 'crop-and-scale'], [2560, 1440, 60, 'none']]) {
+  for (const [w, h, f, mode] of [[1920, 1080, 60, 'none'], [1920, 1080, 120, 'none'], [2560, 1440, 120, 'none']]) {
     const s = await navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: f, max: 120 }, resizeMode: mode } });
     const t = s.getVideoTracks()[0];
     const v = document.createElement('video');

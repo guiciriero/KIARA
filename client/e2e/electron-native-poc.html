@@ -45,7 +45,7 @@
     await pc2.setLocalDescription(ans);
     await pc1.setRemoteDescription(ans);
 
-    const v = document.createElement('video'); v.muted = true; v.autoplay = true; document.body.appendChild(v);
+    const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.style.cssText = 'width:384px;height:216px'; document.body.appendChild(v);
     await new Promise((r) => { const t = setInterval(() => { if (inboundTrack) { clearInterval(t); r(); } }, 50); });
     v.srcObject = new MediaStream([inboundTrack]); await v.play().catch(() => {});
     const shown = []; let go = true;
