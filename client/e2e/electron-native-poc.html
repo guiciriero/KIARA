@@ -1,0 +1,87 @@
+<!doctype html>
+<html><body><script>
+(async () => {
+  try {
+    const gen = new MediaStreamTrackGenerator({ kind: 'video' });
+    const writer = gen.writable.getWriter();
+    let track = gen;
+    let gotFrames = 0, writeErr = '';
+    window.poc.onTexture(async ({ importedSharedTexture }) => {
+      const vf = importedSharedTexture.getVideoFrame();
+      gotFrames++;
+      importedSharedTexture.release();
+      try { await writer.write(vf); } catch (e) { writeErr = String(e); }
+      vf.close();
+    });
+
+    const pc1 = new RTCPeerConnection(), pc2 = new RTCPeerConnection();
+    pc1.onicecandidate = (e) => e.candidate && pc2.addIceCandidate(e.candidate);
+    pc2.onicecandidate = (e) => e.candidate && pc1.addIceCandidate(e.candidate);
+    let inboundTrack = null;
+    pc2.ontrack = (e) => { inboundTrack = e.track; };
+    const cfg = await window.poc.ready();
+    if (cfg.source === 'gdm') {
+      const ms = await navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 120 } } });
+      track = ms.getVideoTracks()[0];
+    }
+    const sender = pc1.addTrack(track, new MediaStream([track]));
+    console.log('cfg ' + JSON.stringify(cfg));
+
+    const tx = pc1.getTransceivers()[0];
+    const caps = RTCRtpSender.getCapabilities('video').codecs;
+    const pref = caps.filter((c) => c.mimeType.toLowerCase() === 'video/' + cfg.codec.toLowerCase());
+    if (pref.length) tx.setCodecPreferences(pref); else console.log('codec indisponivel: ' + cfg.codec);
+    const p = sender.getParameters();
+    if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+    p.encodings[0].maxBitrate = cfg.bitrate; p.encodings[0].maxFramerate = cfg.fps;
+    if (cfg.scale > 1) p.encodings[0].scaleResolutionDownBy = cfg.scale;
+    p.degradationPreference = 'maintain-resolution';
+    await sender.setParameters(p);
+
+    const offer = await pc1.createOffer();
+    await pc1.setLocalDescription(offer);
+    await pc2.setRemoteDescription(offer);
+    const ans = await pc2.createAnswer();
+    await pc2.setLocalDescription(ans);
+    await pc1.setRemoteDescription(ans);
+
+    const v = document.createElement('video'); v.muted = true; v.autoplay = true; document.body.appendChild(v);
+    await new Promise((r) => { const t = setInterval(() => { if (inboundTrack) { clearInterval(t); r(); } }, 50); });
+    v.srcObject = new MediaStream([inboundTrack]); await v.play().catch(() => {});
+    const shown = []; let go = true;
+    const cb = (now) => { if (!go) return; shown.push(now); v.requestVideoFrameCallback(cb); };
+    v.requestVideoFrameCallback(cb);
+
+    await new Promise((r) => setTimeout(r, 3000));
+    const pick = (s, type) => { let o; s.forEach((x) => { if (x.type === type && (x.kind === 'video' || x.mediaType === 'video')) o = x; }); return o; };
+    const o0 = pick(await pc1.getStats(), 'outbound-rtp'), i0 = pick(await pc2.getStats(), 'inbound-rtp');
+    const t0 = performance.now(), g0 = gotFrames, sh0 = shown.length;
+    await new Promise((r) => setTimeout(r, cfg.secs * 1000));
+    const dt = (performance.now() - t0) / 1000;
+    const o1 = pick(await pc1.getStats(), 'outbound-rtp'), i1 = pick(await pc2.getStats(), 'inbound-rtp');
+    go = false;
+    const vis = shown.slice(sh0);
+    const iv = vis.slice(1).map((q, i) => q - vis[i]).sort((a, b) => a - b);
+    const q = (f) => +(iv[Math.floor(iv.length * f)] ?? 0).toFixed(1);
+    const result = {
+      codecAsked: cfg.codec, impl: o1.encoderImplementation, decImpl: i1.decoderImplementation,
+      gotFramesPerSec: +((gotFrames - g0) / dt).toFixed(1),
+      encodedFps: +((o1.framesEncoded - o0.framesEncoded) / dt).toFixed(1),
+      sentFps: +((o1.framesSent - o0.framesSent) / dt).toFixed(1),
+      decodedFps: +((i1.framesDecoded - i0.framesDecoded) / dt).toFixed(1),
+      shownFps: +((shown.length - sh0) / dt).toFixed(1), shownIntervalMs: { p50: q(.5), p99: q(.99), max: +(iv[iv.length - 1] ?? 0).toFixed(1) },
+      res: o1.frameWidth + 'x' + o1.frameHeight, inRes: i1.frameWidth + 'x' + i1.frameHeight,
+      encodeMs: +(((o1.totalEncodeTime - o0.totalEncodeTime) / Math.max(1, o1.framesEncoded - o0.framesEncoded)) * 1000).toFixed(2),
+      decodeMs: +(((i1.totalDecodeTime - i0.totalDecodeTime) / Math.max(1, i1.framesDecoded - i0.framesDecoded)) * 1000).toFixed(2),
+      kbps: Math.round((o1.bytesSent - o0.bytesSent) * 8 / dt / 1000),
+      freezes: (i1.freezeCount ?? 0) - (i0.freezeCount ?? 0), qualityLimit: o1.qualityLimitationReason,
+      jbDelayMs: +(((i1.jitterBufferDelay - i0.jitterBufferDelay) / Math.max(1, i1.jitterBufferEmittedCount - i0.jitterBufferEmittedCount)) * 1000).toFixed(1),
+      writeErr,
+    };
+    await window.poc.done(result);
+  } catch (e) {
+    console.log('ERRO ' + (e && e.stack || e));
+    await window.poc.done({ error: String(e) });
+  }
+})();
+</script></body></html>

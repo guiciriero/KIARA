@@ -6,6 +6,7 @@
 
 #include <napi.h>
 #include "screen_capture.h"
+#include "shared_capture.h"
 #include "audio_capture.h"
 
 /**
@@ -22,6 +23,11 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
 
   exports.Set("stopCapture",
     Napi::Function::New(env, StopCapture, "stopCapture"));
+
+  // ── Captura DXGI zero-copy (textura compartilhada, sem readback) ─────────────
+  exports.Set("startSharedCapture", Napi::Function::New(env, StartSharedCapture, "startSharedCapture"));
+  exports.Set("releaseSharedFrame", Napi::Function::New(env, ReleaseSharedFrame, "releaseSharedFrame"));
+  exports.Set("stopSharedCapture", Napi::Function::New(env, StopSharedCapture, "stopSharedCapture"));
 
   // ── Captura de Áudio por Aplicativo ────────────────────────────────────────
   exports.Set("listAudioSources",

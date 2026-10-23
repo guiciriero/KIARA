@@ -12,6 +12,7 @@
       "target_name": "screen_capture",
       "sources": [
         "src/screen_capture.cpp",
+        "src/shared_capture.cpp",
         "src/audio_capture.cpp",
         "src/audio_backend_stub.cpp",
         "src/addon_entry.cpp"
