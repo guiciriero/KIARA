@@ -186,7 +186,7 @@ A **latência ponta a ponta** (da tela capturada até ser exibida no espectador)
 - Rede (RTT/2): metade do RTT reportado
 - Decodificação: 1–5ms (hardware)
 - Renderização: 1 frame / frequência do monitor (ex.: ~16ms a 60Hz)
-- Buffer de jitter: 0ms (configurado explicitamente)
+- Buffer de jitter: alvo configurado para 0 ms, mas o Chromium ainda acumula ~60-105 ms de atraso médio medido no loopback (ver docs/AUDITORIA-STREAMING.md)
 
 **Em LAN com hardware moderno**: < 100ms é alcançável.  
 **Em WAN ou com TURN**: 150–400ms é típico.
@@ -244,3 +244,4 @@ O módulo usa:
 - **Windows**: DXGI Desktop Duplication API (d3d11, dxgi1_2)
 - **Linux**: Stub — usar `getDisplayMedia` no navegador
 - **macOS**: Não suportado pelo módulo nativo (usar `getDisplayMedia`)
+
