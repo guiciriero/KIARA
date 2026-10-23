@@ -78,10 +78,16 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Grade de Resoluções ─────────────────────────────────────── */
+/* ── Grade de Resoluções e FPS ───────────────────────────────── */
 .resGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.fpsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
 }
 

@@ -17,6 +17,12 @@ const RESOLUTIONS = [
   { id: '4k',    label: '4K',    sub: 'UHD', width: 3840, height: 2160 },
 ];
 
+const FPS_PRESETS = [
+  { id: '30fps',  label: '30 FPS',  sub: 'Padrão',    value: 30  },
+  { id: '60fps',  label: '60 FPS',  sub: 'Fluido',    value: 60  },
+  { id: '120fps', label: '120 FPS', sub: 'Gamer Pro', value: 120 },
+];
+
 const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false, isSharing = false }) => {
   const update = (partial: Partial<VideoConfig>) =>
     onChange({ ...config, ...partial });
@@ -56,24 +62,26 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
       {/* Taxa de Quadros (FPS) */}
       <div className={styles.field}>
         <div className={styles.fieldHeader}>
-          <label className={styles.fieldLabel}>Taxa de Quadros</label>
+          <label className={styles.fieldLabel}>Taxa de Quadros (FPS)</label>
           <span className={styles.fieldValue}>{config.frameRate} FPS</span>
         </div>
-        <input
-          type="range"
-          min={15}
-          max={120}
-          step={5}
-          value={config.frameRate}
-          disabled={disabled}
-          onChange={(e) => update({ frameRate: Number(e.target.value) })}
-          className={styles.slider}
-        />
-        <div className={styles.rangeMarkers}>
-          <span>15 FPS</span>
-          <span>30 FPS</span>
-          <span>60 FPS</span>
-          <span>120 FPS</span>
+        <div className={styles.fpsGrid}>
+          {FPS_PRESETS.map((fps) => {
+            const isSelected = fps.value === config.frameRate;
+            return (
+              <button
+                key={fps.id}
+                type="button"
+                className={`${styles.resChip} ${isSelected ? styles.selectedRes : ''}`}
+                disabled={disabled}
+                onClick={() => update({ frameRate: fps.value })}
+                aria-pressed={isSelected}
+              >
+                <span className={styles.resLabel}>{fps.label}</span>
+                <span className={styles.resSub}>{fps.sub}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
