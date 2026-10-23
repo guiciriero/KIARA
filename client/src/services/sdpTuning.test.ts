@@ -1,0 +1,56 @@
+import { describe, it, expect } from 'vitest';
+import { optimizeSdpForGaming, tuneOpusAudioSdp, tuneVideoBitrateSdp } from './sdpTuning';
+
+describe('sdpTuning', () => {
+  const sampleSdp = [
+    'v=0',
+    'o=- 123456 2 IN IP4 127.0.0.1',
+    's=-',
+    't=0 0',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+    'c=IN IP4 0.0.0.0',
+    'a=rtpmap:111 opus/48000/2',
+    'a=fmtp:111 minptime=10',
+    'm=video 9 UDP/TLS/RTP/SAVPF 96',
+    'c=IN IP4 0.0.0.0',
+    'a=rtpmap:96 H264/90000',
+    'a=fmtp:96 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=64002a',
+    '',
+  ].join('\r\n');
+
+  it('injeta parâmetros estéreo e alta fidelidade no Opus', () => {
+    const tuned = tuneOpusAudioSdp(sampleSdp, 192);
+    expect(tuned).toContain('stereo=1');
+    expect(tuned).toContain('sprop-stereo=1');
+    expect(tuned).toContain('maxaveragebitrate=192000');
+    expect(tuned).toContain('cbr=1');
+    expect(tuned).toContain('useinbandfec=1');
+  });
+
+  it('injeta limites de taxa de bits e CBR no SDP de vídeo', () => {
+    const tuned = tuneVideoBitrateSdp(sampleSdp, {
+      targetBitrateKbps: 8000,
+      minBitrateKbps: 4000,
+      maxBitrateKbps: 12000,
+    });
+    expect(tuned).toContain('b=TIAS:8000000');
+    expect(tuned).toContain('b=AS:8000');
+    expect(tuned).toContain('x-google-min-bitrate=4000');
+    expect(tuned).toContain('x-google-max-bitrate=12000');
+    expect(tuned).toContain('x-google-start-bitrate=8000');
+  });
+
+  it('executa otimização combinada completa sem quebrar SDP', () => {
+    const result = optimizeSdpForGaming(sampleSdp, {
+      targetBitrateKbps: 6000,
+    });
+    expect(result).toContain('stereo=1');
+    expect(result).toContain('b=TIAS:6000000');
+  });
+
+  it('trata SDPs vazios ou inválidos com resiliência', () => {
+    expect(optimizeSdpForGaming('')).toBe('');
+    // @ts-expect-error testando entrada nula
+    expect(optimizeSdpForGaming(null)).toBeNull();
+  });
+});

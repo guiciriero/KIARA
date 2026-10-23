@@ -11,6 +11,7 @@ import type { RTCIceCandidatePayload, VideoConfig, StreamStats, IceServerConfig 
 import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
 import { isMacOS } from './captureService';
 import { BitrateController } from './bitrateController';
+import { optimizeSdpForGaming, tuneOpusAudioSdp } from './sdpTuning';
 import {
   buildRtcConfig,
   iceRestartDelayMs,
@@ -558,11 +559,22 @@ export class WebRTCBroadcaster {
         offerToReceiveAudio: false,
         offerToReceiveVideo: false,
       });
-      await pc.setLocalDescription(offer);
+
+      const tunedSdp = optimizeSdpForGaming(offer.sdp ?? '', {
+        targetBitrateKbps: this.videoConfig.bitrate,
+        minBitrateKbps: Math.max(2500, Math.round(this.videoConfig.bitrate * 0.5)),
+        maxBitrateKbps: Math.max(this.videoConfig.bitrate * 1.5, 12000),
+      });
+      const tunedOffer: RTCSessionDescriptionInit = {
+        type: offer.type,
+        sdp: tunedSdp,
+      };
+
+      await pc.setLocalDescription(tunedOffer);
 
       this.socket.emit('webrtc:offer', {
         targetId: viewerId,
-        offer: { sdp: offer.sdp, type: offer.type },
+        offer: { sdp: tunedOffer.sdp, type: tunedOffer.type },
       });
     } catch (err) {
       console.error('[KIARA] Não foi possível iniciar a conexão com o espectador:', err);
@@ -743,6 +755,8 @@ export class WebRTCViewer {
         };
       }
 
+      this.tuneReceivers(pc);
+
       if (this.onRemoteStream && this.remoteStream) {
         this.onRemoteStream(this.remoteStream);
       }
@@ -858,6 +872,27 @@ export class WebRTCViewer {
     this.iceFailureHandled = false;
   }
 
+  /**
+   * Zera os atrasos artificiais de buffer de reprodução do navegador (playoutDelayHint / jitterBufferTarget).
+   * Essencial para jogos de ação e FPS.
+   */
+  private tuneReceivers(pc: RTCPeerConnection): void {
+    try {
+      if (typeof pc.getReceivers === 'function') {
+        for (const receiver of pc.getReceivers()) {
+          if ('playoutDelayHint' in receiver) {
+            (receiver as unknown as { playoutDelayHint: number }).playoutDelayHint = 0;
+          }
+          if ('jitterBufferTarget' in receiver) {
+            (receiver as unknown as { jitterBufferTarget: number }).jitterBufferTarget = 0;
+          }
+        }
+      }
+    } catch {
+      // Ignora se o navegador não suportar as propriedades
+    }
+  }
+
   private handleOffer = async ({ senderId, offer }: { senderId: string; offer: RTCSessionDescriptionInit }) => {
     if (senderId !== this.hostId || this.destroyed) return;
 
@@ -876,10 +911,13 @@ export class WebRTCViewer {
         await freshPc.setRemoteDescription(new RTCSessionDescription(offer));
         await this.flushPendingCandidates(freshPc);
         const answer = await freshPc.createAnswer();
-        await freshPc.setLocalDescription(answer);
+        const tunedSdp = tuneOpusAudioSdp(answer.sdp ?? '', 192);
+        const tunedAnswer: RTCSessionDescriptionInit = { type: answer.type, sdp: tunedSdp };
+        await freshPc.setLocalDescription(tunedAnswer);
+        this.tuneReceivers(freshPc);
         this.socket.emit('webrtc:answer', {
           targetId: this.hostId,
-          answer: { sdp: answer.sdp, type: answer.type },
+          answer: { sdp: tunedAnswer.sdp, type: tunedAnswer.type },
         });
         return;
       }
@@ -888,11 +926,14 @@ export class WebRTCViewer {
       await this.flushPendingCandidates(pc);
 
       const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      const tunedSdp = tuneOpusAudioSdp(answer.sdp ?? '', 192);
+      const tunedAnswer: RTCSessionDescriptionInit = { type: answer.type, sdp: tunedSdp };
+      await pc.setLocalDescription(tunedAnswer);
+      this.tuneReceivers(pc);
 
       this.socket.emit('webrtc:answer', {
         targetId: this.hostId,
-        answer: { sdp: answer.sdp, type: answer.type },
+        answer: { sdp: tunedAnswer.sdp, type: tunedAnswer.type },
       });
     } catch (err) {
       console.error('[KIARA:viewer] Não foi possível estabelecer conexão com o apresentador:', err);

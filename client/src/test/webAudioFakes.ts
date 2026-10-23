@@ -8,11 +8,18 @@ type Ctor = new (...args: never[]) => unknown;
 export class FakeAudioParam {
   /** Último alvo pedido via setTargetAtTime */
   target = 1;
+  value = 1;
   readonly targets: number[] = [];
 
   setTargetAtTime(target: number): void {
     this.target = target;
     this.targets.push(target);
+  }
+
+  setValueAtTime(value: number): void {
+    this.value = value;
+    this.target = value;
+    this.targets.push(value);
   }
 }
 
@@ -33,6 +40,12 @@ export class FakeAudioNode {
 
 export class FakeGainNode extends FakeAudioNode {
   readonly gain = new FakeAudioParam();
+}
+
+export class FakeBiquadFilterNode extends FakeAudioNode {
+  type = 'highpass';
+  readonly frequency = new FakeAudioParam();
+  readonly Q = new FakeAudioParam();
 }
 
 export class FakeMessagePort {
@@ -129,6 +142,10 @@ export class FakeAudioContext {
     const node = new FakeGainNode();
     this.gains.push(node);
     return node;
+  }
+
+  createBiquadFilter(): FakeBiquadFilterNode {
+    return new FakeBiquadFilterNode();
   }
 
   createMediaStreamDestination(): FakeMediaStreamAudioDestinationNode {
