@@ -1,4 +1,4 @@
-/**
+﻿/**
  * sdpTuning.ts
  *
  * Utilitários de otimização de SDP (Session Description Protocol) para jogos
@@ -135,7 +135,9 @@ export function tuneVideoBitrateSdp(
 }
 
 /**
- * Espelha na ANSWER as dicas x-google-{min,max,start}-bitrate presentes na OFFER (seção de vídeo).
+ * Espelha na ANSWER as dicas x-google-{max,start}-bitrate presentes na OFFER (seção de vídeo).
+ * O x-google-min-bitrate NÃO é espelhado de propósito: ele vira piso do encoder e, em link
+ * mais fraco que o piso, provoca fila/perda em vez de adaptação.
  *
  * O Chrome lê essas dicas da descrição REMOTA do emissor: o broadcaster (offerer) só as honra se
  * vierem na answer do espectador. Sem este espelhamento, o GCC parte de ~300 kbps e leva dezenas
@@ -147,7 +149,7 @@ export function mirrorVideoBitrateHints(offerSdp: string, answerSdp: string): st
   const offerVideo = offerSdp.split(/(?=m=)/).find((s) => s.startsWith('m=video'));
   if (!offerVideo) return answerSdp;
   const hints: string[] = [];
-  for (const key of ['x-google-min-bitrate', 'x-google-max-bitrate', 'x-google-start-bitrate']) {
+  for (const key of ['x-google-max-bitrate', 'x-google-start-bitrate']) {
     const m = new RegExp(`${key}=(\\d+)`).exec(offerVideo);
     if (m) hints.push(`${key}=${m[1]}`);
   }
@@ -159,7 +161,7 @@ export function mirrorVideoBitrateHints(offerSdp: string, answerSdp: string): st
       if (!section.startsWith('m=video')) return section;
       return section.replace(/(a=fmtp:\d+ [^\r\n]+)(\r?\n)/g, (match, fmtpLine: string, lineEnd: string) => {
         // Só codecs de vídeo reais (não rtx: apt=) e sem duplicar
-        if (fmtpLine.includes('x-google-min-bitrate') || /\bapt=\d+/.test(fmtpLine)) return match;
+        if (fmtpLine.includes('x-google-start-bitrate') || /\bapt=\d+/.test(fmtpLine)) return match;
         const sep = fmtpLine.endsWith(';') ? '' : ';';
         return `${fmtpLine}${sep}${hints.join(';')}${lineEnd}`;
       });
@@ -179,3 +181,4 @@ export function optimizeSdpForGaming(
   const audioTuned = tuneOpusAudioSdp(sdp, options.audioBitrateKbps);
   return tuneVideoBitrateSdp(audioTuned, options);
 }
+

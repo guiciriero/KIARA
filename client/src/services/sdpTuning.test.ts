@@ -110,10 +110,10 @@ describe('sdpTuning', () => {
     });
     const answer = sampleSdp; // answer "crua" do espectador
 
-    it('copia min/max/start da offer para o fmtp de vídeo da answer', () => {
+    it('copia max/start (nunca min) da offer para o fmtp de vídeo da answer', () => {
       const out = mirrorVideoBitrateHints(offer, answer);
       const fmtp = out.split('\r\n').find((l) => l.startsWith('a=fmtp:96'))!;
-      expect(fmtp).toContain('x-google-min-bitrate=5625');
+      expect(fmtp).not.toContain('x-google-min-bitrate');
       expect(fmtp).toContain('x-google-max-bitrate=22500');
       expect(fmtp).toContain('x-google-start-bitrate=15000');
     });
@@ -127,7 +127,7 @@ describe('sdpTuning', () => {
     it('é idempotente e não duplica', () => {
       const once = mirrorVideoBitrateHints(offer, answer);
       const twice = mirrorVideoBitrateHints(offer, once);
-      expect((twice.match(/x-google-min-bitrate/g) ?? []).length).toBe(1);
+      expect((twice.match(/x-google-start-bitrate/g) ?? []).length).toBe(1);
     });
 
     it('devolve a answer intacta quando a offer não tem dicas', () => {
@@ -135,4 +135,6 @@ describe('sdpTuning', () => {
       expect(mirrorVideoBitrateHints('', answer)).toBe(answer);
     });
   });});
+
+
 
