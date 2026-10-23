@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <thread>
 #include "shared_capture.h"
 
@@ -23,6 +24,7 @@
   #include <windows.h>
   #include <d3d11.h>
   #include <dxgi1_2.h>
+  #include <dxgi.h>
   #include <wrl/client.h>
   #include <timeapi.h>
   #pragma comment(lib, "winmm.lib")
@@ -30,7 +32,7 @@
 
 namespace {
 
-constexpr int kSlots = 4;
+constexpr int kSlots = 6;
 
 struct Slot {
   ComPtr<ID3D11Texture2D> tex;
@@ -41,9 +43,14 @@ struct Slot {
 struct SharedCapture {
   ComPtr<ID3D11Device>           device;
   ComPtr<ID3D11DeviceContext>    ctx;
+  ComPtr<IDXGIOutput1>           output1;
   ComPtr<IDXGIOutputDuplication> dup;
   ComPtr<ID3D11Query>            query;
   Slot                           slots[kSlots];
+  ComPtr<ID3D11Texture2D>        gdiTex;   // intermediaria compativel com GDI para desenhar o cursor
+  LONG                           originX = 0;
+  LONG                           originY = 0;
+  bool                           drawCursor = true;
   UINT                           width = 0;
   UINT                           height = 0;
   std::thread                    thread;
@@ -54,7 +61,9 @@ struct SharedCapture {
 
 std::unique_ptr<SharedCapture> g_sc;
 
-bool InitSharedCapture(int monitorIndex) {
+// Escolhe a saida pelas coordenadas do desktop (left/top em pixels fisicos) quando informadas;
+// caso contrario, pelo indice de enumeracao. Retorna false se nao achar.
+bool InitSharedCapture(int monitorIndex, bool byCoords, LONG left, LONG top, std::string& err) {
   g_sc = std::make_unique<SharedCapture>();
 
   ComPtr<IDXGIFactory1> factory;
@@ -67,21 +76,27 @@ bool InitSharedCapture(int monitorIndex) {
   for (UINT ai = 0; factory->EnumAdapters1(ai, &adapter) == S_OK; ++ai) {
     ComPtr<IDXGIOutput> o;
     for (UINT oi = 0; adapter->EnumOutputs(oi, &o) == S_OK; ++oi) {
-      if (remaining == 0) { output = o; break; }
-      --remaining;
+      if (byCoords) {
+        DXGI_OUTPUT_DESC d{};
+        o->GetDesc(&d);
+        if (d.DesktopCoordinates.left == left && d.DesktopCoordinates.top == top) { output = o; break; }
+      } else {
+        if (remaining == 0) { output = o; break; }
+        --remaining;
+      }
     }
     if (output) break;
     adapter.Reset();
   }
-  if (!output) return false;
+  if (!output) { err = "Monitor nao encontrado"; return false; }
 
   HRESULT hr = D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr,
                                  D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
                                  &g_sc->device, nullptr, &g_sc->ctx);
   if (FAILED(hr)) return false;
 
-  ComPtr<IDXGIOutput1> output1;
-  if (FAILED(output.As(&output1))) return false;
+  if (FAILED(output.As(&g_sc->output1))) return false;
+  ComPtr<IDXGIOutput1>& output1 = g_sc->output1;
   DXGI_OUTPUT_DESC od{};
   output->GetDesc(&od);
   g_sc->width  = od.DesktopCoordinates.right  - od.DesktopCoordinates.left;
@@ -92,6 +107,11 @@ bool InitSharedCapture(int monitorIndex) {
   if (FAILED(hr)) return false;
   DXGI_OUTDUPL_DESC dd{};
   g_sc->dup->GetDesc(&dd);
+  // A textura duplicada fica na orientacao nativa do painel; sem rotacao no addon, recusa e o app cai no getDisplayMedia.
+  if (dd.Rotation != DXGI_MODE_ROTATION_IDENTITY && dd.Rotation != DXGI_MODE_ROTATION_UNSPECIFIED) {
+    err = "Monitor rotacionado nao suportado";
+    return false;
+  }
   g_sc->width  = dd.ModeDesc.Width;
   g_sc->height = dd.ModeDesc.Height;
 
@@ -113,6 +133,14 @@ bool InitSharedCapture(int monitorIndex) {
                                        nullptr, &s.nt))) return false;
   }
 
+  // Textura GDI-compativel (nao compartilhada): o cursor e desenhado nela porque a duplicacao DXGI nao o inclui.
+  D3D11_TEXTURE2D_DESC gd = td;
+  gd.BindFlags = D3D11_BIND_RENDER_TARGET;
+  gd.MiscFlags = D3D11_RESOURCE_MISC_GDI_COMPATIBLE;
+  if (FAILED(g_sc->device->CreateTexture2D(&gd, nullptr, &g_sc->gdiTex))) g_sc->gdiTex.Reset();
+  g_sc->originX = od.DesktopCoordinates.left;
+  g_sc->originY = od.DesktopCoordinates.top;
+
   D3D11_QUERY_DESC qd{};
   qd.Query = D3D11_QUERY_EVENT;
   return SUCCEEDED(g_sc->device->CreateQuery(&qd, &g_sc->query));
@@ -126,13 +154,33 @@ void SharedLoop(Napi::ThreadSafeFunction tsfn, int targetFps) {
   const auto early = std::chrono::milliseconds(5);
   auto nextDeadline = clock::now();
   const auto t0 = clock::now();
+  std::string endReason;
 
   while (g_sc->running) {
     DXGI_OUTDUPL_FRAME_INFO fi{};
     ComPtr<IDXGIResource> res;
     HRESULT hr = g_sc->dup->AcquireNextFrame(100, &fi, &res);
     if (hr == DXGI_ERROR_WAIT_TIMEOUT) continue;
-    if (FAILED(hr)) break;  // ACCESS_LOST (troca de modo/UAC): o JS decide reiniciar
+    if (hr == DXGI_ERROR_ACCESS_LOST) {
+      // Troca de modo, UAC, bloqueio de tela: tenta recriar a duplicacao por ~20 s.
+      g_sc->dup.Reset();
+      bool ok = false;
+      for (int attempt = 0; attempt < 100 && g_sc->running && !ok; ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        ComPtr<IDXGIOutputDuplication> nd;
+        if (FAILED(g_sc->output1->DuplicateOutput(g_sc->device.Get(), &nd))) continue;
+        DXGI_OUTDUPL_DESC nd_desc{};
+        nd->GetDesc(&nd_desc);
+        // Mudou a resolucao: as texturas do anel deixam de servir; encerra e deixa o app reiniciar a captura.
+        if (nd_desc.ModeDesc.Width != g_sc->width || nd_desc.ModeDesc.Height != g_sc->height) { endReason = "resolution-changed"; break; }
+        g_sc->dup = nd;
+        ok = true;
+      }
+      if (!ok) { if (endReason.empty() && g_sc->running) endReason = "access-lost"; break; }
+      nextDeadline = clock::now();
+      continue;
+    }
+    if (FAILED(hr)) { endReason = "acquire-failed"; break; }
 
     const auto now = clock::now();
     const bool hasImage = fi.LastPresentTime.QuadPart != 0;
@@ -156,7 +204,33 @@ void SharedLoop(Napi::ThreadSafeFunction tsfn, int targetFps) {
 
     ComPtr<ID3D11Texture2D> src;
     res.As(&src);
-    g_sc->ctx->CopyResource(g_sc->slots[idx].tex.Get(), src.Get());
+    // Cursor: copia para a textura GDI, desenha o icone e copia para o slot (so quando o cursor esta visivel na tela).
+    bool composed = false;
+    if (g_sc->drawCursor && g_sc->gdiTex) {
+      CURSORINFO ci{};
+      ci.cbSize = sizeof(ci);
+      if (GetCursorInfo(&ci) && (ci.flags & CURSOR_SHOWING) && ci.hCursor) {
+        ICONINFO ii{};
+        if (GetIconInfo(ci.hCursor, &ii)) {
+          const int cx = ci.ptScreenPos.x - g_sc->originX - static_cast<int>(ii.xHotspot);
+          const int cy = ci.ptScreenPos.y - g_sc->originY - static_cast<int>(ii.yHotspot);
+          if (ii.hbmMask) DeleteObject(ii.hbmMask);
+          if (ii.hbmColor) DeleteObject(ii.hbmColor);
+          if (cx > -128 && cy > -128 && cx < static_cast<int>(g_sc->width) && cy < static_cast<int>(g_sc->height)) {
+            g_sc->ctx->CopyResource(g_sc->gdiTex.Get(), src.Get());
+            ComPtr<IDXGISurface1> surf;
+            HDC dc = nullptr;
+            if (SUCCEEDED(g_sc->gdiTex.As(&surf)) && SUCCEEDED(surf->GetDC(FALSE, &dc))) {
+              DrawIconEx(dc, cx, cy, ci.hCursor, 0, 0, 0, nullptr, DI_NORMAL);
+              surf->ReleaseDC(nullptr);
+              g_sc->ctx->CopyResource(g_sc->slots[idx].tex.Get(), g_sc->gdiTex.Get());
+              composed = true;
+            }
+          }
+        }
+      }
+    }
+    if (!composed) g_sc->ctx->CopyResource(g_sc->slots[idx].tex.Get(), src.Get());
     g_sc->ctx->End(g_sc->query.Get());
     g_sc->ctx->Flush();
     // Garante que a copia terminou antes de outro device (GPU process do Chromium) ler a textura.
@@ -179,6 +253,16 @@ void SharedLoop(Napi::ThreadSafeFunction tsfn, int targetFps) {
     });
     if (st != napi_ok) g_sc->slots[idx].busy = false;
   }
+  // Fim por erro (nao por stopSharedCapture): avisa o JS para cair no getDisplayMedia.
+  if (!endReason.empty()) {
+    tsfn.NonBlockingCall([endReason](Napi::Env env, Napi::Function cb) {
+      Napi::Object o = Napi::Object::New(env);
+      o.Set("ended", Napi::Boolean::New(env, true));
+      o.Set("reason", Napi::String::New(env, endReason));
+      cb.Call({o});
+    });
+  }
+  g_sc->running = false;
   tsfn.Release();
 }
 
@@ -196,17 +280,29 @@ Napi::Value StartSharedCapture(const Napi::CallbackInfo& info) {
     Napi::Error::New(env, "Captura compartilhada ja em andamento").ThrowAsJavaScriptException();
     return env.Undefined();
   }
+  if (g_sc) {  // a thread anterior terminou sozinha (erro); limpa antes de recriar
+    if (g_sc->thread.joinable()) g_sc->thread.join();
+    for (auto& s : g_sc->slots) if (s.nt) { CloseHandle(s.nt); s.nt = nullptr; }
+    g_sc.reset();
+    timeEndPeriod(1);
+  }
   Napi::Object cfg = info[0].As<Napi::Object>();
   int fps = cfg.Get("fps").IsNumber() ? cfg.Get("fps").As<Napi::Number>().Int32Value() : 60;
   int mon = cfg.Get("monitorIndex").IsNumber() ? cfg.Get("monitorIndex").As<Napi::Number>().Int32Value() : 0;
+  const bool wantCursor = !cfg.Get("cursor").IsBoolean() || cfg.Get("cursor").As<Napi::Boolean>().Value();
+  const bool byCoords = cfg.Get("left").IsNumber() && cfg.Get("top").IsNumber();
+  const LONG left = byCoords ? cfg.Get("left").As<Napi::Number>().Int32Value() : 0;
+  const LONG top  = byCoords ? cfg.Get("top").As<Napi::Number>().Int32Value() : 0;
   fps = std::max(1, std::min(240, fps));
 
-  if (!InitSharedCapture(mon)) {
+  std::string initErr = "Falha ao inicializar a captura compartilhada (DXGI)";
+  if (!InitSharedCapture(mon, byCoords, left, top, initErr)) {
     g_sc.reset();
-    Napi::Error::New(env, "Falha ao inicializar a captura compartilhada (DXGI)").ThrowAsJavaScriptException();
+    Napi::Error::New(env, initErr).ThrowAsJavaScriptException();
     return env.Undefined();
   }
   auto tsfn = Napi::ThreadSafeFunction::New(env, info[1].As<Napi::Function>(), "SharedCaptureCallback", 8, 1);
+  g_sc->drawCursor = wantCursor;
   timeBeginPeriod(1);  // sem isso o sleep/yield do Windows arredonda para 15,6 ms
   g_sc->running = true;
   g_sc->thread = std::thread(SharedLoop, std::move(tsfn), fps);

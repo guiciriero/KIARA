@@ -5,10 +5,18 @@
     const gen = new MediaStreamTrackGenerator({ kind: 'video' });
     const writer = gen.writable.getWriter();
     let track = gen;
-    let gotFrames = 0, writeErr = '';
+    let gotFrames = 0, writeErr = '', cfg0 = null; const recv = [];
+    const rstrip = document.createElement('canvas'); const rctx = rstrip.getContext('2d', { willReadFrequently: true });
+    const decodeFrame = (vf) => {
+      const vw = vf.displayWidth, vh = vf.displayHeight; const sh = Math.max(4, Math.ceil(vh * 48 / cfg0.dispH)); rstrip.width = vw; rstrip.height = sh;
+      rctx.drawImage(vf, 0, 0, vw, sh, 0, 0, vw, sh); let id = 0;
+      for (let i = 0; i < 12; i++) { const px = Math.round(((cfg0.dispW - 12 * 48 + i * 48 + 24) / cfg0.dispW) * vw); const d = rctx.getImageData(px, Math.round(sh / 2), 1, 1).data; if ((d[0] + d[1] + d[2]) / 3 > 127) id |= 1 << i; }
+      return id;
+    };
     window.poc.onTexture(async ({ importedSharedTexture }) => {
       const vf = importedSharedTexture.getVideoFrame();
       gotFrames++;
+      if (cfg0 && cfg0.recv && gotFrames % 4 === 0) { try { recv.push({ id: decodeFrame(vf), t: performance.timeOrigin + performance.now() }); } catch (e) { writeErr = 'dec ' + e; } }
       importedSharedTexture.release();
       try { await writer.write(vf); } catch (e) { writeErr = String(e); }
       vf.close();
@@ -19,7 +27,7 @@
     pc2.onicecandidate = (e) => e.candidate && pc1.addIceCandidate(e.candidate);
     let inboundTrack = null;
     pc2.ontrack = (e) => { inboundTrack = e.track; };
-    const cfg = await window.poc.ready();
+    const cfg = await window.poc.ready(); cfg0 = cfg;
     if (cfg.source === 'gdm') {
       const ms = await navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60, max: 120 } } });
       track = ms.getVideoTracks()[0];
@@ -48,8 +56,20 @@
     const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.style.cssText = 'width:384px;height:216px'; document.body.appendChild(v);
     await new Promise((r) => { const t = setInterval(() => { if (inboundTrack) { clearInterval(t); r(); } }, 50); });
     v.srcObject = new MediaStream([inboundTrack]); await v.play().catch(() => {});
-    const shown = []; let go = true;
-    const cb = (now) => { if (!go) return; shown.push(now); v.requestVideoFrameCallback(cb); };
+    const shown = [], seen = []; let go = true;
+    const strip = document.createElement('canvas'); const sctx = strip.getContext('2d', { willReadFrequently: true });
+    const decodeId = () => {
+      const vw = v.videoWidth, vh = v.videoHeight; if (!vw) return -1;
+      const sh = Math.max(4, Math.ceil(vh * 48 / cfg.dispH)); strip.width = vw; strip.height = sh;
+      sctx.drawImage(v, 0, 0, vw, sh, 0, 0, vw, sh);
+      let id = 0;
+      for (let i = 0; i < 12; i++) {
+        const px = Math.round(((cfg.dispW - 12 * 48 + i * 48 + 24) / cfg.dispW) * vw), py = Math.round(sh / 2);
+        const d = sctx.getImageData(px, py, 1, 1).data; if ((d[0] + d[1] + d[2]) / 3 > 127) id |= 1 << i;
+      }
+      return id;
+    };
+    const cb = (now) => { if (!go) return; shown.push(now); const id = decodeId(); if (id >= 0) seen.push({ id, t: performance.timeOrigin + performance.now() }); v.requestVideoFrameCallback(cb); };
     v.requestVideoFrameCallback(cb);
 
     await new Promise((r) => setTimeout(r, 3000));
@@ -76,7 +96,7 @@
       kbps: Math.round((o1.bytesSent - o0.bytesSent) * 8 / dt / 1000),
       freezes: (i1.freezeCount ?? 0) - (i0.freezeCount ?? 0), qualityLimit: o1.qualityLimitationReason,
       jbDelayMs: +(((i1.jitterBufferDelay - i0.jitterBufferDelay) / Math.max(1, i1.jitterBufferEmittedCount - i0.jitterBufferEmittedCount)) * 1000).toFixed(1),
-      writeErr,
+      writeErr, seen: seen.slice(sh0), recv,
     };
     await window.poc.done(result);
   } catch (e) {
