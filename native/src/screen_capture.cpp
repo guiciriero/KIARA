@@ -49,6 +49,10 @@ struct DxgiCapture {
   ComPtr<IDXGIOutputDuplication> duplication;
   UINT                           width  = 0;
   UINT                           height = 0;
+  // Textura de staging reutilizável: evita alocar/liberar a cada frame
+  ComPtr<ID3D11Texture2D>        stagingTex;
+  UINT                           stagingWidth  = 0;
+  UINT                           stagingHeight = 0;
 };
 static std::unique_ptr<DxgiCapture> g_dxgi;
 
@@ -106,14 +110,55 @@ static bool InitDxgiCapture(int monitorIndex) {
 }
 
 /**
+ * Recria (ou reutiliza) a textura de staging, alocando uma nova somente se as
+ * dimensões mudarem (ex.: resolução alterada em tempo de execução).
+ */
+static bool EnsureStagingTexture(const D3D11_TEXTURE2D_DESC& src) {
+  if (g_dxgi->stagingTex &&
+      g_dxgi->stagingWidth  == src.Width &&
+      g_dxgi->stagingHeight == src.Height) {
+    return true; // Reutiliza a textura existente
+  }
+
+  D3D11_TEXTURE2D_DESC desc = src;
+  desc.Usage          = D3D11_USAGE_STAGING;
+  desc.BindFlags      = 0;
+  desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+  desc.MiscFlags      = 0;
+
+  g_dxgi->stagingTex.Reset();
+  HRESULT hr = g_dxgi->device->CreateTexture2D(&desc, nullptr, &g_dxgi->stagingTex);
+  if (FAILED(hr)) return false;
+
+  g_dxgi->stagingWidth  = src.Width;
+  g_dxgi->stagingHeight = src.Height;
+  return true;
+}
+
+/**
  * Loop de captura DXGI. Executa em thread separada.
- * Captura frames e envia ao callback JS via ThreadSafeFunction.
+ *
+ * Otimizações em relação à versão anterior:
+ *  - Textura de staging reutilizada entre frames (sem alloc/free por ciclo).
+ *  - Fila limitada a 2 frames pendentes: descarta o mais antigo quando o JS não
+ *    acompanha, evitando que a latência cresça sem limite.
+ *  - Temporização de alta resolução com steady_clock; sleep_until evita deriva.
  */
 static void DxgiCaptureLoop(
     Napi::ThreadSafeFunction tsfn,
     int targetFps
 ) {
-  const auto frameDuration = std::chrono::milliseconds(1000 / targetFps);
+  // Intervalo entre frames em microssegundos para maior precisão que milliseconds
+  const auto frameDuration = std::chrono::microseconds(1000000 / targetFps);
+  // AcquireNextFrame timeout: levemente menor que o intervalo do frame para
+  // não atrasar demais em caso de ausência de atualização da tela
+  const UINT acquireTimeoutMs = static_cast<UINT>(std::max(1, 1000 / targetFps - 1));
+
+  // Fila de frames pendentes limitada: descarta o mais antigo quando cheio.
+  // Usa shared_ptr para que os lambdas capturados pela TSFN não acessem memória
+  // de pilha já liberada se o loop terminar antes dos lambdas serem executados.
+  constexpr int MAX_PENDING_FRAMES = 2;
+  auto pendingFrames = std::make_shared<std::atomic<int>>(0);
 
   while (g_capturing) {
     auto frameStart = std::chrono::steady_clock::now();
@@ -121,67 +166,85 @@ static void DxgiCaptureLoop(
     DXGI_OUTDUPL_FRAME_INFO frameInfo{};
     ComPtr<IDXGIResource> desktopResource;
 
-    // Tenta adquirir o próximo frame (timeout de 16ms)
     HRESULT hr = g_dxgi->duplication->AcquireNextFrame(
-      16, &frameInfo, &desktopResource
+      acquireTimeoutMs, &frameInfo, &desktopResource
     );
 
     if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-      // Nenhum frame novo — aguarda o próximo ciclo
+      // Sem atualização na tela neste ciclo; mantém a temporização
       std::this_thread::sleep_until(frameStart + frameDuration);
       continue;
     }
 
-    if (FAILED(hr)) break; // Erro irrecuperável (ex.: monitor desconectado)
+    if (FAILED(hr)) {
+      // Erro irrecuperável (ex.: monitor desconectado, modo de suspensão)
+      break;
+    }
 
-    // Obtém textura do frame
+    // Descarta frame se o JS já tem muitos pendentes (backpressure)
+    if (pendingFrames->load(std::memory_order_acquire) >= MAX_PENDING_FRAMES) {
+      g_dxgi->duplication->ReleaseFrame();
+      std::this_thread::sleep_until(frameStart + frameDuration);
+      continue;
+    }
+
+    // Obtém textura do frame e reutiliza staging
     ComPtr<ID3D11Texture2D> frameTex;
     desktopResource.As(&frameTex);
 
-    // Cria textura de staging para leitura pela CPU
     D3D11_TEXTURE2D_DESC texDesc{};
     frameTex->GetDesc(&texDesc);
-    texDesc.Usage          = D3D11_USAGE_STAGING;
-    texDesc.BindFlags      = 0;
-    texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    texDesc.MiscFlags      = 0;
 
-    ComPtr<ID3D11Texture2D> stagingTex;
-    g_dxgi->device->CreateTexture2D(&texDesc, nullptr, &stagingTex);
-    g_dxgi->context->CopyResource(stagingTex.Get(), frameTex.Get());
+    if (!EnsureStagingTexture(texDesc)) {
+      g_dxgi->duplication->ReleaseFrame();
+      std::this_thread::sleep_until(frameStart + frameDuration);
+      continue;
+    }
+
+    g_dxgi->context->CopyResource(g_dxgi->stagingTex.Get(), frameTex.Get());
 
     // Mapeia a textura para ler os pixels (formato BGRA)
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    hr = g_dxgi->context->Map(stagingTex.Get(), 0, D3D11_MAP_READ, 0, &mapped);
+    hr = g_dxgi->context->Map(g_dxgi->stagingTex.Get(), 0, D3D11_MAP_READ, 0, &mapped);
 
     if (SUCCEEDED(hr)) {
-      // Copia os dados de pixel para um buffer gerenciado
       size_t dataSize = (size_t)mapped.RowPitch * texDesc.Height;
       auto pixelData = std::make_shared<std::vector<uint8_t>>(dataSize);
       memcpy(pixelData->data(), mapped.pData, dataSize);
 
-      uint32_t w = texDesc.Width;
-      uint32_t h = texDesc.Height;
+      uint32_t w     = texDesc.Width;
+      uint32_t h     = texDesc.Height;
       uint32_t pitch = mapped.RowPitch;
 
-      g_dxgi->context->Unmap(stagingTex.Get(), 0);
+      g_dxgi->context->Unmap(g_dxgi->stagingTex.Get(), 0);
 
-      // Envia frame ao JS de forma assíncrona (não bloqueia esta thread)
-      tsfn.BlockingCall([pixelData, w, h, pitch](Napi::Env env, Napi::Function jsCallback) {
-        auto buf = Napi::Buffer<uint8_t>::Copy(env, pixelData->data(), pixelData->size());
-        Napi::Object frame = Napi::Object::New(env);
-        frame.Set("data",   buf);
-        frame.Set("width",  Napi::Number::New(env, w));
-        frame.Set("height", Napi::Number::New(env, h));
-        frame.Set("pitch",  Napi::Number::New(env, pitch));
-        frame.Set("format", Napi::String::New(env, "bgra"));
-        jsCallback.Call({ frame });
-      });
+      pendingFrames->fetch_add(1, std::memory_order_release);
+
+      // NonBlockingCall: não bloqueia a thread de captura; se a fila interna
+      // da TSFN estiver cheia, retorna napi_queue_full e o frame é descartado.
+      auto status = tsfn.NonBlockingCall(
+        [pixelData, w, h, pitch, pendingFrames](Napi::Env env, Napi::Function jsCallback) {
+          pendingFrames->fetch_sub(1, std::memory_order_release);
+          auto buf = Napi::Buffer<uint8_t>::Copy(env, pixelData->data(), pixelData->size());
+          Napi::Object frame = Napi::Object::New(env);
+          frame.Set("data",   buf);
+          frame.Set("width",  Napi::Number::New(env, w));
+          frame.Set("height", Napi::Number::New(env, h));
+          frame.Set("pitch",  Napi::Number::New(env, pitch));
+          frame.Set("format", Napi::String::New(env, "bgra"));
+          jsCallback.Call({ frame });
+        }
+      );
+
+      if (status != napi_ok) {
+        // Fila cheia ou TSFN encerrada: decrementa o contador manualmente
+        pendingFrames->fetch_sub(1, std::memory_order_release);
+      }
     }
 
     g_dxgi->duplication->ReleaseFrame();
 
-    // Controle de taxa de frames
+    // Controle de taxa de frames com alta precisão
     std::this_thread::sleep_until(frameStart + frameDuration);
   }
 
@@ -306,7 +369,7 @@ Napi::Value StartCapture(const Napi::CallbackInfo& info) {
   }
 
   Napi::Object config = info[0].As<Napi::Object>();
-  int fps    = config.Get("fps").IsNumber()    ? config.Get("fps").As<Napi::Number>().Int32Value()    : 30;
+  int fps    = config.Get("fps").IsNumber()    ? config.Get("fps").As<Napi::Number>().Int32Value()    : 60;
   int monIdx = config.Get("monitorIndex").IsNumber() ? config.Get("monitorIndex").As<Napi::Number>().Int32Value() : 0;
 
   // Garante que o FPS está em um range razoável (1-120)
@@ -314,12 +377,14 @@ Napi::Value StartCapture(const Napi::CallbackInfo& info) {
 
   Napi::Function callback = info[1].As<Napi::Function>();
 
-  // Cria ThreadSafeFunction para comunicar da thread de captura ao loop do Node
+  // Cria ThreadSafeFunction para comunicar da thread de captura ao loop do Node.
+  // Fila limitada a 4 entradas: evita acúmulo ilimitado de frames quando o JS
+  // não consegue processar na mesma velocidade da captura.
   auto tsfn = Napi::ThreadSafeFunction::New(
     env,
     callback,
     "ScreenCaptureCallback",
-    0,    // Sem fila limitada
+    4,    // Fila limitada: descarta frames mais antigos automaticamente
     1     // Apenas 1 thread produtora
   );
 
@@ -358,6 +423,12 @@ Napi::Value StopCapture(const Napi::CallbackInfo& info) {
   }
 
 #ifdef PLATFORM_WINDOWS
+  if (g_dxgi) {
+    // Libera a textura de staging antes de destruir o device
+    g_dxgi->stagingTex.Reset();
+    g_dxgi->stagingWidth  = 0;
+    g_dxgi->stagingHeight = 0;
+  }
   g_dxgi.reset();
 #endif
 
