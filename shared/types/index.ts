@@ -26,7 +26,8 @@ export interface VideoConfig {
   width: number;          // Largura em pixels (max 3840)
   height: number;         // Altura em pixels (max 2160)
   frameRate: number;      // FPS (1-120)
-  codec: VideoCodec;
+  /** 'auto' = HEVC se o espectador decodificar em hardware, senão H.264 (decidido por peer) */
+  codec: VideoCodecPreference;
   bitrate: number;        // kbps
   quality: 'low' | 'medium' | 'high' | 'ultra' | 'game';
 }
@@ -39,6 +40,8 @@ export interface AudioConfig {
 }
 
 export type VideoCodec = 'H264' | 'H265' | 'VP9' | 'VP8' | 'AV1';
+/** Escolha do usuário: um codec fixo ou 'auto' (seleção por espectador) */
+export type VideoCodecPreference = VideoCodec | 'auto';
 export type AudioCodec = 'opus' | 'aac';
 
 // ─── Fontes de Áudio ─────────────────────────────────────────────────────────
@@ -247,6 +250,16 @@ export interface JoinRoomPayload {
   password?: string;
   /** Apelido exibido nas reações (até 24 caracteres) */
   name?: string;
+  /** Codecs que este espectador decodifica por hardware (powerEfficient). Ausente = desconhecido. */
+  hwDecode?: VideoCodec[];
+}
+
+/** S→host `room:viewer-joined` */
+export interface ViewerJoinedPayload {
+  viewerId: string;
+  viewerCount: number;
+  /** Codecs decodificados por hardware pelo espectador (ausente = desconhecido) */
+  hwDecode?: VideoCodec[];
 }
 
 // ─── Co-apresentação ─────────────────────────────────────────────────────────

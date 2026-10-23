@@ -19,6 +19,7 @@ import type {
   StreamStats,
   ViewerQualityPreference,
   CopresentStartPayload,
+  VideoCodec,
 } from '@screen-share/shared';
 
 export const ALLOWED_REACTIONS: readonly ReactionEmoji[] = ['👍', '❤️', '😂', '😮', '👏', '🔥'] as const;
@@ -141,6 +142,20 @@ export function validateUpdateNamePayload(data: unknown): UpdateNamePayload | nu
   return { name };
 }
 
+const HW_DECODE_CODECS: readonly VideoCodec[] = ['H264', 'H265', 'VP9', 'VP8', 'AV1'];
+
+/** Filtra a lista de codecs decodificados por hardware: só valores conhecidos, sem repetição */
+export function sanitizeHwDecode(value: unknown): VideoCodec[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: VideoCodec[] = [];
+  for (const item of value.slice(0, 16)) {
+    if (HW_DECODE_CODECS.includes(item as VideoCodec) && !out.includes(item as VideoCodec)) {
+      out.push(item as VideoCodec);
+    }
+  }
+  return out;
+}
+
 /** Valida JoinRoomPayload */
 export function validateJoinRoomPayload(data: unknown): JoinRoomPayload | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
@@ -159,6 +174,9 @@ export function validateJoinRoomPayload(data: unknown): JoinRoomPayload | null {
   if (typeof obj.name === 'string') {
     result.name = sanitizeNickname(obj.name);
   }
+
+  const hwDecode = sanitizeHwDecode(obj.hwDecode);
+  if (hwDecode) result.hwDecode = hwDecode;
 
   return result;
 }
@@ -283,7 +301,7 @@ export function validateIceCandidatePayload(
   };
 }
 
-const ALLOWED_VIDEO_CODECS = ['H264', 'H265', 'VP9', 'VP8', 'AV1'] as const;
+const ALLOWED_VIDEO_CODECS = ['auto', 'H264', 'H265', 'VP9', 'VP8', 'AV1'] as const;
 const ALLOWED_AUDIO_CODECS = ['opus', 'aac'] as const;
 const ALLOWED_VIDEO_QUALITIES = ['low', 'medium', 'high', 'ultra'] as const;
 const MAX_AUDIO_SOURCES = 32;

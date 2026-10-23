@@ -14,6 +14,8 @@ import type {
   JoinCancelledPayload,
   CopresentResponsePayload,
   CopresenterChangedPayload,
+  VideoCodec,
+  ViewerJoinedPayload,
 } from '@screen-share/shared';
 import type { RoomManager, ManagedRoom } from '../rooms/roomManager';
 import { logger } from '../utils/logger';
@@ -42,6 +44,8 @@ const socketRoomMap = new Map<string, string>();
 const socketPendingMap = new Map<string, string>();
 /** Mapa de socketId → apelido */
 const socketNicknames = new Map<string, string>();
+/** Mapa de socketId → codecs que o espectador decodifica por hardware (informado em room:join) */
+const socketHwDecode = new Map<string, VideoCodec[]>();
 
 /** Anti-força-bruta: máximo de tentativas falhas de room:join por socket na janela */
 const MAX_JOIN_FAILURES = 8;
@@ -426,6 +430,8 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
 
         const nickname = sanitizeNickname(payload.name, false);
         socketNicknames.set(socket.id, nickname);
+        if (payload.hwDecode) socketHwDecode.set(socket.id, payload.hwDecode);
+        else socketHwDecode.delete(socket.id);
 
         // Se a sala exigir aprovação do apresentador
         if (freshRoom.requireApproval) {
@@ -854,6 +860,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       reactionTimestamps.delete(socket.id);
       // SEGURANÇA (vazamento de memória): estes mapas nunca eram limpos na desconexão
       socketNicknames.delete(socket.id);
+      socketHwDecode.delete(socket.id);
       eventBuckets.delete(socket.id);
       creatingRoom.delete(socket.id);
       leaveCurrentRoom(socket, io, roomManager);
@@ -915,10 +922,13 @@ async function admitViewerToRoom(
   };
   socket.emit('room:joined', joinedPayload);
 
-  io.to(room.hostId).emit('room:viewer-joined', {
+  const viewerJoined: ViewerJoinedPayload = {
     viewerId: socket.id,
     viewerCount: room.viewers.size,
-  });
+  };
+  const hwDecode = socketHwDecode.get(socket.id);
+  if (hwDecode) viewerJoined.hwDecode = hwDecode;
+  io.to(room.hostId).emit('room:viewer-joined', viewerJoined);
 
   logger.info(`Espectador ${socket.id.slice(0, 8)} entrou na sala ${room.id}`);
 }

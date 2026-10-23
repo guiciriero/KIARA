@@ -63,6 +63,27 @@ describe('criação e entrada em sala', () => {
     expect((await viewerJoinedOnHost).viewerId).toBe(viewer.id);
   });
 
+
+  it('repassa ao host os codecs com decode por hardware do espectador (filtrados)', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+
+    const viewerJoinedOnHost = waitForEvent<any>(host, 'room:viewer-joined');
+    await joinRoom(viewer, { code: created.code, hwDecode: ['H265', 'H264', 'H265', 'XYZ', 42] });
+    expect((await viewerJoinedOnHost).hwDecode).toEqual(['H265', 'H264']);
+  });
+
+  it('não inclui hwDecode no viewer-joined quando o espectador não informa', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host);
+
+    const viewerJoinedOnHost = waitForEvent<any>(host, 'room:viewer-joined');
+    await joinRoom(viewer, { code: created.code });
+    expect((await viewerJoinedOnHost).hwDecode).toBeUndefined();
+  });
+
   it('rejeita código inexistente e código malformado', async () => {
     const viewer = await server.createClient();
     const notFound = await expectError(viewer, () => viewer.emit('room:join', { code: 'ABCDEF' }));

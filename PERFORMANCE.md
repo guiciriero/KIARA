@@ -9,7 +9,7 @@
   MediaStreamTrack (vídeo, 60 FPS)
        │
   WebRTCBroadcaster
-   ├─ setCodecPreferences()  ← H264 High Profile priorizado
+   ├─ setCodecPreferences()  ← por espectador: HEVC se os dois lados têm HW, senão H264 High
    ├─ applySenderParameters()← maxFramerate=60, degradationPreference='maintain-framerate'
    ├─ optimizeSdpForGaming() ← x-google-* GCC, b=TIAS, Opus CBR 192 kbps
    └─ RTCPeerConnection ──── ICE/DTLS/SRTP ──► [Espectador]
@@ -25,7 +25,7 @@
 |-------------------------|-------------|-------------------------------------------|
 | FPS alvo                | 60          | `webrtcService.ts` `DEFAULT_VIDEO_CONFIG` |
 | Resolução padrão        | 1920×1080   | `webrtcService.ts` `DEFAULT_VIDEO_CONFIG` |
-| Codec padrão            | H.264       | `webrtcService.ts` `DEFAULT_VIDEO_CONFIG` |
+| Codec padrão            | `auto` (HEVC se encode e decode forem por hardware, senão H.264) | `codecSelection.ts` `resolveVideoCodec()` |
 | Bitrate padrão          | **8000 kbps** | `webrtcService.ts` `DEFAULT_VIDEO_CONFIG` |
 | `scalabilityMode` H264  | **L1T1**    | `webrtcService.ts` `applySenderParameters()` — sem B-frames |
 | `scalabilityMode` AV1/VP9 | L1T3      | `webrtcService.ts` `applySenderParameters()` — 3 camadas temporais |

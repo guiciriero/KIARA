@@ -4,7 +4,7 @@ Compartilhe sua tela e o som do computador com quem você quiser, direto do nave
 
 O site está no ar em https://kiara-a15m.onrender.com. Na hospedagem grátis ele hiberna quando fica sem uso, então a primeira visita pode demorar cerca de 1 minuto para abrir.
 
-O KIARA transmite vídeo de até 4K a 60 FPS, ligando você e os espectadores de forma direta (WebRTC). No app desktop dá para escolher de quais programas o som sai, por exemplo o vídeo sim e o jogo não.
+O KIARA transmite a tela ligando você e os espectadores de forma direta (WebRTC). O alvo de projeto é 1080p a 60 FPS; o que foi medido até agora está em [docs/AUDITORIA-STREAMING.md](docs/AUDITORIA-STREAMING.md) (por exemplo, a captura de tela do Chromium entregou só 31 a 43 FPS reais com conteúdo animado, e 4K não foi testado). No app desktop dá para escolher de quais programas o som sai, por exemplo o vídeo sim e o jogo não.
 
 ---
 
@@ -251,7 +251,7 @@ A faixa de áudio enviada pelo WebRTC é sempre a mesma: a saída de um mixer We
 |---|---|
 | `degradationPreference='maintain-framerate'` e `contentHint='motion'` | Com a rede apertada, o encoder reduz a resolução e não os quadros por segundo |
 | `maxBitrate` e `maxFramerate` aplicados de fato | O `VideoConfig` agora chega ao sender |
-| Codec escolhido primeiro; suporte a H.264, AV1, VP9 e H.265 | Melhor qualidade por bit em hardware e compatibilidade com placas de vídeo modernas |
+| Codec "Automático" (padrão): H.265 se o apresentador codifica e o espectador decodifica por hardware, senão H.264. A escolha manual no painel de vídeo continua valendo (H.264, H.265, VP9, AV1) | Nos testes em loopback com RTX 3070, o H.265 teve menos latência e menos tempo de encode que o H.264; VP9 e AV1 codificam em software nessa placa e não seguram 1080p60 |
 | Controle individual de resolução para quem assiste | O espectador escolhe no player (Auto, 1080p, 720p, 480p, 360p) e o apresentador aplica `scaleResolutionDownBy` só para ele |
 | App desktop com aceleração direta de GPU (NVENC/WebRTC) | Flags no Electron para codificação e decodificação aceleradas por hardware sem engasgos |
 | `bundlePolicy: 'max-bundle'`, `rtcpMuxPolicy: 'require'`, `iceCandidatePoolSize: 2` | Uma única porta de transporte e ICE mais rápido |

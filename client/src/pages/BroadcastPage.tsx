@@ -100,7 +100,7 @@ const BroadcastPage: React.FC = () => {
     width: 1920,
     height: 1080,
     frameRate: 60,
-    codec: 'H264',
+    codec: 'auto',
     bitrate: 8000,
     quality: 'high',
   });

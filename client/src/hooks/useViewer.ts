@@ -8,6 +8,7 @@
 import { useReducer, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCViewer } from '../services/webrtcService';
+import { detectViewerHwDecode } from '../services/codecSelection';
 import { createReconnector } from '../utils/reconnector';
 import type { Reconnector } from '../utils/reconnector';
 import { viewerReducer, INITIAL_VIEWER_STATE, isPasswordError } from './viewerReducer';
@@ -79,12 +80,19 @@ export function useViewer(roomCode: string | undefined) {
   useEffect(() => {
     if (!socket || !roomCode) return;
     let wasDisconnected = false;
+    let cancelled = false;
 
+    // Informa ao apresentador quais codecs este navegador decodifica por hardware (para o modo 'auto').
+    // A detecção é única e em cache; no pior caso (timeout) o join segue sem o campo.
     const sendJoin = () => {
-      const payload: JoinRoomPayload = { code: roomCode };
-      if (credsRef.current.password) payload.password = credsRef.current.password;
-      if (credsRef.current.name) payload.name = credsRef.current.name;
-      socket.emit('room:join', payload);
+      void detectViewerHwDecode().then((hwDecode) => {
+        if (cancelled) return;
+        const payload: JoinRoomPayload = { code: roomCode };
+        if (credsRef.current.password) payload.password = credsRef.current.password;
+        if (credsRef.current.name) payload.name = credsRef.current.name;
+        if (hwDecode) payload.hwDecode = hwDecode;
+        socket.emit('room:join', payload);
+      });
     };
     sendJoinRef.current = sendJoin;
 
@@ -170,6 +178,7 @@ export function useViewer(roomCode: string | undefined) {
     sendJoin();
 
     return () => {
+      cancelled = true;
       socket.off('room:joined', onJoined);
       socket.off('room:features-update', onFeaturesUpdate);
       socket.off('room:pending-approval', onPendingApproval);

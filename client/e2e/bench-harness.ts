@@ -13,12 +13,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { WebRTCBroadcaster, WebRTCViewer } from '../src/services/webrtcService';
+import { detectViewerHwDecode } from '../src/services/codecSelection';
 
 interface BenchConfig {
   width: number;
   height: number;
   fps: number;
-  codec: 'H264' | 'VP9' | 'AV1' | 'H265';
+  codec: 'H264' | 'VP9' | 'AV1' | 'H265' | 'auto';
   bitrate: number; // kbps
   durationSec: number;
   warmupSec: number;
@@ -197,7 +198,9 @@ async function runBench(cfg: BenchConfig) {
     video.srcObject = s;
     void video.play().catch(() => {});
   });
-  hostSocket.fire('room:viewer-joined', { viewerId: 'viewer', viewerCount: 1 });
+  // Igual ao app: o espectador informa os codecs que decodifica por hardware (usado pelo modo 'auto')
+  const hwDecode = await detectViewerHwDecode();
+  hostSocket.fire('room:viewer-joined', { viewerId: 'viewer', viewerCount: 1, ...(hwDecode ? { hwDecode } : {}) });
 
   // Gerador de frames: rAF (cadência do compositor, igual ao jogo → captura)
   let running = true;

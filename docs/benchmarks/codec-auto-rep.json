@@ -1,0 +1,1022 @@
+[
+  {
+    "config": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "codec": "H264",
+      "bitrate": 15000,
+      "durationSec": 15,
+      "warmupSec": 8,
+      "quality": "game",
+      "measureLatency": true
+    },
+    "chrome": "Chrome/156.0.0.0",
+    "negotiatedCodec": "video/H264",
+    "encodedResolution": "1920x1080",
+    "scalabilityMode": "L1T1",
+    "source": {
+      "drawFps": 57.7,
+      "drawIntervalP99Ms": 26.7,
+      "drawIntervalMaxMs": 30.6,
+      "drawCostMeanMs": 0.07,
+      "drawCostP99Ms": 0.2
+    },
+    "sender": {
+      "encodedFps": 57.1,
+      "sentFps": 57.1,
+      "bitrateMbps": 6.88,
+      "avgEncodeMs": 5.08,
+      "qualityLimitationReason": "none",
+      "qualityLimitationDurations": {
+        "bandwidth": 0,
+        "cpu": 0,
+        "none": 23.038,
+        "other": 0
+      },
+      "keyFramesEncoded": 0,
+      "nack": 0,
+      "pli": 0,
+      "retransmittedMbps": 0,
+      "avgPacketSendDelayMs": 23.19
+    },
+    "receiver": {
+      "decodedFps": 56.9,
+      "presentedFps": 47.9,
+      "framesDropped": 0,
+      "freezeCount": 0,
+      "freezeDurationSec": 0,
+      "pauseCount": 0,
+      "avgDecodeMs": 0.45,
+      "avgJitterBufferMs": 88.44,
+      "jitterMs": 10,
+      "packetsLost": 0,
+      "interFrameDelayMeanMs": 17.58,
+      "interFrameDelayStdMs": 8.85
+    },
+    "presentationPacing": {
+      "intervalMeanMs": 20.9,
+      "intervalP95Ms": 40.1,
+      "intervalP99Ms": 62.7,
+      "intervalMaxMs": 89.2,
+      "over25msPct": 20.4,
+      "over40msPct": 5
+    },
+    "glassToGlassMs": {
+      "samples": 179,
+      "mean": 130.2,
+      "p50": 127.3,
+      "p95": 145.6,
+      "p99": 160.7,
+      "max": 180.6,
+      "note": "loopback na mesma página: inclui encode+pacing+loopback+decode+compositor; NÃO inclui captura de tela do SO nem rede real"
+    },
+    "rvfc": {
+      "avgProcessingMs": 0.33,
+      "avgReceiveToPresentMs": 89.77
+    },
+    "bweSeries": [
+      {
+        "t": 2,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 4,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 6,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 8,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 10,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 55,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 12,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 14,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 16,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 18,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 56,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 20,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 22,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      }
+    ],
+    "jbTargetReadback": 0,
+    "playoutDelayHintReadback": 0,
+    "rttMs": 1
+  },
+  {
+    "config": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "codec": "auto",
+      "bitrate": 15000,
+      "durationSec": 15,
+      "warmupSec": 8,
+      "quality": "game",
+      "measureLatency": true
+    },
+    "chrome": "Chrome/156.0.0.0",
+    "negotiatedCodec": "video/H265",
+    "encodedResolution": "1920x1080",
+    "scalabilityMode": "L1T1",
+    "source": {
+      "drawFps": 57.6,
+      "drawIntervalP99Ms": 27.1,
+      "drawIntervalMaxMs": 32,
+      "drawCostMeanMs": 0.07,
+      "drawCostP99Ms": 0.2
+    },
+    "sender": {
+      "encodedFps": 57.1,
+      "sentFps": 57.1,
+      "bitrateMbps": 9.55,
+      "avgEncodeMs": 4.32,
+      "qualityLimitationReason": "none",
+      "qualityLimitationDurations": {
+        "bandwidth": 0,
+        "cpu": 0,
+        "none": 23.035,
+        "other": 0
+      },
+      "keyFramesEncoded": 0,
+      "nack": 0,
+      "pli": 0,
+      "retransmittedMbps": 0,
+      "avgPacketSendDelayMs": 15.02
+    },
+    "receiver": {
+      "decodedFps": 57.2,
+      "presentedFps": 48,
+      "framesDropped": 0,
+      "freezeCount": 0,
+      "freezeDurationSec": 0,
+      "pauseCount": 0,
+      "avgDecodeMs": 0.43,
+      "avgJitterBufferMs": 63.95,
+      "jitterMs": 7,
+      "packetsLost": 0,
+      "interFrameDelayMeanMs": 17.52,
+      "interFrameDelayStdMs": 8.31
+    },
+    "presentationPacing": {
+      "intervalMeanMs": 20.8,
+      "intervalP95Ms": 37.7,
+      "intervalP99Ms": 47,
+      "intervalMaxMs": 114.9,
+      "over25msPct": 21.7,
+      "over40msPct": 3.5
+    },
+    "glassToGlassMs": {
+      "samples": 180,
+      "mean": 98,
+      "p50": 92.7,
+      "p95": 110.7,
+      "p99": 112.5,
+      "max": 152.2,
+      "note": "loopback na mesma página: inclui encode+pacing+loopback+decode+compositor; NÃO inclui captura de tela do SO nem rede real"
+    },
+    "rvfc": {
+      "avgProcessingMs": 0.33,
+      "avgReceiveToPresentMs": 64.93
+    },
+    "bweSeries": [
+      {
+        "t": 2,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 56,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 4,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 6,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 8,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 10,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 12,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 56,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 14,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 16,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 18,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 56,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 20,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 22,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      }
+    ],
+    "jbTargetReadback": 0,
+    "playoutDelayHintReadback": 0,
+    "rttMs": 0
+  },
+  {
+    "config": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "codec": "H265",
+      "bitrate": 15000,
+      "durationSec": 15,
+      "warmupSec": 8,
+      "quality": "game",
+      "measureLatency": true
+    },
+    "chrome": "Chrome/156.0.0.0",
+    "negotiatedCodec": "video/H265",
+    "encodedResolution": "1920x1080",
+    "scalabilityMode": "L1T1",
+    "source": {
+      "drawFps": 57.6,
+      "drawIntervalP99Ms": 25.8,
+      "drawIntervalMaxMs": 29.5,
+      "drawCostMeanMs": 0.07,
+      "drawCostP99Ms": 0.2
+    },
+    "sender": {
+      "encodedFps": 57.2,
+      "sentFps": 57.2,
+      "bitrateMbps": 9.01,
+      "avgEncodeMs": 4.36,
+      "qualityLimitationReason": "none",
+      "qualityLimitationDurations": {
+        "bandwidth": 0,
+        "cpu": 0,
+        "none": 23.04,
+        "other": 0
+      },
+      "keyFramesEncoded": 0,
+      "nack": 0,
+      "pli": 0,
+      "retransmittedMbps": 0,
+      "avgPacketSendDelayMs": 16.46
+    },
+    "receiver": {
+      "decodedFps": 57.2,
+      "presentedFps": 49.9,
+      "framesDropped": 0,
+      "freezeCount": 0,
+      "freezeDurationSec": 0,
+      "pauseCount": 0,
+      "avgDecodeMs": 0.42,
+      "avgJitterBufferMs": 69.85,
+      "jitterMs": 8,
+      "packetsLost": 0,
+      "interFrameDelayMeanMs": 17.5,
+      "interFrameDelayStdMs": 7.91
+    },
+    "presentationPacing": {
+      "intervalMeanMs": 20.03,
+      "intervalP95Ms": 36.1,
+      "intervalP99Ms": 47.8,
+      "intervalMaxMs": 97,
+      "over25msPct": 16.3,
+      "over40msPct": 3.1
+    },
+    "glassToGlassMs": {
+      "samples": 187,
+      "mean": 105.4,
+      "p50": 108.9,
+      "p95": 116.4,
+      "p99": 155.8,
+      "max": 195.9,
+      "note": "loopback na mesma página: inclui encode+pacing+loopback+decode+compositor; NÃO inclui captura de tela do SO nem rede real"
+    },
+    "rvfc": {
+      "avgProcessingMs": 0.33,
+      "avgReceiveToPresentMs": 70.87
+    },
+    "bweSeries": [
+      {
+        "t": 2,
+        "availKbps": 6141,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 4,
+        "availKbps": 6893,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 6,
+        "availKbps": 7953,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 8,
+        "availKbps": 9233,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 10,
+        "availKbps": 10729,
+        "res": "1920x1080",
+        "fps": 56,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 12,
+        "availKbps": 12515,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 14,
+        "availKbps": 14267,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 16,
+        "availKbps": 15651,
+        "res": "1920x1080",
+        "fps": 59,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 18,
+        "availKbps": 17460,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 20,
+        "availKbps": 10498,
+        "res": "1920x1080",
+        "fps": 59,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 22,
+        "availKbps": 11967,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      }
+    ],
+    "jbTargetReadback": 0,
+    "playoutDelayHintReadback": 0,
+    "rttMs": 0
+  },
+  {
+    "config": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "codec": "H264",
+      "bitrate": 15000,
+      "durationSec": 15,
+      "warmupSec": 8,
+      "quality": "game",
+      "measureLatency": true
+    },
+    "chrome": "Chrome/156.0.0.0",
+    "negotiatedCodec": "video/H264",
+    "encodedResolution": "1920x1080",
+    "scalabilityMode": "L1T1",
+    "source": {
+      "drawFps": 57.7,
+      "drawIntervalP99Ms": 26.6,
+      "drawIntervalMaxMs": 36.4,
+      "drawCostMeanMs": 0.07,
+      "drawCostP99Ms": 0.2
+    },
+    "sender": {
+      "encodedFps": 57.3,
+      "sentFps": 57.3,
+      "bitrateMbps": 5.41,
+      "avgEncodeMs": 5.06,
+      "qualityLimitationReason": "none",
+      "qualityLimitationDurations": {
+        "bandwidth": 0,
+        "cpu": 0,
+        "none": 23.039,
+        "other": 0
+      },
+      "keyFramesEncoded": 0,
+      "nack": 0,
+      "pli": 0,
+      "retransmittedMbps": 0,
+      "avgPacketSendDelayMs": 26.91
+    },
+    "receiver": {
+      "decodedFps": 57.1,
+      "presentedFps": 47.4,
+      "framesDropped": 0,
+      "freezeCount": 0,
+      "freezeDurationSec": 0,
+      "pauseCount": 0,
+      "avgDecodeMs": 0.44,
+      "avgJitterBufferMs": 92.7,
+      "jitterMs": 13,
+      "packetsLost": 0,
+      "interFrameDelayMeanMs": 17.52,
+      "interFrameDelayStdMs": 10.77
+    },
+    "presentationPacing": {
+      "intervalMeanMs": 21.1,
+      "intervalP95Ms": 38.2,
+      "intervalP99Ms": 78.8,
+      "intervalMaxMs": 159.4,
+      "over25msPct": 19.3,
+      "over40msPct": 3.2
+    },
+    "glassToGlassMs": {
+      "samples": 177,
+      "mean": 132.8,
+      "p50": 127.6,
+      "p95": 145.9,
+      "p99": 180,
+      "max": 193.4,
+      "note": "loopback na mesma página: inclui encode+pacing+loopback+decode+compositor; NÃO inclui captura de tela do SO nem rede real"
+    },
+    "rvfc": {
+      "avgProcessingMs": 0.33,
+      "avgReceiveToPresentMs": 96.19
+    },
+    "bweSeries": [
+      {
+        "t": 2,
+        "availKbps": 11539,
+        "res": "1920x1080",
+        "fps": 56,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 4,
+        "availKbps": 12552,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 6,
+        "availKbps": 13834,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 8,
+        "availKbps": 9856,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 10,
+        "availKbps": 10983,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 12,
+        "availKbps": 12093,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 14,
+        "availKbps": 6865,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 16,
+        "availKbps": 7817,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 18,
+        "availKbps": 5794,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 20,
+        "availKbps": 6493,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 22,
+        "availKbps": 7287,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      }
+    ],
+    "jbTargetReadback": 0,
+    "playoutDelayHintReadback": 0,
+    "rttMs": 0
+  },
+  {
+    "config": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "codec": "auto",
+      "bitrate": 15000,
+      "durationSec": 15,
+      "warmupSec": 8,
+      "quality": "game",
+      "measureLatency": true
+    },
+    "chrome": "Chrome/156.0.0.0",
+    "negotiatedCodec": "video/H265",
+    "encodedResolution": "1920x1080",
+    "scalabilityMode": "L1T1",
+    "source": {
+      "drawFps": 57.7,
+      "drawIntervalP99Ms": 27.8,
+      "drawIntervalMaxMs": 31.9,
+      "drawCostMeanMs": 0.07,
+      "drawCostP99Ms": 0.2
+    },
+    "sender": {
+      "encodedFps": 57.4,
+      "sentFps": 57.4,
+      "bitrateMbps": 8.4,
+      "avgEncodeMs": 4.35,
+      "qualityLimitationReason": "none",
+      "qualityLimitationDurations": {
+        "bandwidth": 0,
+        "cpu": 0,
+        "none": 23.033,
+        "other": 0
+      },
+      "keyFramesEncoded": 0,
+      "nack": 0,
+      "pli": 0,
+      "retransmittedMbps": 0,
+      "avgPacketSendDelayMs": 17.66
+    },
+    "receiver": {
+      "decodedFps": 57.5,
+      "presentedFps": 48.1,
+      "framesDropped": 0,
+      "freezeCount": 0,
+      "freezeDurationSec": 0,
+      "pauseCount": 0,
+      "avgDecodeMs": 0.42,
+      "avgJitterBufferMs": 64.31,
+      "jitterMs": 13,
+      "packetsLost": 0,
+      "interFrameDelayMeanMs": 17.43,
+      "interFrameDelayStdMs": 8.4
+    },
+    "presentationPacing": {
+      "intervalMeanMs": 20.78,
+      "intervalP95Ms": 39.3,
+      "intervalP99Ms": 47.9,
+      "intervalMaxMs": 112.4,
+      "over25msPct": 22.1,
+      "over40msPct": 3.5
+    },
+    "glassToGlassMs": {
+      "samples": 180,
+      "mean": 100.8,
+      "p50": 101.2,
+      "p95": 114.5,
+      "p99": 121.1,
+      "max": 130.8,
+      "note": "loopback na mesma página: inclui encode+pacing+loopback+decode+compositor; NÃO inclui captura de tela do SO nem rede real"
+    },
+    "rvfc": {
+      "avgProcessingMs": 0.3,
+      "avgReceiveToPresentMs": 65.37
+    },
+    "bweSeries": [
+      {
+        "t": 2,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 4,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 6,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 8,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 10,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 12,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 14,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 16,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 18,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 20,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 22,
+        "availKbps": 0,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      }
+    ],
+    "jbTargetReadback": 0,
+    "playoutDelayHintReadback": 0,
+    "rttMs": 1
+  },
+  {
+    "config": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 60,
+      "codec": "H265",
+      "bitrate": 15000,
+      "durationSec": 15,
+      "warmupSec": 8,
+      "quality": "game",
+      "measureLatency": true
+    },
+    "chrome": "Chrome/156.0.0.0",
+    "negotiatedCodec": "video/H265",
+    "encodedResolution": "1920x1080",
+    "scalabilityMode": "L1T1",
+    "source": {
+      "drawFps": 57.6,
+      "drawIntervalP99Ms": 25.5,
+      "drawIntervalMaxMs": 29,
+      "drawCostMeanMs": 0.07,
+      "drawCostP99Ms": 0.2
+    },
+    "sender": {
+      "encodedFps": 56.9,
+      "sentFps": 56.9,
+      "bitrateMbps": 13.26,
+      "avgEncodeMs": 4.28,
+      "qualityLimitationReason": "none",
+      "qualityLimitationDurations": {
+        "bandwidth": 0,
+        "cpu": 0,
+        "none": 23.041,
+        "other": 0
+      },
+      "keyFramesEncoded": 0,
+      "nack": 0,
+      "pli": 0,
+      "retransmittedMbps": 0,
+      "avgPacketSendDelayMs": 20.21
+    },
+    "receiver": {
+      "decodedFps": 57.1,
+      "presentedFps": 47.4,
+      "framesDropped": 0,
+      "freezeCount": 0,
+      "freezeDurationSec": 0,
+      "pauseCount": 0,
+      "avgDecodeMs": 0.4,
+      "avgJitterBufferMs": 67.53,
+      "jitterMs": 5,
+      "packetsLost": 0,
+      "interFrameDelayMeanMs": 17.57,
+      "interFrameDelayStdMs": 8.45
+    },
+    "presentationPacing": {
+      "intervalMeanMs": 21.1,
+      "intervalP95Ms": 38.4,
+      "intervalP99Ms": 52,
+      "intervalMaxMs": 109.2,
+      "over25msPct": 21.4,
+      "over40msPct": 3.7
+    },
+    "glassToGlassMs": {
+      "samples": 177,
+      "mean": 105.6,
+      "p50": 108.8,
+      "p95": 113.9,
+      "p99": 147.9,
+      "max": 180,
+      "note": "loopback na mesma página: inclui encode+pacing+loopback+decode+compositor; NÃO inclui captura de tela do SO nem rede real"
+    },
+    "rvfc": {
+      "avgProcessingMs": 0.3,
+      "avgReceiveToPresentMs": 67.09
+    },
+    "bweSeries": [
+      {
+        "t": 2,
+        "availKbps": 9907,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 4,
+        "availKbps": 11376,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 6,
+        "availKbps": 13080,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 8,
+        "availKbps": 14823,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 10,
+        "availKbps": 16518,
+        "res": "1920x1080",
+        "fps": 57,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 12,
+        "availKbps": 18788,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 14,
+        "availKbps": 20538,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 16,
+        "availKbps": 22341,
+        "res": "1920x1080",
+        "fps": 55,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 18,
+        "availKbps": 18196,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 20,
+        "availKbps": 20034,
+        "res": "1920x1080",
+        "fps": 55,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      },
+      {
+        "t": 22,
+        "availKbps": 22621,
+        "res": "1920x1080",
+        "fps": 58,
+        "maxBitrateKbps": 15000,
+        "limit": "none"
+      }
+    ],
+    "jbTargetReadback": 0,
+    "playoutDelayHintReadback": 0,
+    "rttMs": 0
+  }
+]

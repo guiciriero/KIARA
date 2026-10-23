@@ -1,5 +1,5 @@
 import React from 'react';
-import type { VideoConfig, VideoCodec } from '@shared/index';
+import type { VideoConfig, VideoCodecPreference } from '@shared/index';
 import { IconSettings } from '../UI/Icons';
 import styles from './VideoConfigPanel.module.css';
 
@@ -124,9 +124,10 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
           <select
             value={config.codec}
             disabled={disabled || isSharing}
-            onChange={(e) => update({ codec: e.target.value as VideoCodec })}
+            onChange={(e) => update({ codec: e.target.value as VideoCodecPreference })}
             className={styles.select}
           >
+            <option value="auto">Automático (HEVC se o espectador suportar, senão H.264)</option>
             <option value="H264">H.264 (Universal / Compatibilidade Total)</option>
             <option value="AV1">AV1 (Máxima Eficiência / Próxima Geração)</option>
             <option value="VP9">VP9 (Eficiência e Qualidade Superior)</option>

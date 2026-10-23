@@ -7,8 +7,16 @@
  */
 
 import type { Socket } from 'socket.io-client';
-import type { RTCIceCandidatePayload, VideoConfig, StreamStats, IceServerConfig } from '@shared/index';
+import type {
+  RTCIceCandidatePayload,
+  VideoConfig,
+  VideoCodec,
+  StreamStats,
+  IceServerConfig,
+  ViewerJoinedPayload,
+} from '@shared/index';
 import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
+import { detectBroadcasterHwEncode, resolveVideoCodec } from './codecSelection';
 import { isMacOS } from './captureService';
 import { BitrateController } from './bitrateController';
 import { optimizeSdpForGaming, tuneOpusAudioSdp, mirrorVideoBitrateHints } from './sdpTuning';
@@ -44,7 +52,7 @@ const DEFAULT_VIDEO_CONFIG: VideoConfig = {
   width: 1920,
   height: 1080,
   frameRate: 60,
-  codec: 'H264',
+  codec: 'auto',
   bitrate: 8000,
   quality: 'high',
 };
@@ -417,8 +425,8 @@ export class WebRTCBroadcaster {
     }
   };
 
-  private handleViewerJoined = async ({ viewerId }: { viewerId: string }) => {
-    await this.initiateConnection(viewerId);
+  private handleViewerJoined = async ({ viewerId, hwDecode }: ViewerJoinedPayload) => {
+    await this.initiateConnection(viewerId, hwDecode);
   };
 
   private handleViewerLeft = ({ viewerId }: { viewerId: string }) => {
@@ -440,8 +448,12 @@ export class WebRTCBroadcaster {
     this.socket.on('webrtc:ice-restart-request', this.handleIceRestartRequestFromViewer);
   }
 
-  private async initiateConnection(viewerId: string): Promise<void> {
+  private async initiateConnection(viewerId: string, viewerHwDecode?: readonly VideoCodec[]): Promise<void> {
+    // Detecção (em cache) antes de qualquer estado do peer: evita corrida entre eventos duplicados
+    const hwEncode = this.videoConfig.codec === 'auto' ? await detectBroadcasterHwEncode() : undefined;
+    const choice = resolveVideoCodec(this.videoConfig.codec, { hwEncode, viewerHwDecode });
     if (this.destroyed || this.peers.has(viewerId)) return;
+    console.warn(`[KIARA:broadcaster] viewer=${viewerId.slice(0, 8)} codec=${choice.codec} (${choice.reason})`);
 
     // Defesa em profundidade: o servidor já aplica o limite
     if (this.options.maxViewers > 0 && this.peers.size >= this.options.maxViewers) {
@@ -468,7 +480,7 @@ export class WebRTCBroadcaster {
       for (const track of this.localStream.getTracks()) {
         const sender = pc.addTrack(track, this.localStream);
         if (track.kind === 'video') {
-          void this.applySenderParameters(sender, this.videoConfig);
+          void this.applySenderParameters(sender, { ...this.videoConfig, codec: choice.codec });
         }
       }
       if (this.localStream.getAudioTracks().length === 0) {
@@ -485,8 +497,9 @@ export class WebRTCBroadcaster {
       if (videoTransceiver && 'setCodecPreferences' in videoTransceiver && RTCRtpSender.getCapabilities) {
         const capabilities = RTCRtpSender.getCapabilities('video');
         if (capabilities?.codecs) {
-          const ordered = orderCodecs(capabilities.codecs, this.videoConfig.codec);
-          videoTransceiver.setCodecPreferences(ordered);
+          // H265 primeiro, mas com H264 logo depois: sem isso, um espectador sem HEVC cairia no VP8
+          const base = choice.codec === 'H265' ? orderCodecs(capabilities.codecs, 'H264') : capabilities.codecs;
+          videoTransceiver.setCodecPreferences(orderCodecs(base, choice.codec));
         }
       }
     } catch {
