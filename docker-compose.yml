@@ -1,74 +1,63 @@
-# Sobe servidor + cliente (Nginx) em http://localhost:3000.
-# O Nginx do cliente faz proxy de /socket.io e /download para o servidor, então o navegador
-# só fala com a porta 3000. Antes: (cd shared/types && npm ci && npm run build) e
-# (cd server && npm ci && npm run build) — o Dockerfile do servidor copia server/dist.
+# docker-compose.yml
+# Implantação 100% gratuita, autônoma e self-hosted do KIARA
+# Inclui servidor de sinalização Node.js + Servidor TURN/STUN Coturn próprio
+
+version: '3.8'
+
 services:
-  # ─── Servidor de Sinalização ─────────────────────────────────────────────
-  server:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    container_name: kiara-server
+  # Servidor Coturn: Fornece STUN e TURN para contornar CGNAT e firewalls simétricos
+  coturn:
+    image: coturn/coturn:latest
+    container_name: kiara-coturn
     restart: unless-stopped
-    # Sem "ports": só o Nginx (rede interna) acessa o servidor. Para depurar, publique
-    # "127.0.0.1:3001:3001" localmente.
-    expose:
-      - "3001"
+    network_mode: "host"
     environment:
-      - PORT=3001
-      - HOST=0.0.0.0
-      - CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:3000}
-      - NODE_ENV=${NODE_ENV:-production}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - TRUST_PROXY=${TRUST_PROXY:-1}
-      - MAX_VIEWERS_PER_ROOM=${MAX_VIEWERS_PER_ROOM:-8}
-      - MAX_ROOMS=${MAX_ROOMS:-200}
-      - MAX_CONNECTIONS=${MAX_CONNECTIONS:-500}
-      - MAX_CONNECTIONS_PER_IP=${MAX_CONNECTIONS_PER_IP:-20}
-      - ROOM_MAX_HOURS=${ROOM_MAX_HOURS:-12}
-      - TURN_URLS=${TURN_URLS:-}
-      - TURN_SECRET=${TURN_SECRET:-}
-      - CLOUDFLARE_TURN_KEY_ID=${CLOUDFLARE_TURN_KEY_ID:-}
-      - CLOUDFLARE_TURN_API_TOKEN=${CLOUDFLARE_TURN_API_TOKEN:-}
-    # ubi9 minimal não tem curl: usa o fetch nativo do Node (22).
+      - DETECT_EXTERNAL_IP=yes
+    command:
+      - turnserver
+      - -n
+      - --log-file=stdout
+      - --min-port=49152
+      - --max-port=49252
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --realm=kiara.local
+      - --use-auth-secret
+      - --static-auth-secret=kiara_turn_secret_change_me_in_production
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD-SHELL", "turnutils_stunclient 127.0.0.1 3478 || exit 0"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
-    read_only: true
-    tmpfs:
-      - /tmp
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - kiara-net
 
-  # ─── Cliente (servido via Nginx) ─────────────────────────────────────────
-  client:
+  # Servidor KIARA: Sinalização WebRTC, Salas Persistentes e Site SPA
+  kiara-server:
     build:
-      context: ./client
-      dockerfile: Dockerfile
-    container_name: kiara-client
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: kiara-server
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:8080"   # Nginx escuta 8080 (não-root); exposto só no localhost
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=3001
+      - DATA_DIR=/app/data
+      - MAX_VIEWERS_PER_ROOM=20
+      - ROOM_MAX_HOURS=24
+      - TURN_URLS=turn:127.0.0.1:3478?transport=udp,turn:127.0.0.1:3478?transport=tcp
+      - TURN_SECRET=kiara_turn_secret_change_me_in_production
+    volumes:
+      - kiara_data:/app/data
     depends_on:
-      server:
-        condition: service_healthy
-    read_only: true
-    tmpfs:
-      - /tmp
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - kiara-net
+      - coturn
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 4s
+      retries: 3
 
-networks:
-  kiara-net:
-    driver: bridge
+volumes:
+  kiara_data:
+    driver: local

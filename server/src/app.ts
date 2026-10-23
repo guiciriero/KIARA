@@ -232,8 +232,13 @@ export function createApp(opts: AppOptions = {}): AppInstance {
     // A sinalização só troca JSON pequeno (SDP/ICE); nada de mídia ou base64 grande
     maxHttpBufferSize: opts.maxHttpBufferSize ?? MAX_SOCKET_MESSAGE_BYTES,
     transports: ['websocket', 'polling'],
-    pingTimeout: 10_000,
+    perMessageDeflate: false,
+    pingTimeout: 4_000,
     pingInterval: 5_000,
+    connectionStateRecovery: {
+      maxDisconnectionDuration: 2 * 60 * 1000,
+      skipMiddlewares: true,
+    },
   });
 
   // ─── Limite de conexões (global e por IP) ──────────────────────────────────
