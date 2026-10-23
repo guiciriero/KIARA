@@ -59,6 +59,11 @@
   pointer-events: none;
 }
 
+/* Abre espaço para a cena ao vivo (56 px) sem cortar o Shih Tzu */
+.topBarLive {
+  min-height: 64px;
+}
+
 /* Cena ao vivo centralizada na barra; some quando não há espaço livre no meio */
 .liveScene {
   position: absolute;
@@ -1011,6 +1016,9 @@
 @media (max-width: 1180px) {
   .liveScene {
     display: none;
+  }
+  .topBarLive {
+    min-height: 0;
   }
 }
 

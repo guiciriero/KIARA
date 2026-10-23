@@ -531,7 +531,7 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard} role="status" aria-live="polite">
-          <PixelShihTzu pose="walk" scale={5} speech="Esperando o host aprovar... 🐾" />
+          <PixelShihTzu pose="idle" scale={5} speech="Esperando o host aprovar... 🐾" />
           <h2>Aguardando aprovação</h2>
           <p>O apresentador precisa aceitar a sua entrada. Mantenha esta página aberta.</p>
           <button type="button" className={styles.btnSecondary} onClick={handleLeave}>

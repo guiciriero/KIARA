@@ -71,7 +71,6 @@ const HomePage: React.FC = () => {
       {/* ── Conteúdo Central Minimalista ─────────────────────────────────── */}
       <main className={styles.main}>
         <div className={styles.heroText}>
-          <PixelShihTzu pose="idle" scale={5} className={styles.heroMascot} />
           <h1 className={styles.title}>
             Compartilhamento de tela direto, sem atrito.
           </h1>

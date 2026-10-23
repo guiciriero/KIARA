@@ -408,7 +408,7 @@ const BroadcastPage: React.FC = () => {
       )}
 
       {/* ── Barra Superior de Estúdio ────────────────────────────────────── */}
-      <header className={styles.topBar}>
+      <header className={`${styles.topBar} ${state.isSharing ? styles.topBarLive : ''}`}>
         <div className={styles.topBarLeft}>
           <button
             type="button"
