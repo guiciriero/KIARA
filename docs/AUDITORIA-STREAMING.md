@@ -106,11 +106,50 @@ Conclusões: **HEVC é o melhor codec no hardware testado** (menor latência, me
 
 O `track.getSettings()` **reporta 60 fps, mas a entrega real é 31–43 fps**, e o intervalo de 31 ms indica cadência travada em ~30 Hz. É o limitador nº 1 do "60 fps fluido" no app atual; o `applyConstraints` do `captureService.ts` não resolve isso. Medição indicativa (uma máquina, janela do Chrome ocupando a tela; o Electron usa o mesmo capturador, mas **não** foi medido).
 
+### 2.3b Experimento: WGC por flag do Chromium (descartado)
+
+O `chrome.dll` 156 contém `WgcCapturerWin` e a feature `WebRtcAllowWgcUsingTexture`. Rodei o mesmo `capture-probe.mjs` com `PROBE_FLAGS="--enable-features=WebRtcAllowWgcUsingTexture"`:
+
+| Cenário | Base (sem flag, esta rodada) | Com a flag |
+|---|---|---|
+| 1080p60 `none` | 38,1 fps (p99 34 ms) | **21,4 fps (p99 529 ms)** |
+| 1080p60 `crop-and-scale` | 31,9 fps | 30,9 fps |
+| 1440p60 `none` | 31,4 fps | 31,9 fps |
+
+A flag não melhorou nada e piorou a cauda no primeiro cenário (uma rodada cada; não repeti). Conclusão: não há atalho por flag; o teto de ~31–43 fps do `getDisplayMedia` continua. (Dados: `docs/benchmarks/capture-base.txt`, `capture-wgctex.txt`.)
+
 ### 2.4 Hardware encode confirmado
 
 `nvidia-smi` durante o teste: H.264 e HEVC = **NVENC 14–22%**; VP9/AV1 = **NVENC 0%** (encode em CPU). NVDEC 10–27% em todos.
 
 ---
+
+### 2.5 Codec automático (HEVC com fallback H.264) — antes/depois
+
+Implementado em `client/src/services/codecSelection.ts` + `webrtcService.ts`. O padrão deixou de ser `H264` e passou a ser `auto`:
+
+1. O espectador consulta `MediaCapabilities.decodingInfo({type:'webrtc'})` (1080p60, 15 Mbps) e envia `hwDecode` (ex.: `['H265','H264','AV1','VP9']`) em `room:join`. O servidor valida/filtra (só codecs conhecidos, sem repetição, máx. 16) e repassa em `room:viewer-joined`.
+2. O apresentador consulta `encodingInfo` uma vez e, **por espectador**, escolhe `H265` somente se encode **e** decode forem `supported && smooth && powerEfficient`; caso contrário `H264`. Se o espectador não informar (cliente antigo, API ausente, timeout de 1,5 s), usa `H264`.
+3. Com HEVC escolhido, as preferências ficam `H265, H264, …`, então um espectador que na prática não negocie HEVC cai em H.264 e não em VP8.
+4. A escolha manual no `VideoConfigPanel` (agora com a opção "Automático") é respeitada sem alteração.
+
+Medido neste Chrome 156 / RTX 3070: `encodingInfo` e `decodingInfo` reportam HEVC como `powerEfficient=true` (e AV1 só em decode; VP9/AV1 encode = `false`, o que bate com o NVENC 0% da seção 2.4).
+
+Benchmark (1080p60, pedido 15 Mbps, 15 s, `bench.mjs`; 3 rodadas por modo, dados em `docs/benchmarks/codec-auto*.json`):
+
+| Modo | Codec negociado (3/3) | G2G p50 (ms) | G2G p95 (ms) | Encode (ms) | FPS apresentado | Freezes / drops |
+|---|---|---|---|---|---|---|
+| H264 manual | H264 | 164, 127, 128 | 176, 146, 146 | 6,5 / 5,1 / 5,1 | 44,5 / 47,9 / 47,4 | 0 / 0 |
+| H265 manual | H265 | 93, 109, 109 | 113, 116, 114 | 4,8 / 4,4 / 4,3 | 50,0 / 49,9 / 47,4 | 0 / 0 |
+| **auto** | **H265 (3/3)** | 110, 93, 101 | 115, 111, 115 | 4,7 / 4,3 / 4,4 | 48,6 / 48,1 / 48,0 | 0 / 0 |
+
+Leitura: `auto` negociou HEVC em 3/3 e ficou no nível do HEVC manual; frente ao H.264, a latência p50 caiu cerca de 20–35 ms (a primeira rodada de H.264, 164 ms, é a mais alta; as outras duas ficaram em ~128 ms). O bitrate real variou bastante entre rodadas (H.264 4,6–6,9 Mbps; HEVC 7,8–13,3 Mbps), então **não comparei qualidade de imagem**: HEVC pode estar usando mais bits na mesma cena.
+
+Limites: (a) o benchmark roda encode e decode no **mesmo** Chrome/GPU, então o caminho de fallback (espectador sem HEVC) só está coberto por testes unitários (`codecSelection.test.ts`, `webrtcService.codecAuto.test.ts`: 18 testes), não por um segundo navegador real; (b) o **Electron 44 empacotado não foi medido**: se o Chromium dele não oferecer HEVC por hardware, a detecção devolve `[]`/`undefined` e o resultado é H.264 (comportamento seguro, mas sem o ganho); (c) `powerEfficient` é um indicador do navegador, não prova de uso da GPU; (d) Firefox/Safari como espectador não foram testados.
+
+### 2.6 Servidor/sinalização: o que mudou
+
+`JoinRoomPayload.hwDecode?` e `ViewerJoinedPayload` em `shared/types`; `sanitizeHwDecode` em `validators.ts`; mapa `socketHwDecode` no `signalingHandler.ts` (limpo na desconexão, como o de apelidos). `ALLOWED_VIDEO_CODECS` do `sanitizeStreamConfig` passou a aceitar `'auto'`. Servidor: 84/84 testes (2 novos).
 
 ## 3. Recomendação de arquitetura-alvo
 
@@ -156,8 +195,8 @@ O `track.getSettings()` **reporta 60 fps, mas a entrega real é 31–43 fps**, e
 | Espelhar `x-google-start/max-bitrate` na answer | **Alto** (1080p estável) | Baixo | Baixo | ✅ **Feito e medido** |
 | Corrigir teste de AIMD quebrado no baseline | Baixo | Baixo | Nenhum | ✅ Feito |
 | Ferramenta de benchmark reproduzível (`npm run bench`) | Alto (base de tudo) | Médio | Nenhum | ✅ Feito |
-| Preferir **HEVC** quando o espectador decodificar em HW; senão H.264 | Alto (≈-35 ms G2G, +2–3 fps apres. no loopback) | Baixo | Médio (compat. web) | ⏳ Proposto (não implementado) |
-| Corrigir docs falsas: "jitter 0 ms" (PERFORMANCE.md) e "até 4K a 60 FPS" (README) | Médio (honestidade) | Baixo | Nenhum | ⏳ Jitter corrigido; **README ainda promete 4K60** |
+| Preferir **HEVC** quando o espectador decodificar em HW; senão H.264 | Alto (≈-20 a -35 ms G2G, +1–3 fps apres. no loopback) | Baixo | Médio (compat. web) | ✅ **Feito e medido** (seção 2.5); falta medir no Electron empacotado |
+| Corrigir docs falsas: "jitter 0 ms" (PERFORMANCE.md) e "até 4K a 60 FPS" (README) | Médio (honestidade) | Baixo | Nenhum | ✅ Feito (README agora fala em alvo 1080p60 e aponta para este relatório) |
 | Trocar o `TURN_SECRET` fixo do compose | Segurança | Baixo | Nenhum | ✅ Feito (agora obrigatório via env) |
 
 ### Médio prazo (semanas)
@@ -173,13 +212,48 @@ O `track.getSettings()` **reporta 60 fps, mas a entrega real é 31–43 fps**, e
 
 ---
 
+### 4.1 Captura nativa de vídeo: verificação do toolchain (feita com `node-gyp` de verdade)
+
+Rodei `npm install --ignore-scripts` + `npx node-gyp configure` em `native/` (node-gyp 13.1.0, Node 22.12.0). Resultado:
+
+```
+find VS checking VS2026 (18.10.12306.391) found at: C:\Program Files\Microsoft Visual Studio\18\Community
+find VS - found "Visual Studio C++ core features"
+find VS - missing any VC++ toolset
+gyp ERR! Could not find any Visual Studio installation to use
+```
+
+Confirmado no disco: `...\18\Community\VC` só tem `Auxiliary` e `Redist` (sem `Tools\MSVC`, ou seja, sem `cl.exe`), e não existe `C:\Program Files (x86)\Windows Kits\10`. **Não compila nesta máquina; não escrevi código C++.** (O CI `build-windows.yml` compila o addon no runner `windows-latest`, mas isso só valida o código atual, que não é a captura nova.)
+
+**O que instalar (Visual Studio Installer → Modificar → Visual Studio Community 2026):**
+1. Workload **"Desenvolvimento para desktop com C++"** (`Microsoft.VisualStudio.Workload.NativeDesktop`). Ela traz o conjunto de ferramentas MSVC x64/x86 (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) e normalmente o **Windows 11 SDK** marcado por padrão.
+2. Confirme na aba "Componentes individuais" que há um **Windows 11 SDK (10.0.2xxxx)** ou **Windows 10 SDK (10.0.19041+)** marcado. Para a etapa WGC convém o SDK recente (WinRT `Windows.Graphics.Capture`).
+3. Opcional, mesma tela: "C++/WinRT" (vem com a workload) e "Ferramentas de build do C++ CMake" não são necessárias para `node-gyp`.
+
+Alternativa por linha de comando (não executei; os nomes dos componentes vêm da documentação do VS, não foram validados nesta máquina): `"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" modify --installPath "C:\Program Files\Microsoft Visual Studio\18\Community" --add Microsoft.VisualStudio.Workload.NativeDesktop --includeRecommended`.
+
+**Como eu valido depois de você instalar:** `cd native; npm install --ignore-scripts; npx node-gyp rebuild` e depois `node -e "require('./build/Release/screen_capture.node')"`. Só então começo o plano abaixo.
+
+### 4.2 Plano em etapas pequenas (só depois do toolchain compilar)
+
+| Etapa | Entrega | Como medir | Critério de parar |
+|---|---|---|---|
+| E0 | `node-gyp rebuild` ok + smoke test | carrega o `.node` | não compila → parar e reportar |
+| E1 | Harness Node (sem Electron) que chama o `startCapture` DXGI **existente** e conta frames/s sobre a mesma página animada do `capture-probe.mjs` | fps real, intervalos p50/p99 | dá a linha de base nativa *com* readback (hipótese: já ≥ getDisplayMedia, mas o readback custa CPU) |
+| E2 | Captura WGC (`Windows.Graphics.Capture`) entregando `ID3D11Texture2D` **sem** readback | fps real + uso de CPU/GPU | se não passar de ~60 fps estáveis, não seguir |
+| E3 | Encode por hardware a partir da textura (hipótese de caminho: Media Foundation `IMFTransform` de H.264/HEVC, que usa NVENC/AMF/QSV conforme a GPU, em vez de três SDKs) | ms/frame, bitstream Annex-B válido | encode > 8 ms/frame a 1080p60 → rever |
+| E4 | Ligar ao WebRTC. **Este é o ponto de maior risco e não está resolvido:** `RTCRtpSender` não aceita frames já codificados vindos de fora. Opções a avaliar, em ordem de custo: (a) entregar os frames capturados ao renderer como `VideoFrame` → `MediaStreamTrackGenerator` e deixar o Chromium codificar (troca só a captura; mantém NVENC do Chromium; custo de cópia a medir); (b) `RTCRtpScriptTransform` substituindo o payload (frágil); (c) transporte próprio (UDP/Pion/Rust, é o caminho "estrutural"). | fps apresentado e G2G de ponta a ponta no Electron | se (a) não chegar a ~55 fps no espectador, considerar (c) |
+
+Recomendo começar por E1 e E2 (medem o ganho de captura isolado), e decidir E4 com esses números na mão. Nada disso foi medido ainda.
+
 ## 5. Pendências e decisões suas
 
+0. **Instalar a workload C++ + Windows SDK** (seção 4.1) para destravar a captura nativa. Sem isso, o item fica parado.
 1. **Escopo da reescrita:** manter Electron (rápido, teto ~43 fps de captura) ou investir em captura/encode nativos (semanas, ganho grande)? Eu recomendo o nativo.
 2. **Hospedagem:** pagar um VPS/nó em São Paulo? (custo mensal + banda de saída). Sem isso, sem UDP próprio e sem SFU.
-3. **HEVC como padrão:** aceita perder compatibilidade em navegadores sem decode HEVC (Firefox, parte do Chrome/Linux)? Sugestão: HEVC no app, H.264 na web.
+3. **HEVC como padrão:** já implementado como modo `auto` (seção 2.5), com H.264 de fallback por espectador. Decida se mantém `auto` como padrão ou volta a H.264 fixo; a escolha manual continua no painel.
 4. **Gravar sessões reais de FPS** (CS2/Valorant/Warzone) para validar qualidade de imagem com VMAF; eu não tenho esses jogos aqui.
-5. **Medir o Electron empacotado:** esta máquina não tem Visual Studio nem `electron.exe`; recomendo rodar `npm run bench` e o `capture-probe.mjs` dentro do app instalado para confirmar os números da seção 2.3.
+5. **Medir o Electron empacotado:** esta máquina não tem Visual Studio com C++ nem `electron.exe` empacotado; rode `npm run bench` e o `capture-probe.mjs` dentro do app instalado para confirmar as seções 2.3 e 2.5 (em especial se o Chromium do Electron 44 reporta HEVC como `powerEfficient`).
 6. **Segurança:** trocar o `TURN_SECRET` do `docker-compose.yml` antes de qualquer deploy.
 
 ## 6. Limites honestos da meta "100% de fluidez"

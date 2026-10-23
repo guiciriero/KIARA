@@ -14,7 +14,9 @@ const b = await puppeteer.launch({
   headless: false,
   defaultViewport: null,
   args: ['--auto-select-desktop-capture-source=Entire screen', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required',
-    '--no-first-run', '--start-maximized', '--window-position=0,0', '--disable-frame-rate-limit'],
+    '--no-first-run', '--start-maximized', '--window-position=0,0', '--disable-frame-rate-limit',
+    // Flags extras para experimentos, ex.: PROBE_FLAGS="--enable-features=ZeroCopyDesktopCapture"
+    ...(process.env.PROBE_FLAGS || '').split(/\s+/).filter(Boolean)],
 });
 const p = await b.newPage();
 await p.goto('http://127.0.0.1:' + srv.address().port + '/');
