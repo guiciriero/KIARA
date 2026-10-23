@@ -23,7 +23,7 @@ services:
       - --tls-listening-port=5349
       - --realm=kiara.local
       - --use-auth-secret
-      - --static-auth-secret=kiara_turn_secret_change_me_in_production
+      - --static-auth-secret=${TURN_SECRET:?defina TURN_SECRET no ambiente}
     healthcheck:
       test: ["CMD-SHELL", "turnutils_stunclient 127.0.0.1 3478 || exit 0"]
       interval: 30s
@@ -47,7 +47,7 @@ services:
       - MAX_VIEWERS_PER_ROOM=20
       - ROOM_MAX_HOURS=24
       - TURN_URLS=turn:127.0.0.1:3478?transport=udp,turn:127.0.0.1:3478?transport=tcp
-      - TURN_SECRET=kiara_turn_secret_change_me_in_production
+      - TURN_SECRET=${TURN_SECRET:?defina TURN_SECRET no ambiente}
     volumes:
       - kiara_data:/app/data
     depends_on:
@@ -61,3 +61,4 @@ services:
 volumes:
   kiara_data:
     driver: local
+
