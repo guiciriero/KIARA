@@ -15,6 +15,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { execFile } = require('child_process');
 const {
   app,
@@ -27,10 +28,11 @@ const {
   desktopCapturer,
   systemPreferences,
   dialog,
+  powerSaveBlocker,
   utilityProcess,
 } = require('electron');
 
-// ─── Aceleração por Hardware e Otimizações de Vídeo (KIARA 60 FPS / Baixa Latência) ───
+// ─── Aceleração por Hardware e Otimizações de Vídeo (KIARA 60/120 FPS / Baixa Latência) ───
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
@@ -38,10 +40,34 @@ app.commandLine.appendSwitch('enable-accelerated-mjpeg-decode');
 app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
 app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('disable-frame-rate-limit');
+app.commandLine.appendSwitch('enable-gpu-memory-buffer-video-frames');
+app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
+app.commandLine.appendSwitch('force_high_performance_gpu');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch(
   'enable-features',
-  'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRtcHideLocalIpsWithMdns,PlatformHEVCDecoderSupport'
+  'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRtcHideLocalIpsWithMdns,PlatformHEVCDecoderSupport,DirectCompositionSharedImages,WebRtcUseMinMaxVEADimensions,RawDraw'
 );
+
+// Eleva a prioridade do processo do KIARA no Windows para garantir fluidez mesmo durante jogos pesados a 100% de CPU/GPU
+try {
+  if (process.platform === 'win32' && os.constants && os.constants.priority) {
+    os.setPriority(os.constants.priority.PRIORITY_ABOVE_NORMAL);
+  }
+} catch {
+  // Ignora se não houver permissão
+}
+
+// Bloqueia suspensão de energia durante a transmissão
+let powerBlockerId = null;
+try {
+  powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+} catch {
+  // Ignora se indisponível
+}
 
 // ─── Instância única ──────────────────────────────────────────────────────────
 
@@ -527,6 +553,7 @@ function createWindow() {
       allowRunningInsecureContent: false,
       webviewTag: false,
       spellcheck: false,
+      backgroundThrottling: false,
     },
   });
   mainWindow = win;
