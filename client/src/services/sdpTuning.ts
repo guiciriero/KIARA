@@ -1,4 +1,4 @@
-﻿/**
+/**
  * sdpTuning.ts
  *
  * Utilitários de otimização de SDP (Session Description Protocol) para jogos

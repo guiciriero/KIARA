@@ -1,4 +1,4 @@
-﻿/**
+/**
  * performance.test.ts
  *
  * Testes de validação de desempenho e configurações de 60 FPS.
