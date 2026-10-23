@@ -26,6 +26,8 @@ const {
   protocol,
   net,
   desktopCapturer,
+  screen,
+  sharedTexture,
   systemPreferences,
   dialog,
   powerSaveBlocker,
@@ -89,6 +91,7 @@ const { startTunnel, findCloudflared } = require('./runtime/tunnel');
 const { readExpectedCloudflaredSha } = require('./runtime/integrity');
 const { findFreePort, startServer, resolveClientDist } = require('./runtime/server');
 const { createUpdater } = require('./updater');
+const { createNativeCapture } = require('./nativeCapture');
 const { SPLASH_HTML } = require('./splashPage');
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
@@ -231,6 +234,16 @@ function stopAudio() {
     console.warn('[desktop] Falha ao parar captura de áudio:', err && err.message);
   }
 }
+
+// Captura nativa de vídeo (DXGI zero-copy). Só Windows; o renderer cai no getDisplayMedia se indisponível.
+const nativeCapture = createNativeCapture({
+  getNative: () => native,
+  screen,
+  sharedTexture,
+  desktopCapturer,
+  getTarget: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null),
+  platform: process.platform,
+});
 
 function stopRuntime() {
   try { if (tunnelStop) tunnelStop(); } catch { /* ok */ }
@@ -378,6 +391,13 @@ function registerIpc() {
 
   handle('audio:stop', () => { stopAudio(); }, VIEWER_OK);
 
+  handle('native-capture:available', () => nativeCapture.isAvailable(), VIEWER_OK);
+  handle('native-capture:start', async (opts) => {
+    assertScreenAccess();
+    return nativeCapture.start(opts);
+  }, VIEWER_OK);
+  handle('native-capture:stop', () => { nativeCapture.stop(); }, VIEWER_OK);
+
   handle('capture:list', async () => {
     assertScreenAccess();
     const sources = await desktopCapturer.getSources({
@@ -416,7 +436,7 @@ function registerIpc() {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updater:state', state);
     },
     // Mesma limpeza do encerramento normal: sem túnel/servidor/áudio órfãos ao instalar.
-    beforeInstall: () => { stopAudio(); stopRuntime(); },
+    beforeInstall: () => { stopAudio(); nativeCapture.stop(); stopRuntime(); },
   });
   handle('updater:get-state', () => updater.getState());
   handle('updater:check', () => updater.check());
@@ -597,16 +617,19 @@ function createWindow() {
   wc.on('did-start-navigation', (details) => {
     if (details.isMainFrame && !details.isSameDocument) {
       stopAudio();
+      nativeCapture.stop();
       pendingSourceId = null;
     }
   });
   wc.on('render-process-gone', () => {
     stopAudio();
+    nativeCapture.stop();
     pendingSourceId = null;
   });
 
   win.on('closed', () => {
     stopAudio();
+    nativeCapture.stop();
     pendingSourceId = null;
     if (mainWindow === win) mainWindow = null;
   });
@@ -769,6 +792,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   stopAudio();
+  nativeCapture.stop();
   stopRuntime();
 });
 

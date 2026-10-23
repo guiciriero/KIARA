@@ -75,7 +75,7 @@ window.__paint[id]=performance.timeOrigin+performance.now();requestAnimationFram
       native: st, sentToRenderer, sendErrors, lastErr, ...result }));
     setTimeout(() => app.exit(0), 300);
   });
-  await win.loadFile(path.join(__dirname, 'electron-native-poc.html'));
+  await win.loadFile(path.join(__dirname, 'electron-native-poc.html'), { search: arg('mode', 'tex') === 'frame' ? 'mode=frame' : '' });
   anim.focus();
   setTimeout(() => { console.log('TIMEOUT'); app.exit(2); }, (secs + 40) * 1000);
 });

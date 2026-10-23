@@ -204,6 +204,17 @@ void SharedLoop(Napi::ThreadSafeFunction tsfn, int targetFps) {
 
     ComPtr<ID3D11Texture2D> src;
     res.As(&src);
+    {
+      // HDR / 10 bits (R16G16B16A16_FLOAT etc.): CopyResource para o slot BGRA8 seria invalido; avisa o app para usar o fallback.
+      D3D11_TEXTURE2D_DESC sd{};
+      src->GetDesc(&sd);
+      if (sd.Format != DXGI_FORMAT_B8G8R8A8_UNORM || sd.Width != g_sc->width || sd.Height != g_sc->height) {
+        g_sc->slots[idx].busy = false;
+        g_sc->dup->ReleaseFrame();
+        endReason = (sd.Format != DXGI_FORMAT_B8G8R8A8_UNORM) ? "unsupported-format" : "resolution-changed";
+        break;
+      }
+    }
     // Cursor: copia para a textura GDI, desenha o icone e copia para o slot (so quando o cursor esta visivel na tela).
     bool composed = false;
     if (g_sc->drawCursor && g_sc->gdiTex) {

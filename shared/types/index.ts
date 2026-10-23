@@ -95,6 +95,19 @@ export type UpdateState =
   | (UpdateStateBase & { status: 'downloaded'; latestVersion?: string; progress: 100 })
   | (UpdateStateBase & { status: 'error'; latestVersion?: string; message: string });
 
+/** Textura de GPU recebida da captura nativa (electron.sharedTexture). O dono deve chamar `release()`. */
+export interface NativeCaptureTexture {
+  /** VideoFrame (lib DOM) - tipado como unknown aqui porque este pacote nao inclui a lib DOM */
+  getVideoFrame(): unknown;
+  release(): void;
+}
+
+export interface NativeCaptureOptions {
+  fps: number;
+  /** `screen:...` escolhido na interface; null/ausente = tela principal */
+  sourceId?: string | null;
+}
+
 export interface ScreenShareHostApi {
   platform: 'windows' | 'macos';
   audio: {
@@ -102,6 +115,19 @@ export interface ScreenShareHostApi {
     listSources(): Promise<AudioSource[]>;
     /** Inicia a captura dos PIDs. Rejeita com mensagem legível em caso de falha. */
     start(pids: number[], onChunk: (chunk: NativeAudioChunk) => void): Promise<void>;
+    stop(): Promise<void>;
+  };
+  /**
+   * Captura de tela nativa (DXGI zero-copy, só Windows). Ausente em builds antigos do desktop.
+   * Se `isAvailable()` for false ou `start` rejeitar, o cliente usa getDisplayMedia.
+   */
+  nativeCapture?: {
+    isAvailable(): Promise<boolean>;
+    start(
+      options: NativeCaptureOptions,
+      onTexture: (texture: NativeCaptureTexture) => void,
+      onEnded: (reason: string) => void,
+    ): Promise<void>;
     stop(): Promise<void>;
   };
   capture: {

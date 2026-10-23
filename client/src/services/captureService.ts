@@ -8,6 +8,7 @@
 
 import type { VideoConfig } from '@shared/index';
 import { MediaError, toMediaError } from './mediaError';
+import { canUseNativeCapture, startNativeVideoTrack } from './nativeCapture';
 
 export interface CaptureResult {
   stream: MediaStream;
@@ -61,11 +62,12 @@ function buildConstraints(config: VideoConfig, withAudio: boolean): DisplayMedia
   } as DisplayMediaStreamOptions;
 }
 
-function logCapture(config: VideoConfig, track: MediaStreamTrack): void {
+function logCapture(config: VideoConfig, track: MediaStreamTrack, source: 'native' | 'display-media' = 'display-media'): void {
   if (!import.meta.env.DEV) return;
   const settings = track.getSettings?.() ?? {};
   // eslint-disable-next-line no-console
   console.debug('[KIARA capture]', {
+    source,
     requested: { width: config.width, height: config.height, frameRate: config.frameRate || 60 },
     actual: { width: settings.width, height: settings.height, frameRate: settings.frameRate },
     devicePixelRatio: window.devicePixelRatio,
@@ -95,6 +97,22 @@ export async function captureDisplay(
   if (!isDisplayCaptureSupported()) throw new MediaError('unsupported');
 
   try {
+    // Desktop/Windows: captura nativa zero-copy (60 fps estáveis). Qualquer falha cai no getDisplayMedia.
+    if (host && (await canUseNativeCapture(host, captureSourceId))) {
+      try {
+        const videoTrack = await startNativeVideoTrack(host, {
+          fps: config.frameRate || 60,
+          sourceId: captureSourceId ?? null,
+        });
+        videoTrack.contentHint = contentHint;
+        const stream = new MediaStream([videoTrack]);
+        logCapture(config, videoTrack, 'native');
+        return { stream, videoTrack, audioTracks: [] };
+      } catch (err) {
+        console.warn('[KIARA] Captura nativa indisponível, usando getDisplayMedia:', err);
+      }
+    }
+
     if (host && captureSourceId) {
       await host.capture.selectSource(captureSourceId);
     }

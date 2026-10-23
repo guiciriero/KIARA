@@ -9,7 +9,7 @@
  * aqui o erro é convertido em Error com mensagem legível em pt-BR.
  */
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, sharedTexture } = require('electron');
 
 const PLATFORMS = { win32: 'windows', darwin: 'macos' };
 const platform = PLATFORMS[process.platform];
@@ -29,6 +29,15 @@ function removeChunkListener() {
   if (chunkListener) {
     ipcRenderer.removeListener('audio:chunk', chunkListener);
     chunkListener = null;
+  }
+}
+
+let endedListener = null;
+
+function removeNativeListeners() {
+  if (endedListener) {
+    ipcRenderer.removeListener('native-capture:ended', endedListener);
+    endedListener = null;
   }
 }
 
@@ -74,6 +83,29 @@ const api = {
     async stop() {
       removeChunkListener();
       await invoke('audio:stop');
+    },
+  },
+  nativeCapture: {
+    isAvailable: () => invoke('native-capture:available'),
+    async start(opts, onTexture, onEnded) {
+      if (typeof onTexture !== 'function' || typeof onEnded !== 'function') {
+        throw new Error('Callbacks de captura inválidos.');
+      }
+      removeNativeListeners();
+      // Registra antes de iniciar para não perder os primeiros frames.
+      sharedTexture.setSharedTextureReceiver(async ({ importedSharedTexture }) => { onTexture(importedSharedTexture); });
+      endedListener = (_event, info) => onEnded(String((info && info.reason) || 'unknown'));
+      ipcRenderer.on('native-capture:ended', endedListener);
+      try {
+        await invoke('native-capture:start', opts);
+      } catch (err) {
+        removeNativeListeners();
+        throw err;
+      }
+    },
+    async stop() {
+      removeNativeListeners();
+      await invoke('native-capture:stop');
     },
   },
   capture: {

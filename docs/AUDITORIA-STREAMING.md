@@ -254,11 +254,38 @@ Comparação no mesmo harness, 1080p60, 15 Mbps pedido, H.265 (`--scale=1.3333` 
 
 - **Ganho medido na captura/encode: ~50 → 60 fps (+20 %)**, estável, com o mesmo encoder por hardware.
 - **O fps apresentado no espectador subiu só ~42 → ~45**, e não 60. Os intervalos apresentados ficam em 30 ms (p50) em várias execuções (mas 10 ms em outras), o que aponta para a **cadência de apresentação da janela de teste** (vsync/compositor com a janela pequena e parcialmente coberta), **não** para a captura. Não consegui isolar essa causa; o `shownFps` deste harness não deve ser lido como o fps do espectador real.
-- **Itens que este PoC NÃO prova:** latência vidro-a-vidro (não medida com o caminho nativo); custo de CPU/GPU; comportamento em janelas/jogos em tela cheia exclusiva; HDR/10-bit; vários monitores (monitor 1 é rotacionado e a rotação não é tratada); recuperação de `DXGI_ERROR_ACCESS_LOST` (a thread só encerra); áudio/sincronia A/V; qualidade de imagem (bitrates reais variaram entre execuções, 0,2–3,7 Mbps, porque a cena sintética é muito simples).
-- **Não integrei o caminho nativo ao app** (`captureService.ts`, `desktop/`, preload, tipo `ScreenShareHostApi`): o ganho de apresentação no espectador ainda não está demonstrado e a integração toca IPC, ciclo de vida e `contextIsolation`. Recomendo decidir depois de medir G2G com este caminho.
+**G2G (vidro-a-vidro) medido: nativo vs `getDisplayMedia`** — mesmo harness, 1080p60, 15 Mbps, 3 execuções alternadas por célula (a página desenha o ID do frame em blocos; o espectador lê o ID de volta; relógio comum). Dados: [`benchmarks/native-vs-gdm-g2g.jsonl`](benchmarks/native-vs-gdm-g2g.jsonl).
+
+| Codec | Origem | G2G p50 (3 execuções, ms) | fps de encode |
+|---|---|---|---|
+| H.264 | nativa zero-copy | 36,3 / 47,5 / 45,8 | 58,5–60,1 |
+| H.264 | `getDisplayMedia` | 57,6 / 66,3 / 68,0 | 49,4–49,9 |
+| H.265 | nativa zero-copy | **126,3** / 46,6 / 47,0 | 56,2–60,0 |
+| H.265 | `getDisplayMedia` | 66,2 / 87,4 / 88,5 | 49,7–49,8 |
+
+- A mediana do G2G ficou ~20 ms menor no caminho nativo (H.264: ~46 vs ~64 ms; H.265: ~47 vs ~87 ms, ignorando um outlier). **Uma das 12 execuções (nativo/H.265, 126 ms) foi um outlier que não expliquei**; incluí na tabela. Isso é loopback na mesma máquina, sem rede, e o G2G depende da leitura do ID no espectador, que tem custo próprio (quando essa leitura é feita também no lado da captura, o G2G sobe, ver "limites" abaixo).
+- Cursor: o addon desenha o cursor (o DXGI não o inclui). Medi 3 pares com/sem: p50 28–47 ms com cursor e 48–58 ms sem; a diferença não é consistente o bastante para atribuir ao cursor, então **não concluo nada sobre custo do cursor**.
+
+**Integração ao app — feita.** Fluxo: `captureService.captureDisplay` → se `window.screenShareHost.nativeCapture` existe, o desktop é Windows e a fonte é tela inteira (ou padrão), usa a captura nativa; qualquer falha (addon ausente, monitor rotacionado, HDR/formato não-BGRA8, sem frames em 3 s) cai no `getDisplayMedia`. Peças:
+- `native/src/shared_capture.cpp`: anel de 6 slots, cursor, seleção do monitor por coordenadas (casa com `desktopCapturer`), recuperação de `DXGI_ERROR_ACCESS_LOST` por até ~20 s, aviso de fim (`access-lost`, `resolution-changed`, `unsupported-format`, `acquire-failed`), recusa de monitor rotacionado.
+- `desktop/src/nativeCapture.js` (+ IPC `native-capture:*` em `main.js`, parada em navegação/fechamento/atualização) e `preload.js` (`screenShareHost.nativeCapture`).
+- `client/src/services/nativeCapture.ts`: textura → `VideoFrame` → `MediaStreamTrackGenerator`, descarta frame quando o pipeline atrasa, repete o último frame após 250 ms de tela parada, reinicia até 2 vezes após `access-lost`/`resolution-changed`, `track.stop()` encerra o addon.
+- `webrtcService.ts`: `computeScaleDown` reduz 1440p→1080p no sender (`scaleResolutionDownBy`) pelo tamanho real da captura.
+- Interruptor para desligar: `localStorage['kiara:nativeCapture']='0'`.
+
+**Medição do caminho real do app** (`client/e2e/electron-app-integration.cjs`: `main` real + `preload.js` real com `contextIsolation`+`sandbox`, `captureDisplay()` do cliente, 3 pares alternados, 8 s). Dados: [`benchmarks/app-integration-fps.json`](benchmarks/app-integration-fps.json).
+
+| Origem | fps apresentado (3 exec.) | intervalo p99 | início da captura |
+|---|---|---|---|
+| Nativa | **59,9 / 60,0 / 58,7** | 30–40 ms | ~200 ms |
+| `getDisplayMedia` | 49,6 / 49,8 / 49,7 | 40–50 ms | ~1,0–1,1 s |
+
+Aqui o espectador (um `<video>` na mesma janela) apresentou ~60 fps com a nativa, contra ~50 com o `getDisplayMedia`, e a captura inicia 5× mais rápido. Isto mede captura→apresentação da faixa local, **não** a cadeia WebRTC completa dentro do app (que o PoC acima cobre).
+
+**Limites que continuam valendo:** só Windows (macOS segue com `getDisplayMedia`); só tela inteira (janelas usam `getDisplayMedia`); HDR/10 bits e monitor rotacionado caem no fallback; jogos em tela cheia exclusiva e vários adaptadores/GPUs híbridas não foram testados; sincronia A/V com o áudio WASAPI não foi medida; **não rodei o app empacotado** (`electron-builder`), só o Electron 44.7.2 avulso com os mesmos arquivos `main`/`preload`; o Electron `getDisplayMedia` oscilou entre ~32 e ~50 fps em outras execuções, então a vantagem de "+10 fps" é medida contra o caso bom dele.
 ## 5. Pendências e decisões suas
 
-0. **Integrar ou não a captura nativa ao app** (seção 4.2): o PoC prova o caminho e o ganho de captura (~50→60 fps), mas falta medir G2G e o fps do espectador real antes de mexer em IPC/preload/`captureService`. Sugestão: medir G2G primeiro; se o ganho se confirmar, integrar atrás de um interruptor (`getDisplayMedia` continua como fallback).
+0. **Captura nativa integrada ao app** (seção 4.2), ligada por padrão no Windows com fallback automático para `getDisplayMedia` e interruptor `localStorage['kiara:nativeCapture']='0'`. Decida se mantém ligada por padrão depois de testar o app empacotado e jogos reais (tela cheia exclusiva, HDR, GPU híbrida).
 1. **Escopo da reescrita:** manter Electron (rápido, teto ~43 fps de captura) ou investir em captura/encode nativos (semanas, ganho grande)? Eu recomendo o nativo.
 2. **Hospedagem:** pagar um VPS/nó em São Paulo? (custo mensal + banda de saída). Sem isso, sem UDP próprio e sem SFU.
 3. **HEVC como padrão:** já implementado como modo `auto` (seção 2.5), com H.264 de fallback por espectador. Decida se mantém `auto` como padrão ou volta a H.264 fixo; a escolha manual continua no painel.

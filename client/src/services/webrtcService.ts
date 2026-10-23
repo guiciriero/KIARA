@@ -18,6 +18,7 @@ import type {
 import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
 import { detectBroadcasterHwEncode, resolveVideoCodec } from './codecSelection';
 import { isMacOS } from './captureService';
+import { getCaptureSize } from './nativeCapture';
 import { BitrateController } from './bitrateController';
 import { optimizeSdpForGaming, tuneOpusAudioSdp, mirrorVideoBitrateHints } from './sdpTuning';
 import {
@@ -139,6 +140,17 @@ export function orderCodecs(
   return [...preferredByProfile.flat(), ...preferredRest, ...others];
 }
 
+/**
+ * Fator de reducao do encoder: alvo = menor entre a altura configurada e a preferida pelo espectador;
+ * a altura de partida e a da captura nativa quando conhecida, senao a configurada.
+ */
+export function computeScaleDown(configHeight: number | undefined, targetHeight: number | null | undefined, track: MediaStreamTrack | null): number {
+  const captured = (track && getCaptureSize(track)?.height) || configHeight || 0;
+  const target = Math.min(configHeight || Infinity, targetHeight || Infinity);
+  if (!captured || !Number.isFinite(target) || target >= captured) return 1;
+  return Math.max(1, captured / target);
+}
+
 export class WebRTCBroadcaster {
   private peers = new Map<string, PeerConnectionData>();
   private localStream: MediaStream | null = null;
@@ -232,14 +244,14 @@ export class WebRTCBroadcaster {
       params.encodings[0].priority = 'high';
       params.encodings[0].networkPriority = 'high';
 
-      // Downscale individual para o espectador via scaleResolutionDownBy
-      if (qualityPref?.targetHeight && config?.height && qualityPref.targetHeight < config.height) {
-        const scale = config.height / qualityPref.targetHeight;
-        params.encodings[0].scaleResolutionDownBy = Math.max(1, scale);
+      // Downscale via scaleResolutionDownBy: preferência do espectador e/ou captura maior que o alvo
+      // (a captura nativa entrega a resolução do monitor, ex.: 1440p; o getDisplayMedia já a limita).
+      const scale = computeScaleDown(config?.height, qualityPref?.targetHeight, sender.track);
+      if (scale > 1) {
+        params.encodings[0].scaleResolutionDownBy = scale;
       } else {
         delete params.encodings[0].scaleResolutionDownBy;
       }
-
       // scalabilityMode é tratado na etapa separada abaixo; não reenviar aqui
       delete (params.encodings[0] as RTCRtpEncodingParameters & { scalabilityMode?: string }).scalabilityMode;
       await sender.setParameters(params);

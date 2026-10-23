@@ -1,0 +1,50 @@
+[
+    {
+        "native":  1,
+        "fps":  59.9,
+        "p50":  20,
+        "p99":  30.1,
+        "startMs":  199,
+        "isNative":  true
+    },
+    {
+        "native":  0,
+        "fps":  49.6,
+        "p50":  20,
+        "p99":  49.9,
+        "startMs":  1034,
+        "isNative":  false
+    },
+    {
+        "native":  1,
+        "fps":  60,
+        "p50":  20,
+        "p99":  30.1,
+        "startMs":  209,
+        "isNative":  true
+    },
+    {
+        "native":  0,
+        "fps":  49.8,
+        "p50":  20,
+        "p99":  40.1,
+        "startMs":  1021,
+        "isNative":  false
+    },
+    {
+        "native":  1,
+        "fps":  58.7,
+        "p50":  20,
+        "p99":  40,
+        "startMs":  200,
+        "isNative":  true
+    },
+    {
+        "native":  0,
+        "fps":  49.7,
+        "p50":  20,
+        "p99":  40.2,
+        "startMs":  1115,
+        "isNative":  false
+    }
+]

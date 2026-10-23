@@ -13,7 +13,13 @@
       for (let i = 0; i < 12; i++) { const px = Math.round(((cfg0.dispW - 12 * 48 + i * 48 + 24) / cfg0.dispW) * vw); const d = rctx.getImageData(px, Math.round(sh / 2), 1, 1).data; if ((d[0] + d[1] + d[2]) / 3 > 127) id |= 1 << i; }
       return id;
     };
-    window.poc.onTexture(async ({ importedSharedTexture }) => {
+    const frameMode = new URLSearchParams(location.search).get('mode') === 'frame';
+    if (frameMode) window.poc.onFrame(async (vf) => {
+      gotFrames++;
+      try { await writer.write(vf); } catch (e) { writeErr = String(e); }
+      vf.close();
+    });
+    else window.poc.onTexture(async ({ importedSharedTexture }) => {
       const vf = importedSharedTexture.getVideoFrame();
       gotFrames++;
       if (cfg0 && cfg0.recv && gotFrames % 4 === 0) { try { recv.push({ id: decodeFrame(vf), t: performance.timeOrigin + performance.now() }); } catch (e) { writeErr = 'dec ' + e; } }
