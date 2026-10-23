@@ -41,15 +41,14 @@ app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
 app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('disable-frame-rate-limit');
-app.commandLine.appendSwitch('enable-gpu-memory-buffer-video-frames');
-app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
-app.commandLine.appendSwitch('force_high_performance_gpu');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// Evitar flags experimentais de composi├º├úo/GPU (RawDraw, DirectCompositionSharedImages,
+// *-gpu-memory-buffers): em alguns drivers deixam a janela inteira branca.
 app.commandLine.appendSwitch(
   'enable-features',
-  'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRtcHideLocalIpsWithMdns,PlatformHEVCDecoderSupport,DirectCompositionSharedImages,WebRtcUseMinMaxVEADimensions,RawDraw'
+  'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRtcHideLocalIpsWithMdns,PlatformHEVCDecoderSupport,WebRtcUseMinMaxVEADimensions'
 );
 
 // Eleva a prioridade do processo do KIARA no Windows para garantir fluidez mesmo durante jogos pesados a 100% de CPU/GPU
