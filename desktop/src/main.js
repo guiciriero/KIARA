@@ -64,6 +64,7 @@ const { startTunnel, findCloudflared } = require('./runtime/tunnel');
 const { readExpectedCloudflaredSha } = require('./runtime/integrity');
 const { findFreePort, startServer, resolveClientDist } = require('./runtime/server');
 const { createUpdater } = require('./updater');
+const { SPLASH_HTML } = require('./splashPage');
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -464,27 +465,7 @@ main{max-width:560px;padding:24px}h1{font-size:20px;margin:0 0 12px;color:#f43f5
 }
 
 function loadSplashPage(win) {
-  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
-<title>KIARA</title>
-<style>
-  body{font-family:system-ui,sans-serif;background:#08090d;color:#e5e7eb;
-       display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-  main{text-align:center;max-width:400px;padding:24px}
-  h1{font-size:22px;margin:0 0 16px;font-weight:700;color:#f1f5f9;letter-spacing:-0.02em}
-  p{color:#94a3b8;line-height:1.6;font-size:14px}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6366f1;
-       margin:0 3px;animation:blink 1.2s infinite}
-  .dot:nth-child(2){animation-delay:.2s}
-  .dot:nth-child(3){animation-delay:.4s}
-  @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
-</style></head>
-<body><main>
-  <h1>KIARA</h1>
-  <p>Iniciando o estúdio de transmissão segura…</p>
-  <p><span class="dot"></span><span class="dot"></span><span class="dot"></span></p>
-</main></body></html>`;
-  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(SPLASH_HTML)}`);
 }
 
 function openExternalSafe(urlString) {
@@ -534,6 +515,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     show: false,
+    backgroundColor: '#000000',
     title: 'KIARA',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
