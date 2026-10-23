@@ -135,6 +135,39 @@ export function tuneVideoBitrateSdp(
 }
 
 /**
+ * Espelha na ANSWER as dicas x-google-{min,max,start}-bitrate presentes na OFFER (seção de vídeo).
+ *
+ * O Chrome lê essas dicas da descrição REMOTA do emissor: o broadcaster (offerer) só as honra se
+ * vierem na answer do espectador. Sem este espelhamento, o GCC parte de ~300 kbps e leva dezenas
+ * de segundos para chegar ao bitrate alvo (medido: ~6 Mbps no 1º segundo, 20 s até 15 Mbps).
+ * Devolve a answer intacta se a offer não trouxer dicas.
+ */
+export function mirrorVideoBitrateHints(offerSdp: string, answerSdp: string): string {
+  if (!offerSdp || !answerSdp) return answerSdp;
+  const offerVideo = offerSdp.split(/(?=m=)/).find((s) => s.startsWith('m=video'));
+  if (!offerVideo) return answerSdp;
+  const hints: string[] = [];
+  for (const key of ['x-google-min-bitrate', 'x-google-max-bitrate', 'x-google-start-bitrate']) {
+    const m = new RegExp(`${key}=(\\d+)`).exec(offerVideo);
+    if (m) hints.push(`${key}=${m[1]}`);
+  }
+  if (hints.length === 0) return answerSdp;
+
+  return answerSdp
+    .split(/(?=m=)/)
+    .map((section) => {
+      if (!section.startsWith('m=video')) return section;
+      return section.replace(/(a=fmtp:\d+ [^\r\n]+)(\r?\n)/g, (match, fmtpLine: string, lineEnd: string) => {
+        // Só codecs de vídeo reais (não rtx: apt=) e sem duplicar
+        if (fmtpLine.includes('x-google-min-bitrate') || /\bapt=\d+/.test(fmtpLine)) return match;
+        const sep = fmtpLine.endsWith(';') ? '' : ';';
+        return `${fmtpLine}${sep}${hints.join(';')}${lineEnd}`;
+      });
+    })
+    .join('');
+}
+
+/**
  * Otimização completa do SDP (Áudio + Vídeo) para jogos de FPS e baixa latência.
  */
 export function optimizeSdpForGaming(

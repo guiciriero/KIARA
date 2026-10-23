@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { optimizeSdpForGaming, tuneOpusAudioSdp, tuneVideoBitrateSdp } from './sdpTuning';
+﻿import { describe, it, expect } from 'vitest';
+import { optimizeSdpForGaming, tuneOpusAudioSdp, tuneVideoBitrateSdp, mirrorVideoBitrateHints } from './sdpTuning';
 
 describe('sdpTuning', () => {
   const sampleSdp = [
@@ -101,4 +101,38 @@ describe('sdpTuning', () => {
     // @ts-expect-error testando entrada nula
     expect(optimizeSdpForGaming(null)).toBeNull();
   });
-});
+
+  describe('mirrorVideoBitrateHints', () => {
+    const offer = tuneVideoBitrateSdp(sampleSdp, {
+      targetBitrateKbps: 15000,
+      minBitrateKbps: 5625,
+      maxBitrateKbps: 22500,
+    });
+    const answer = sampleSdp; // answer "crua" do espectador
+
+    it('copia min/max/start da offer para o fmtp de vídeo da answer', () => {
+      const out = mirrorVideoBitrateHints(offer, answer);
+      const fmtp = out.split('\r\n').find((l) => l.startsWith('a=fmtp:96'))!;
+      expect(fmtp).toContain('x-google-min-bitrate=5625');
+      expect(fmtp).toContain('x-google-max-bitrate=22500');
+      expect(fmtp).toContain('x-google-start-bitrate=15000');
+    });
+
+    it('não toca na seção de áudio', () => {
+      const out = mirrorVideoBitrateHints(offer, answer);
+      const audioFmtp = out.split('\r\n').find((l) => l.startsWith('a=fmtp:111'))!;
+      expect(audioFmtp).toBe('a=fmtp:111 minptime=10');
+    });
+
+    it('é idempotente e não duplica', () => {
+      const once = mirrorVideoBitrateHints(offer, answer);
+      const twice = mirrorVideoBitrateHints(offer, once);
+      expect((twice.match(/x-google-min-bitrate/g) ?? []).length).toBe(1);
+    });
+
+    it('devolve a answer intacta quando a offer não tem dicas', () => {
+      expect(mirrorVideoBitrateHints(sampleSdp, answer)).toBe(answer);
+      expect(mirrorVideoBitrateHints('', answer)).toBe(answer);
+    });
+  });});
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * performance.test.ts
  *
  * Testes de validação de desempenho e configurações de 60 FPS.
@@ -71,7 +71,7 @@ describe('BitrateController — simulação de transmissão sustentada', () => {
 
     // 10 amostras de congestionamento
     for (let i = 0; i < 10; i++) {
-      controller.onSample({ lossPercent: 8, rttMs: 350 });
+      controller.onSample({ lossPercent: 12, rttMs: 450 });
     }
     const afterCongestion = controller.getCurrentBitrateBps();
     expect(afterCongestion).toBeGreaterThan(0);
@@ -187,3 +187,4 @@ describe('parseRTCStats — FPS e métricas de frame', () => {
     clearPeerSample('perf-p95');
   });
 });
+

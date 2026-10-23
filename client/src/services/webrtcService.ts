@@ -11,7 +11,7 @@ import type { RTCIceCandidatePayload, VideoConfig, StreamStats, IceServerConfig 
 import { parseRTCStats, classifyQuality, clearPeerSample } from './statsService';
 import { isMacOS } from './captureService';
 import { BitrateController } from './bitrateController';
-import { optimizeSdpForGaming, tuneOpusAudioSdp } from './sdpTuning';
+import { optimizeSdpForGaming, tuneOpusAudioSdp, mirrorVideoBitrateHints } from './sdpTuning';
 import {
   buildRtcConfig,
   iceRestartDelayMs,
@@ -913,7 +913,7 @@ export class WebRTCViewer {
         await freshPc.setRemoteDescription(new RTCSessionDescription(offer));
         await this.flushPendingCandidates(freshPc);
         const answer = await freshPc.createAnswer();
-        const tunedSdp = tuneOpusAudioSdp(answer.sdp ?? '', 192);
+        const tunedSdp = mirrorVideoBitrateHints(offer.sdp ?? '', tuneOpusAudioSdp(answer.sdp ?? '', 192));
         const tunedAnswer: RTCSessionDescriptionInit = { type: answer.type, sdp: tunedSdp };
         await freshPc.setLocalDescription(tunedAnswer);
         this.tuneReceivers(freshPc);
@@ -928,7 +928,7 @@ export class WebRTCViewer {
       await this.flushPendingCandidates(pc);
 
       const answer = await pc.createAnswer();
-      const tunedSdp = tuneOpusAudioSdp(answer.sdp ?? '', 192);
+      const tunedSdp = mirrorVideoBitrateHints(offer.sdp ?? '', tuneOpusAudioSdp(answer.sdp ?? '', 192));
       const tunedAnswer: RTCSessionDescriptionInit = { type: answer.type, sdp: tunedSdp };
       await pc.setLocalDescription(tunedAnswer);
       this.tuneReceivers(pc);
