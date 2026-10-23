@@ -44,7 +44,7 @@ app.commandLine.appendSwitch('disable-frame-rate-limit');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
-// Evitar flags experimentais de composi├º├úo/GPU (RawDraw, DirectCompositionSharedImages,
+// Evitar flags experimentais de composição/GPU (RawDraw, DirectCompositionSharedImages,
 // *-gpu-memory-buffers): em alguns drivers deixam a janela inteira branca.
 app.commandLine.appendSwitch(
   'enable-features',
@@ -241,17 +241,33 @@ function stopRuntime() {
 
 // ─── Validação ───────────────────────────────────────────────────────────────
 
-function assertTrustedSender(event) {
+/**
+ * Valida o remetente do IPC. Com `allowViewer`, também aceita a página de espectador
+ * (/view/CODE) carregada na janela principal — necessária para o co-apresentador
+ * capturar tela/áudio enquanto assiste a transmissão de outra pessoa.
+ */
+function assertTrustedSender(event, allowViewer = false) {
   const win = mainWindow;
   const frame = event.senderFrame;
   if (
     !win || win.isDestroyed() ||
     event.sender !== win.webContents ||
     !frame || frame !== win.webContents.mainFrame ||
-    !isTrustedUrl(frame.url)
+    !(isTrustedUrl(frame.url) || (allowViewer && isViewerUrl(frame.url)))
   ) {
     throw new Error('Remetente IPC não autorizado.');
   }
+}
+
+/**
+ * Origem (sem caminho) aceita para captura de tela: o renderer local ou a página de
+ * espectador atualmente aberta na janela principal.
+ */
+function isCaptureOrigin(origin) {
+  if (isTrustedUrl(origin)) return true;
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const current = mainWindow.webContents.getURL();
+  return isViewerUrl(current) && originOf(origin) === originOf(current);
 }
 
 function validatePids(pids) {
@@ -273,10 +289,10 @@ function validateSourceId(id) {
   return id;
 }
 
-function handle(channel, fn) {
+function handle(channel, fn, { allowViewer = false } = {}) {
   ipcMain.handle(channel, async (event, ...args) => {
     try {
-      assertTrustedSender(event);
+      assertTrustedSender(event, allowViewer);
       return { ok: true, data: await fn(...args) };
     } catch (err) {
       return { ok: false, error: (err && err.message) || 'Erro desconhecido.' };
@@ -336,7 +352,10 @@ function isViewerUrl(urlString) {
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 
 function registerIpc() {
-  handle('audio:list', () => requireNative().listAudioSources());
+  // Os canais de captura também aceitam a página de espectador (co-apresentador).
+  const VIEWER_OK = { allowViewer: true };
+
+  handle('audio:list', () => requireNative().listAudioSources(), VIEWER_OK);
 
   handle('audio:start', (pids) => {
     const n = requireNative();
@@ -355,9 +374,9 @@ function registerIpc() {
       });
     });
     audioActive = true;
-  });
+  }, VIEWER_OK);
 
-  handle('audio:stop', () => { stopAudio(); });
+  handle('audio:stop', () => { stopAudio(); }, VIEWER_OK);
 
   handle('capture:list', async () => {
     assertScreenAccess();
@@ -371,11 +390,11 @@ function registerIpc() {
       type: s.id.startsWith('screen:') ? 'screen' : 'window',
       thumbnailDataUrl: s.thumbnail.isEmpty() ? '' : s.thumbnail.toDataURL(),
     }));
-  });
+  }, VIEWER_OK);
 
   handle('capture:select', (id) => {
     pendingSourceId = validateSourceId(id);
-  });
+  }, VIEWER_OK);
 
   // ── IPC novos ────────────────────────────────────────────────────────────
   handle('app:get-public-url', () => publicUrl);
@@ -413,7 +432,7 @@ function registerDisplayMediaHandler() {
       const wantedId = pendingSourceId;
       pendingSourceId = null;
       try {
-        if (!isTrustedUrl(request.securityOrigin)) {
+        if (!isCaptureOrigin(request.securityOrigin)) {
           console.warn('[desktop] getDisplayMedia negado: origem não confiável', request.securityOrigin);
           callback({});
           return;
