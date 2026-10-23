@@ -16,6 +16,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './PixelShihTzu.module.css';
 import { CLIPS, PALETTE, SPRITE_H, SPRITE_W, type SpriteAnim } from './spriteData';
+import { rowsToImageData } from './pixelRender';
 import {
   DEFAULT_PET_CONFIG,
   createPetState,
@@ -61,30 +62,12 @@ const CORNER_MARGIN = 28;
 // ── Cache de frames (ImageData 1x) ────────────────────────────────────────────
 const frameCache = new Map<string, ImageData>();
 
-const parseHex = (hex: string): [number, number, number] => {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-};
-
 const getFrameData = (ctx: CanvasRenderingContext2D, anim: SpriteAnim, frame: number): ImageData => {
   const key = `${anim}:${frame}`;
   const cached = frameCache.get(key);
   if (cached) return cached;
 
-  const rows = CLIPS[anim].frames[frame];
-  const img = ctx.createImageData(SPRITE_W, SPRITE_H);
-  for (let y = 0; y < SPRITE_H; y++) {
-    for (let x = 0; x < SPRITE_W; x++) {
-      const color = PALETTE[rows[y][x]];
-      if (!color) continue;
-      const [r, g, b] = parseHex(color);
-      const i = (y * SPRITE_W + x) * 4;
-      img.data[i] = r;
-      img.data[i + 1] = g;
-      img.data[i + 2] = b;
-      img.data[i + 3] = 255;
-    }
-  }
+  const img = rowsToImageData(ctx, CLIPS[anim].frames[frame], SPRITE_W, SPRITE_H, PALETTE);
   frameCache.set(key, img);
   return img;
 };

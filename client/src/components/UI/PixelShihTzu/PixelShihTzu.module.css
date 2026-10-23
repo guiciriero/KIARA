@@ -23,6 +23,14 @@
   will-change: transform;
 }
 
+/* Cena "ao vivo" do cabeçalho do estúdio (Shih Tzu pedalando + CRT) */
+.liveScene {
+  display: block;
+  line-height: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* Mascote inline (marca): sprite + balão de fala opcional */
 .inline {
   display: inline-flex;

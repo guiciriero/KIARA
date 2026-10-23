@@ -59,6 +59,15 @@
   pointer-events: none;
 }
 
+/* Cena ao vivo centralizada na barra; some quando não há espaço livre no meio */
+.liveScene {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
 .topBarLeft {
   display: flex;
   align-items: center;
@@ -995,6 +1004,12 @@
     width: auto;
   }
   .settingsHidden .sidebarConfig {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .liveScene {
     display: none;
   }
 }

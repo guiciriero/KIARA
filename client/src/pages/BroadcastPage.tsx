@@ -53,6 +53,7 @@ import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
+import LiveScene from '../components/UI/PixelShihTzu/LiveScene';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import {
   clampMiniWidth,
@@ -422,6 +423,9 @@ const BroadcastPage: React.FC = () => {
           <KiaraLogo size={24} withText />
           <span className={styles.studioBadge}>Estúdio do Host</span>
         </div>
+
+        {/* Durante a transmissão: Shih Tzu pedalando e alimentando o computador "LIVE ON" */}
+        {state.isSharing && <LiveScene scale={2} className={styles.liveScene} />}
 
         <div className={styles.topBarRight}>
           <button
