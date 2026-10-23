@@ -5,6 +5,8 @@ import styles from './StatsOverlay.module.css';
 
 interface Props {
   stats: StreamStats;
+  /** FPS-alvo configurado (para mostrar % de atingimento) */
+  targetFps?: number;
 }
 
 const QUALITY_CONFIG: Record<
@@ -17,9 +19,23 @@ const QUALITY_CONFIG: Record<
   poor:      { label: 'Instável',  color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.15)' },
 };
 
-const StatsOverlay: React.FC<Props> = ({ stats }) => {
+const LIMIT_LABELS: Record<StreamStats['qualityLimitation'], string | null> = {
+  none: null,
+  cpu: 'CPU',
+  bandwidth: 'Rede',
+  other: 'Outro',
+};
+
+function fpsColor(fps: number, target: number): string {
+  if (fps >= target * 0.93) return '#10b981'; // ≥ 93% do alvo → verde
+  if (fps >= target * 0.75) return '#f59e0b'; // ≥ 75% → amarelo
+  return '#f43f5e';                            // < 75% → vermelho
+}
+
+const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60 }) => {
   const [minimized, setMinimized] = useState(false);
   const quality = QUALITY_CONFIG[stats.connectionQuality] || QUALITY_CONFIG.good;
+  const limitation = LIMIT_LABELS[stats.qualityLimitation];
 
   if (minimized) {
     return (
@@ -31,10 +47,17 @@ const StatsOverlay: React.FC<Props> = ({ stats }) => {
         aria-label="Abrir estatísticas da transmissão"
       >
         <IconActivity size={14} />
-        <span>{stats.fps} FPS · {stats.latencyMs}ms</span>
+        <span style={{ color: fpsColor(stats.fps, targetFps) }}>{stats.fps} FPS</span>
+        <span>·</span>
+        <span style={{ color: stats.latencyMs < 100 ? '#10b981' : '#f59e0b' }}>{stats.latencyMs}ms</span>
+        {stats.lossPercent > 0 && <span style={{ color: '#f43f5e' }}>·{stats.lossPercent.toFixed(1)}%↓</span>}
       </button>
     );
   }
+
+  const resLabel = stats.encodedWidth && stats.encodedHeight
+    ? `${stats.encodedWidth}×${stats.encodedHeight}`
+    : null;
 
   return (
     <div className={styles.overlay} role="region" aria-label="Telemetria da transmissão">
@@ -44,6 +67,12 @@ const StatsOverlay: React.FC<Props> = ({ stats }) => {
           <span className={styles.title}>Telemetria KIARA</span>
         </div>
         <div className={styles.headerActions}>
+          {limitation && (
+            <div className={styles.qualityPill} style={{ background: 'rgba(244,63,94,0.15)', color: '#f43f5e' }}>
+              <span className={styles.dot} style={{ background: '#f43f5e' }} />
+              <span>Limitado: {limitation}</span>
+            </div>
+          )}
           <div className={styles.qualityPill} style={{ background: quality.bg, color: quality.color }}>
             <span className={styles.dot} style={{ background: quality.color }} />
             <span>{quality.label}</span>
@@ -61,10 +90,21 @@ const StatsOverlay: React.FC<Props> = ({ stats }) => {
       </div>
 
       <div className={styles.grid}>
+        {/* FPS com cor baseada no atingimento do alvo */}
         <div className={styles.metric}>
           <span className={styles.label}>Taxa de Quadros</span>
-          <span className={styles.value}>{stats.fps} <small>FPS</small></span>
+          <span className={styles.value} style={{ color: fpsColor(stats.fps, targetFps) }}>
+            {stats.fps} <small>/ {targetFps} FPS</small>
+          </span>
         </div>
+
+        {/* Resolução efetiva codificada */}
+        {resLabel && (
+          <div className={styles.metric}>
+            <span className={styles.label}>Resolução Codificada</span>
+            <span className={styles.value}>{resLabel}</span>
+          </div>
+        )}
 
         <div className={styles.metric}>
           <span className={styles.label}>Vídeo</span>
@@ -84,6 +124,52 @@ const StatsOverlay: React.FC<Props> = ({ stats }) => {
             {stats.latencyMs} <small>ms</small>
           </span>
         </div>
+
+        <div className={styles.metric}>
+          <span className={styles.label}>Perda de Pacotes</span>
+          <span className={styles.value} style={{ color: stats.lossPercent > 2 ? '#f43f5e' : '#10b981' }}>
+            {stats.lossPercent.toFixed(1)} <small>%</small>
+          </span>
+        </div>
+
+        <div className={styles.metric}>
+          <span className={styles.label}>Jitter</span>
+          <span className={styles.value} style={{ color: stats.jitterMs > 30 ? '#f59e0b' : undefined }}>
+            {stats.jitterMs} <small>ms</small>
+          </span>
+        </div>
+
+        {/* Frames descartados (encoder ou rede) */}
+        {stats.framesDropped !== undefined && (
+          <div className={styles.metric}>
+            <span className={styles.label}>Frames Descartados</span>
+            <span className={styles.value} style={{ color: stats.framesDropped > 0 ? '#f59e0b' : undefined }}>
+              {stats.framesDropped}
+            </span>
+          </div>
+        )}
+
+        {/* Frames perdidos (receptor) */}
+        {stats.framesLost !== undefined && (
+          <div className={styles.metric}>
+            <span className={styles.label}>Frames Perdidos (RX)</span>
+            <span className={styles.value} style={{ color: stats.framesLost > 0 ? '#f59e0b' : undefined }}>
+              {stats.framesLost}
+            </span>
+          </div>
+        )}
+
+        {/* Tempo de decodificação */}
+        {stats.decodeTimeMs !== undefined && (
+          <div className={styles.metric}>
+            <span className={styles.label}>Decode (avg / P95)</span>
+            <span className={styles.value}>
+              {stats.decodeTimeMs.toFixed(1)}
+              {stats.decodeTimeP95Ms !== undefined ? ` / ${stats.decodeTimeP95Ms.toFixed(1)}` : ''}
+              <small> ms</small>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

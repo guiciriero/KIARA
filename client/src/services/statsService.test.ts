@@ -13,6 +13,9 @@ describe('statsService', () => {
     restoreGlobals = installRtcGlobals();
     clearPeerSample('peer-1');
     clearPeerSample('peer-2');
+    clearPeerSample('peer-ext-1');
+    clearPeerSample('peer-rx-1');
+    clearPeerSample('peer-no-ext');
   });
 
   afterEach(() => {
@@ -169,6 +172,87 @@ describe('statsService', () => {
       expect(warn).not.toHaveBeenCalled();
 
       warn.mockRestore();
+    });
+  });
+
+  describe('métricas estendidas (campos opcionais)', () => {
+    it('extrai resolução codificada do outbound-rtp quando disponível', () => {
+      const report = createMockStatsReport([
+        {
+          id: 'v-out',
+          type: 'outbound-rtp',
+          kind: 'video',
+          framesPerSecond: 60,
+          bytesSent: 100000,
+          packetsSent: 100,
+          qualityLimitationReason: 'none',
+          encodedFrameWidth: 1920,
+          encodedFrameHeight: 1080,
+          framesDropped: 3,
+          framesSent: 597,
+        },
+      ]);
+      const stats = parseRTCStats(report, 'peer-ext-1');
+      expect(stats.encodedWidth).toBe(1920);
+      expect(stats.encodedHeight).toBe(1080);
+      expect(stats.framesDropped).toBe(3);
+      expect(stats.framesSent).toBe(597);
+    });
+
+    it('extrai métricas do lado receptor (inbound-rtp) quando disponível', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+
+      const report1 = createMockStatsReport([
+        {
+          id: 'v-in',
+          type: 'inbound-rtp',
+          kind: 'video',
+          framesDecoded: 100,
+          framesReceived: 105,
+          framesDropped: 5,
+          totalDecodeTime: 0.1, // 100ms para 100 frames = 1ms/frame
+        },
+        { id: 'v-out', type: 'outbound-rtp', kind: 'video', framesPerSecond: 0, bytesSent: 0, packetsSent: 0 },
+      ]);
+      const stats1 = parseRTCStats(report1, 'peer-rx-1');
+      expect(stats1.framesDecoded).toBe(100);
+      expect(stats1.framesReceived).toBe(105);
+      expect(stats1.framesLost).toBe(5);
+      // Na primeira amostra não há decode time calculado (sem delta)
+      expect(stats1.decodeTimeMs).toBeUndefined();
+
+      vi.setSystemTime(2000);
+      const report2 = createMockStatsReport([
+        {
+          id: 'v-in',
+          type: 'inbound-rtp',
+          kind: 'video',
+          framesDecoded: 160, // +60 frames
+          framesReceived: 165,
+          framesDropped: 5,
+          totalDecodeTime: 0.16, // +60ms para 60 frames = 1ms/frame
+        },
+        { id: 'v-out', type: 'outbound-rtp', kind: 'video', framesPerSecond: 0, bytesSent: 0, packetsSent: 0 },
+      ]);
+      const stats2 = parseRTCStats(report2, 'peer-rx-1');
+      expect(stats2.decodeTimeMs).toBeDefined();
+      if (stats2.decodeTimeMs !== undefined) {
+        expect(stats2.decodeTimeMs).toBeCloseTo(1.0, 0); // ~1ms/frame
+      }
+
+      vi.useRealTimers();
+    });
+
+    it('não inclui campos opcionais quando ausentes no relatório', () => {
+      const report = createMockStatsReport([
+        { id: 'v-out', type: 'outbound-rtp', kind: 'video', framesPerSecond: 30, bytesSent: 0, packetsSent: 0 },
+      ]);
+      const stats = parseRTCStats(report, 'peer-no-ext');
+      expect(stats.encodedWidth).toBeUndefined();
+      expect(stats.encodedHeight).toBeUndefined();
+      expect(stats.framesDropped).toBeUndefined();
+      expect(stats.decodeTimeMs).toBeUndefined();
     });
   });
 });

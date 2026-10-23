@@ -1,5 +1,5 @@
 import React from 'react';
-import { estimateUploadMbps, uploadAdvice } from '../../utils/uploadEstimate';
+import { estimateUploadMbps, recommendedUploadMbps, uploadAdvice } from '../../utils/uploadEstimate';
 import { IconUpload, IconAlertTriangle } from './Icons';
 import styles from './UploadEstimate.module.css';
 
@@ -13,8 +13,10 @@ interface Props {
 const UploadEstimate: React.FC<Props> = ({ bitrateKbps, viewers, maxViewers }) => {
   const considered = Math.max(1, viewers);
   const current = estimateUploadMbps(bitrateKbps, considered);
+  const recommended = recommendedUploadMbps(bitrateKbps, considered);
   const worstCase = maxViewers > 0 ? estimateUploadMbps(bitrateKbps, maxViewers) : current;
-  const advice = uploadAdvice(Math.max(current, 0));
+  const worstRecommended = maxViewers > 0 ? recommendedUploadMbps(bitrateKbps, maxViewers) : recommended;
+  const advice = uploadAdvice(current);
   const worstAdvice = uploadAdvice(worstCase);
 
   const className =
@@ -25,20 +27,32 @@ const UploadEstimate: React.FC<Props> = ({ bitrateKbps, viewers, maxViewers }) =
       <div className={styles.row}>
         {advice === 'ok' ? <IconUpload size={15} /> : <IconAlertTriangle size={15} />}
         <span>
-          Upload necessário: <strong>{current.toLocaleString('pt-BR')} Mbps</strong>
-          {' '}para {considered} {considered === 1 ? 'espectador' : 'espectadores'}
+          Upload usado: <strong>{current.toLocaleString('pt-BR')} Mbps</strong>
+          {' '}por {considered} {considered === 1 ? 'espectador' : 'espectadores'}
         </span>
       </div>
-      {advice !== 'ok' && (
+
+      {/* Recomendação de margem: sempre visível, pois é orientação prática */}
+      <p className={styles.note}>
+        Recomendado: <strong>{recommended.toLocaleString('pt-BR')} Mbps</strong> disponíveis
+        {' '}(margem de 1,5× para oscilações de rede).
+      </p>
+
+      {advice === 'warning' && (
         <p className={styles.note}>
-          {advice === 'danger'
-            ? 'Sua internet provavelmente não aguenta isso. Reduza a resolução ou o bitrate.'
-            : 'Confira se sua internet tem esse upload sobrando; se travar, reduza a qualidade.'}
+          Conexão no limite. Se travar, reduza o bitrate ou a resolução.
         </p>
       )}
-      {maxViewers > 0 && worstAdvice !== 'ok' && maxViewers > considered && (
+      {advice === 'danger' && (
         <p className={styles.note}>
-          Com a sala cheia ({maxViewers}) seriam {worstCase.toLocaleString('pt-BR')} Mbps.
+          Upload provavelmente insuficiente. Reduza a resolução ou o bitrate.
+        </p>
+      )}
+
+      {maxViewers > 0 && maxViewers > considered && (
+        <p className={styles.note}>
+          Com a sala cheia ({maxViewers}): {worstCase.toLocaleString('pt-BR')} Mbps usados
+          {worstAdvice !== 'ok' ? ` — recomendado ${worstRecommended.toLocaleString('pt-BR')} Mbps` : ''}.
         </p>
       )}
     </div>

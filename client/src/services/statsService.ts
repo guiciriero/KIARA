@@ -41,8 +41,48 @@ interface RtcStatsEntry {
   selectedCandidatePairId?: string;
   state?: string;
   nominated?: boolean;
+  // Campos de frame
+  framesDropped?: number;
+  framesSent?: number;
+  framesEncoded?: number;
+  encodedFrameWidth?: number;
+  encodedFrameHeight?: number;
+  framesDecoded?: number;
+  framesReceived?: number;
+  framesLost?: number;
+  totalDecodeTime?: number;
+  // Amostragem de decode time para P95
   [key: string]: unknown;
 }
+
+/** Janela deslizante para calcular P95 de uma série de amostras */
+class SlidingPercentile {
+  private readonly window: number;
+  private samples: number[] = [];
+
+  constructor(windowSize = 60) {
+    this.window = windowSize;
+  }
+
+  add(value: number): void {
+    this.samples.push(value);
+    if (this.samples.length > this.window) {
+      this.samples.shift();
+    }
+  }
+
+  p95(): number {
+    if (this.samples.length === 0) return 0;
+    const sorted = [...this.samples].sort((a, b) => a - b);
+    const idx = Math.ceil(sorted.length * 0.95) - 1;
+    return sorted[Math.max(0, idx)];
+  }
+}
+
+/** Amostras de decode time por peer para cálculo de P95 */
+const decodeTimeSamples = new Map<string, SlidingPercentile>();
+/** Número de frames decodificados na amostra anterior (para calcular delta) */
+const prevFramesDecoded = new Map<string, { framesDecoded: number; totalDecodeTime: number }>();
 
 /**
  * Analisa um RTCStatsReport e calcula as métricas agregadas da conexão.
@@ -57,6 +97,15 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
   let jitterMs = 0;
   let remoteRtt: number | undefined;
   let qualityLimitation: StreamStats['qualityLimitation'] = 'none';
+  // Campos estendidos
+  let encodedWidth: number | undefined;
+  let encodedHeight: number | undefined;
+  let framesDropped: number | undefined;
+  let framesSent: number | undefined;
+  let framesDecoded: number | undefined;
+  let framesReceived: number | undefined;
+  let framesLost: number | undefined;
+  let totalDecodeTime: number | undefined;
 
   let selectedCandidatePairId: string | undefined;
   const candidatePairs: RtcStatsEntry[] = [];
@@ -77,10 +126,14 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
     }
   }
 
-  // Sem outbound-rtp, remote-inbound-rtp nem candidate-pair não há o que medir.
+  // Sem outbound-rtp, inbound-rtp, remote-inbound-rtp nem candidate-pair não há o que medir.
   // Não lança (os valores saem zerados), mas avisa uma única vez em vez de silenciar.
   const hasUsefulEntries = statsEntries.some(
-    (s) => s.type === 'outbound-rtp' || s.type === 'remote-inbound-rtp' || s.type === 'candidate-pair',
+    (s) =>
+      s.type === 'outbound-rtp' ||
+      s.type === 'inbound-rtp' ||
+      s.type === 'remote-inbound-rtp' ||
+      s.type === 'candidate-pair',
   );
   if (!hasUsefulEntries && !warnedEmptyReport) {
     warnedEmptyReport = true;
@@ -110,6 +163,11 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
       } else {
         qualityLimitation = 'none';
       }
+      // Campos estendidos do emissor
+      if (stat.framesDropped !== undefined) framesDropped = stat.framesDropped;
+      if (stat.framesSent !== undefined) framesSent = stat.framesSent;
+      if (stat.encodedFrameWidth !== undefined) encodedWidth = stat.encodedFrameWidth;
+      if (stat.encodedFrameHeight !== undefined) encodedHeight = stat.encodedFrameHeight;
     }
 
     if (stat.type === 'outbound-rtp' && stat.kind === 'audio') {
@@ -121,6 +179,14 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
       fractionLost = stat.fractionLost;
       jitterMs = Math.round((stat.jitter ?? 0) * 1000);
       remoteRtt = stat.roundTripTime;
+    }
+
+    // Campos do receptor (lado espectador: inbound-rtp de vídeo)
+    if (stat.type === 'inbound-rtp' && stat.kind === 'video') {
+      if (stat.framesDecoded !== undefined) framesDecoded = stat.framesDecoded;
+      if (stat.framesReceived !== undefined) framesReceived = stat.framesReceived;
+      if (stat.framesDropped !== undefined) framesLost = stat.framesDropped;
+      if (stat.totalDecodeTime !== undefined) totalDecodeTime = stat.totalDecodeTime;
     }
   }
 
@@ -186,6 +252,31 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
 
   const connectionQuality = classifyQuality(latencyMs, lossPercent);
 
+  // Calcula tempo médio de decodificação e P95 (somente lado receptor)
+  let decodeTimeMs: number | undefined;
+  let decodeTimeP95Ms: number | undefined;
+  if (framesDecoded !== undefined && totalDecodeTime !== undefined) {
+    const prevDec = prevFramesDecoded.get(peerId);
+    if (prevDec && framesDecoded > prevDec.framesDecoded) {
+      const deltaFrames = framesDecoded - prevDec.framesDecoded;
+      const deltaTime = totalDecodeTime - prevDec.totalDecodeTime;
+      if (deltaFrames > 0 && deltaTime >= 0) {
+        const avgMs = Math.round((deltaTime / deltaFrames) * 1000 * 10) / 10;
+        decodeTimeMs = avgMs;
+
+        // Acumula na janela deslizante para P95
+        let perc = decodeTimeSamples.get(peerId);
+        if (!perc) {
+          perc = new SlidingPercentile(120);
+          decodeTimeSamples.set(peerId, perc);
+        }
+        perc.add(avgMs);
+        decodeTimeP95Ms = Math.round(perc.p95() * 10) / 10;
+      }
+    }
+    prevFramesDecoded.set(peerId, { framesDecoded, totalDecodeTime });
+  }
+
   return {
     fps,
     videoBitrate,
@@ -197,6 +288,16 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
     qualityLimitation,
     connectionQuality,
     timestamp: now,
+    // Campos estendidos (undefined se não disponíveis)
+    ...(encodedWidth !== undefined && { encodedWidth }),
+    ...(encodedHeight !== undefined && { encodedHeight }),
+    ...(framesDropped !== undefined && { framesDropped }),
+    ...(framesSent !== undefined && { framesSent }),
+    ...(framesDecoded !== undefined && { framesDecoded }),
+    ...(framesReceived !== undefined && { framesReceived }),
+    ...(framesLost !== undefined && { framesLost }),
+    ...(decodeTimeMs !== undefined && { decodeTimeMs }),
+    ...(decodeTimeP95Ms !== undefined && { decodeTimeP95Ms }),
   };
 }
 
@@ -216,4 +317,6 @@ export function classifyQuality(
 /** Remove o histórico de amostragem de um peer */
 export function clearPeerSample(peerId: string): void {
   previousSamples.delete(peerId);
+  prevFramesDecoded.delete(peerId);
+  decodeTimeSamples.delete(peerId);
 }

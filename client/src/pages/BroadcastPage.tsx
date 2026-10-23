@@ -49,6 +49,7 @@ import RoomOptionsPanel, {
   type RoomOptionsValue,
 } from '../components/Controls/RoomOptionsPanel';
 import StatsOverlay from '../components/UI/StatsOverlay';
+import UploadEstimate from '../components/UI/UploadEstimate';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
 import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
@@ -100,7 +101,7 @@ const BroadcastPage: React.FC = () => {
     height: 1080,
     frameRate: 60,
     codec: 'H264',
-    bitrate: 5000,
+    bitrate: 8000,
     quality: 'high',
   });
 
@@ -607,6 +608,11 @@ const BroadcastPage: React.FC = () => {
             onChange={handleVideoConfigChange}
             isSharing={state.isSharing}
           />
+          <UploadEstimate
+            bitrateKbps={videoConfig.bitrate}
+            viewers={Math.max(1, state.viewerCount)}
+            maxViewers={state.maxViewers}
+          />
 
           {/* Seletor de Tela/Janela (Desktop Electron) */}
           {audioHook.isDesktop && (
@@ -733,7 +739,7 @@ const BroadcastPage: React.FC = () => {
                   )}
                 </div>
 
-                {showStats && state.stats && <StatsOverlay stats={state.stats} />}
+                {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} />}
                 <ReactionOverlay
                   reactions={reactions.reactions}
                   enabled={roomOptions.reactionsEnabled}

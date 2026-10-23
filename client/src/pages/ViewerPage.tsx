@@ -91,7 +91,7 @@ const ViewerPage: React.FC = () => {
     height: 1080,
     frameRate: 60,
     codec: 'H264',
-    bitrate: 5000,
+    bitrate: 8000,
     quality: 'high',
   });
   const [captureSourceId, setCaptureSourceId] = useState<string | null>(null);
@@ -713,7 +713,7 @@ const ViewerPage: React.FC = () => {
         />
 
         {/* Telemetria de Estatísticas */}
-        {showStats && state.stats && <StatsOverlay stats={state.stats} />}
+        {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} />}
       </div>
 
       {/* ── Painel Lateral de Co-apresentação ────────────────────────────── */}
