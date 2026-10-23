@@ -36,7 +36,7 @@ describe('Configuração padrão de 60 FPS', () => {
 
   it('os valores alvo padrão estão corretos', () => {
     expect(DEFAULT_TARGET_FPS).toBe(60);
-    expect(DEFAULT_BITRATE_KBPS).toBe(5000);
+    expect(DEFAULT_BITRATE_KBPS).toBe(8000);
     expect(DEFAULT_WIDTH).toBe(1920);
     expect(DEFAULT_HEIGHT).toBe(1080);
   });
