@@ -1,4 +1,4 @@
-﻿/**
+/**
  * bench.mjs â€” benchmark de pipeline de vÃ­deo em Chrome real (loopback).
  *
  * Uso:
@@ -112,7 +112,7 @@ for (const codec of codecs) {
       if (r.error) console.log('ERRO', r.error);
       else
         console.log(
-          `enc=${r.encoderImplementation} dec=${r.decoderImplementation} | ` +
+          `codec=${r.negotiatedCodec} | ` +
             `sent ${r.sender.sentFps}fps ${r.sender.bitrateMbps}Mbps encode ${r.sender.avgEncodeMs}ms | ` +
             `present ${r.receiver.presentedFps}fps drop=${r.receiver.framesDropped} freeze=${r.receiver.freezeCount} | ` +
             `g2g p50/p95 ${r.glassToGlassMs.p50}/${r.glassToGlassMs.p95}ms | limit=${r.sender.qualityLimitationReason}`,
@@ -130,6 +130,7 @@ server.close();
 if (outFile) fs.writeFileSync(outFile, JSON.stringify(results, null, 2));
 else console.log('\n' + JSON.stringify(results, null, 2));
 process.exit(0);
+
 
 
 

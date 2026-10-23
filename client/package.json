@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "node e2e/run.mjs"
+    "e2e": "node e2e/run.mjs",
+    "bench": "node e2e/bench.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -35,3 +36,4 @@
     "vitest": "^4.1.12"
   }
 }
+

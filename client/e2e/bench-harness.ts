@@ -1,4 +1,4 @@
-﻿/**
+/**
  * bench-harness.ts — benchmark de pipeline WebRTC em Chrome real (loopback na mesma página).
  *
  * Usa o código de produção (WebRTCBroadcaster / WebRTCViewer) com sinalização falsa em memória
@@ -272,6 +272,7 @@ async function runBench(cfg: BenchConfig) {
     const out: any = { t: performance.now(), out: {}, in: {}, pair: {} };
     (await hostPc()!.getStats()).forEach((s: any) => {
       if (s.type === 'outbound-rtp' && s.kind === 'video') out.out = { ...s };
+      if (s.type === 'codec') (out.codecs ??= {})[s.id] = s.mimeType;
       if (s.type === 'candidate-pair' && s.nominated) out.pair = { ...s };
     });
     (await viewerPc()!.getStats()).forEach((s: any) => {
@@ -322,7 +323,7 @@ async function runBench(cfg: BenchConfig) {
   const result = {
     config: cfg,
     chrome: navigator.userAgent.match(/Chrome\/[\d.]+/)?.[0],
-    encoderImplementation: o1.encoderImplementation,
+    negotiatedCodec: b.codecs?.[o1.codecId],
     decoderImplementation: i1.decoderImplementation,
     powerEfficientEncoder: o1.powerEfficientEncoder,
     powerEfficientDecoder: i1.powerEfficientDecoder,
@@ -393,6 +394,7 @@ async function runBench(cfg: BenchConfig) {
 }
 
 window.__runBench = runBench;
+
 
 
 
