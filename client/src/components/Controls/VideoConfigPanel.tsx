@@ -18,9 +18,9 @@ const RESOLUTIONS = [
 ];
 
 const FPS_PRESETS = [
-  { id: '30fps',  label: '30 FPS',  sub: 'Padrão',    value: 30  },
-  { id: '60fps',  label: '60 FPS',  sub: 'Fluido',    value: 60  },
-  { id: '120fps', label: '120 FPS', sub: 'Gamer Pro', value: 120 },
+  { id: '30fps',  label: '30 FPS',  sub: 'Padrão',     value: 30  },
+  { id: '60fps',  label: '60 FPS',  sub: 'Fluido',     value: 60  },
+  { id: '120fps', label: '120 FPS', sub: 'Kiara Mode', value: 120 },
 ];
 
 const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false, isSharing = false }) => {
