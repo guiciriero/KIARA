@@ -64,9 +64,16 @@ export interface BroadcastState {
 const ROOM_TIMEOUT_MS = 8000;
 const NO_ICE_SERVERS: IceServerConfig[] = [];
 
-/** 'high'/'ultra' priorizam nitidez (texto/código); 'low'/'medium' priorizam fluidez */
+/**
+ * 'detail' → browser prioriza nitidez (bom para texto/código, ruim para jogos).
+ * 'motion' → browser prioriza fluidez/FPS (bom para jogos, vídeo e movimento rápido).
+ *
+ * 'game': explicitamente otimizado para jogos — 'motion' com prioridade total de FPS.
+ * 'low'/'medium'/'ultra': 'motion' (fluidez em primeiro lugar).
+ * 'high': 'detail' — apresentações e código onde nitidez importa mais que FPS.
+ */
 function contentHintFor(quality: VideoConfig['quality']): ContentHint {
-  return quality === 'high' || quality === 'ultra' ? 'detail' : 'motion';
+  return quality === 'high' ? 'detail' : 'motion';
 }
 
 const INITIAL_STATE: BroadcastState = {

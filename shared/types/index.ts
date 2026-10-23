@@ -28,7 +28,7 @@ export interface VideoConfig {
   frameRate: number;      // FPS (1-120)
   codec: VideoCodec;
   bitrate: number;        // kbps
-  quality: 'low' | 'medium' | 'high' | 'ultra';
+  quality: 'low' | 'medium' | 'high' | 'ultra' | 'game';
 }
 
 export interface AudioConfig {

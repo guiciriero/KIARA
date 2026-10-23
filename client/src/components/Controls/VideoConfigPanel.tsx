@@ -17,6 +17,15 @@ const RESOLUTIONS = [
   { id: '4k',    label: '4K',    sub: 'UHD', width: 3840, height: 2160 },
 ];
 
+/** Modos de prioridade para o encoder do navegador (content hint). */
+const QUALITY_PRESETS: { id: VideoConfig['quality']; label: string; sub: string }[] = [
+  { id: 'game',   label: 'Jogo',        sub: 'Max FPS'   },
+  { id: 'ultra',  label: 'Ultra',       sub: 'Fluido'    },
+  { id: 'high',   label: 'Alto',        sub: 'Nítido'    },
+  { id: 'medium', label: 'Médio',       sub: 'Balanceado' },
+  { id: 'low',    label: 'Baixo',       sub: 'Economia'  },
+];
+
 const FPS_PRESETS = [
   { id: '30fps',  label: '30 FPS',  sub: 'Padrão',     value: 30  },
   { id: '60fps',  label: '60 FPS',  sub: 'Fluido',     value: 60  },
@@ -123,6 +132,43 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
             <option value="VP9">VP9 (Eficiência e Qualidade Superior)</option>
             <option value="H265">H.265 / HEVC (Alta Performance)</option>
           </select>
+        </div>
+      </div>
+
+      {/* Prioridade do Encoder (content hint) */}
+      <div className={styles.field}>
+        <div className={styles.fieldHeader}>
+          <label className={styles.fieldLabel}>Prioridade do Encoder</label>
+          <span className={styles.fieldValue}>{QUALITY_PRESETS.find((q) => q.id === config.quality)?.label ?? config.quality}</span>
+        </div>
+        <div className={styles.fpsGrid}>
+          {QUALITY_PRESETS.map((preset) => {
+            const isSelected = preset.id === config.quality;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                className={`${styles.resChip} ${isSelected ? styles.selectedRes : ''}`}
+                disabled={disabled}
+                onClick={() => update({ quality: preset.id })}
+                aria-pressed={isSelected}
+                title={
+                  preset.id === 'game'
+                    ? 'Prioriza FPS máximo — ideal para jogos e conteúdo dinâmico'
+                    : preset.id === 'ultra'
+                      ? 'Fluido — equilibra FPS e nitidez com foco em movimento'
+                      : preset.id === 'high'
+                        ? 'Nítido — prioriza resolução visual; pode reduzir FPS em cenas rápidas'
+                        : preset.id === 'medium'
+                          ? 'Balanceado — equilíbrio entre qualidade e uso de recursos'
+                          : 'Econômico — reduz uso de CPU/rede, aceita menor qualidade'
+                }
+              >
+                <span className={styles.resLabel}>{preset.label}</span>
+                <span className={styles.resSub}>{preset.sub}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

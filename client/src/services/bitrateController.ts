@@ -3,6 +3,17 @@
  *
  * Controlador de taxa de bits adaptativo (AIMD) para conexões WebRTC.
  * Ajusta o bitrate de vídeo por peer com base nas métricas de RTT e perda de pacotes.
+ *
+ * Calibrado para jogos de ação e conteúdo de movimento rápido:
+ * - Congestionamento exige 3 amostras consecutivas (não 2) para reduzir — evita
+ *   reações a picos de bitrate normais em cenas de explosão/movimento rápido.
+ * - Limiar de congestionamento: perda > 8% (não 5%) — o GCC do Chrome reporta
+ *   "perda" em picos de bitrate que não são congestionamento de rede real.
+ * - RTT congestionado: > 400 ms (não 300 ms) — RTTs de 300-400 ms são comuns
+ *   em redes Wi-Fi sem indicar saturação real.
+ * - Recuperação em 3 amostras saudáveis (não 5) subindo 15% do alvo (não 10%) —
+ *   após uma cena calma o bitrate volta ao alvo mais rápido.
+ * - Redução de 20% por evento (não 25%) — reação proporcional menor a picos.
  */
 
 export interface NetworkSample {
@@ -12,9 +23,25 @@ export interface NetworkSample {
 
 /** Piso padrão do bitrate em congestionamento (1.5 Mbps) */
 const MIN_BITRATE_BPS = 1_500_000;
-/** Piso reduzido para perda severa (> SEVERE_LOSS_PERCENT) — alivia o encoder mas mantém vídeo usável */
+/** Piso reduzido para perda severa (> SEVERE_LOSS_PERCENT) */
 const SEVERE_MIN_BITRATE_BPS = 800_000;
-const SEVERE_LOSS_PERCENT = 10;
+
+/** Perda acima deste valor é congestionamento real (não pico de cena) */
+const CONGESTION_LOSS_THRESHOLD = 8;
+/** RTT acima deste valor indica congestionamento real */
+const CONGESTION_RTT_THRESHOLD_MS = 400;
+/** Perda acima deste valor indica rede com problema grave */
+const SEVERE_LOSS_PERCENT = 15;
+
+/** Amostras consecutivas congestionadas para reduzir bitrate */
+const CONGESTION_SAMPLES_TO_REDUCE = 3;
+/** Amostras consecutivas saudáveis para recuperar bitrate */
+const HEALTHY_SAMPLES_TO_RECOVER = 3;
+
+/** Fator de redução por evento de congestionamento confirmado */
+const REDUCTION_FACTOR = 0.8;   // reduz 20%
+/** Incremento de recuperação como fração do alvo por evento saudável */
+const RECOVERY_INCREMENT_RATIO = 0.15; // sobe 15% do alvo
 
 export class BitrateController {
   private targetBitrateBps: number;
@@ -39,15 +66,14 @@ export class BitrateController {
   }
 
   /**
-   * Processa uma nova amostra de rede e calcula a nova taxa de bits máxima em bps.
-   * Amostras com dados inválidos ou ausentes são ignoradas mantendo a taxa atual.
+   * Processa uma nova amostra de rede e retorna a taxa de bits máxima em bps.
+   * Amostras inválidas são ignoradas mantendo a taxa atual.
    *
-   * AIMD: congestionado (perda > 5% ou RTT > 300 ms) ×2 seguidas ⇒ ×0,75; saudável
-   * (perda < 1% e RTT < 150 ms) ×5 ⇒ +10% do alvo. Amostra intermediária decrementa em 1
-   * o contador de saudáveis (não o zera) e zera o de congestionadas.
-   *
-   * Piso da redução: max(800 kbps, 25% do alvo); com perda > 10% o piso cai para 400 kbps
-   * (ou 25% do alvo, o que for maior), pois manter 800 kbps em rede muito ruim sobrecarrega o encoder.
+   * AIMD ajustado para jogos:
+   * - Congestionado (perda > 8% OU RTT > 400 ms) por 3 amostras seguidas → reduz 20%.
+   * - Saudável (perda < 1% E RTT < 150 ms) por 3 amostras seguidas → sobe 15% do alvo.
+   * - Amostra intermediária: decrementa 1 do contador saudável, não zera.
+   * - Piso: max(MIN_BITRATE_BPS, 25% do alvo); com perda > 15%: SEVERE_MIN_BITRATE_BPS.
    */
   onSample(sample: NetworkSample): number {
     const { lossPercent, rttMs } = sample;
@@ -63,25 +89,25 @@ export class BitrateController {
       return this.currentBitrateBps;
     }
 
-    const isCongested = lossPercent > 5 || rttMs > 300;
+    const isCongested = lossPercent > CONGESTION_LOSS_THRESHOLD || rttMs > CONGESTION_RTT_THRESHOLD_MS;
     const isHealthy = lossPercent < 1 && rttMs < 150;
 
     if (isCongested) {
       this.consecutiveCongested += 1;
       this.consecutiveHealthy = 0;
 
-      if (this.consecutiveCongested >= 2) {
+      if (this.consecutiveCongested >= CONGESTION_SAMPLES_TO_REDUCE) {
         const minBps = lossPercent > SEVERE_LOSS_PERCENT ? SEVERE_MIN_BITRATE_BPS : MIN_BITRATE_BPS;
         const floor = Math.max(minBps, Math.round(this.targetBitrateBps * 0.25));
-        this.currentBitrateBps = Math.max(floor, Math.round(this.currentBitrateBps * 0.75));
+        this.currentBitrateBps = Math.max(floor, Math.round(this.currentBitrateBps * REDUCTION_FACTOR));
         this.consecutiveCongested = 0;
       }
     } else if (isHealthy) {
       this.consecutiveHealthy += 1;
       this.consecutiveCongested = 0;
 
-      if (this.consecutiveHealthy >= 5) {
-        const increment = Math.round(this.targetBitrateBps * 0.1);
+      if (this.consecutiveHealthy >= HEALTHY_SAMPLES_TO_RECOVER) {
+        const increment = Math.round(this.targetBitrateBps * RECOVERY_INCREMENT_RATIO);
         this.currentBitrateBps = Math.min(this.targetBitrateBps, this.currentBitrateBps + increment);
         this.consecutiveHealthy = 0;
       }
