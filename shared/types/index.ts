@@ -363,6 +363,24 @@ export interface StreamStats {
   qualityLimitation: 'none' | 'cpu' | 'bandwidth' | 'other';
   connectionQuality: 'excellent' | 'good' | 'fair' | 'poor';
   timestamp: number;
+  // ── Métricas estendidas de diagnóstico (opcionais) ────────────────────────
+  /** Resolução efetiva sendo codificada (largura × altura) */
+  encodedWidth?: number;
+  encodedHeight?: number;
+  /** Total de frames descartados pelo encoder (acumulado) */
+  framesDropped?: number;
+  /** Total de frames codificados enviados (acumulado) */
+  framesSent?: number;
+  /** Total de frames decodificados (somente lado espectador) */
+  framesDecoded?: number;
+  /** Total de frames recebidos (somente lado espectador) */
+  framesReceived?: number;
+  /** Perda de frames recebidos, reportada pelo espectador */
+  framesLost?: number;
+  /** Tempo médio de decodificação por frame em ms (lado espectador) */
+  decodeTimeMs?: number;
+  /** P95 do tempo de decodificação por frame em ms */
+  decodeTimeP95Ms?: number;
 }
 
 // ─── Estado da Aplicação ─────────────────────────────────────────────────────

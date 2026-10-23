@@ -23,7 +23,7 @@ const mockVideoConfig: VideoConfig = {
   height: 1080,
   frameRate: 60,
   codec: 'H264',
-  bitrate: 5000,
+  bitrate: 8000,
   quality: 'high',
 };
 

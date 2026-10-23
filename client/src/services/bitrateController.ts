@@ -10,10 +10,10 @@ export interface NetworkSample {
   rttMs?: number;
 }
 
-/** Piso padrão do bitrate em congestionamento */
-const MIN_BITRATE_BPS = 800_000;
-/** Piso reduzido para perda severa (> SEVERE_LOSS_PERCENT), aliviando a pressão sobre o encoder */
-const SEVERE_MIN_BITRATE_BPS = 400_000;
+/** Piso padrão do bitrate em congestionamento (1.5 Mbps) */
+const MIN_BITRATE_BPS = 1_500_000;
+/** Piso reduzido para perda severa (> SEVERE_LOSS_PERCENT) — alivia o encoder mas mantém vídeo usável */
+const SEVERE_MIN_BITRATE_BPS = 800_000;
 const SEVERE_LOSS_PERCENT = 10;
 
 export class BitrateController {

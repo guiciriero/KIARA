@@ -27,6 +27,39 @@ describe('sdpTuning', () => {
     expect(tuned).toContain('useinbandfec=1');
   });
 
+  it('não aplica parâmetros Opus em SDPs sem a=rtpmap Opus', () => {
+    const noOpusSdp = [
+      'v=0',
+      'm=audio 9 UDP/TLS/RTP/SAVPF 96',
+      'a=rtpmap:96 PCMU/8000',
+      'a=fmtp:96 something',
+      '',
+    ].join('\r\n');
+    const tuned = tuneOpusAudioSdp(noOpusSdp, 192);
+    expect(tuned).toBe(noOpusSdp); // SDP intocado
+    expect(tuned).not.toContain('stereo=1');
+  });
+
+  it('detecta corretamente Opus em payload type não-padrão (ex.: 112 em vez de 111)', () => {
+    const altPtSdp = [
+      'v=0',
+      'm=audio 9 UDP/TLS/RTP/SAVPF 112',
+      'a=rtpmap:112 opus/48000/2',
+      'a=fmtp:112 minptime=10',
+      '',
+    ].join('\r\n');
+    const tuned = tuneOpusAudioSdp(altPtSdp, 192);
+    expect(tuned).toContain('stereo=1');
+    expect(tuned).toContain('maxaveragebitrate=192000');
+  });
+
+  it('não duplica parâmetros ao aplicar tuneOpusAudioSdp duas vezes', () => {
+    const once = tuneOpusAudioSdp(sampleSdp, 192);
+    const twice = tuneOpusAudioSdp(once, 192);
+    // O resultado de aplicar duas vezes deve ser igual ao de aplicar uma vez
+    expect(twice).toBe(once);
+  });
+
   it('injeta limites de taxa de bits e CBR no SDP de vídeo', () => {
     const tuned = tuneVideoBitrateSdp(sampleSdp, {
       targetBitrateKbps: 8000,
@@ -38,6 +71,21 @@ describe('sdpTuning', () => {
     expect(tuned).toContain('x-google-min-bitrate=4000');
     expect(tuned).toContain('x-google-max-bitrate=12000');
     expect(tuned).toContain('x-google-start-bitrate=8000');
+  });
+
+  it('não aplica x-google-* na seção de áudio', () => {
+    const tuned = tuneVideoBitrateSdp(sampleSdp, { targetBitrateKbps: 8000 });
+    // A linha fmtp do áudio (payload 111) não deve ter x-google-*
+    const audioFmtpLine = tuned.split('\r\n').find((l) => l.startsWith('a=fmtp:111'));
+    expect(audioFmtpLine).toBeDefined();
+    expect(audioFmtpLine).not.toContain('x-google-min-bitrate');
+  });
+
+  it('não duplica x-google-* ao aplicar tuneVideoBitrateSdp duas vezes', () => {
+    const once = tuneVideoBitrateSdp(sampleSdp, { targetBitrateKbps: 8000 });
+    const twice = tuneVideoBitrateSdp(once, { targetBitrateKbps: 8000 });
+    const countMin = (twice.match(/x-google-min-bitrate/g) ?? []).length;
+    expect(countMin).toBe(1); // deve aparecer apenas uma vez
   });
 
   it('executa otimização combinada completa sem quebrar SDP', () => {

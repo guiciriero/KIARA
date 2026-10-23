@@ -14,7 +14,7 @@ describe('BitrateController', () => {
 
   it('reduz bitrate em 25% após 2 amostras congestionadas consecutivas respeitando o piso', () => {
     const controller = new BitrateController(4000); // 4000 kbps = 4_000_000 bps
-    // Piso = max(800k, 25% de 4M) = 1_000_000 bps
+    // Piso = max(1500k, 25% de 4M) = 1_500_000 bps
 
     // 1ª amostra congestionada (perda > 5%) -> ainda mantém
     let bitrate = controller.onSample({ lossPercent: 6, rttMs: 50 });
@@ -33,26 +33,36 @@ describe('BitrateController', () => {
     expect(bitrate).toBe(2250000);
   });
 
-  it('respeita o piso mínimo de bitrate (800 kbps ou 25% do alvo)', () => {
-    const controller = new BitrateController(2000); // 2_000_000 bps -> piso = max(800k, 500k) = 800k
+  it('respeita o piso mínimo de bitrate (1.5 Mbps ou 25% do alvo, o maior)', () => {
+    // 2000 kbps → piso = max(1500k, 500k) = 1500k
+    const controller = new BitrateController(2000);
     for (let i = 0; i < 20; i++) {
       controller.onSample({ lossPercent: 10, rttMs: 400 });
     }
-    expect(controller.getCurrentBitrateBps()).toBe(800000);
+    expect(controller.getCurrentBitrateBps()).toBe(1500000);
+
+    // 8000 kbps → piso = max(1500k, 2000k) = 2000k (25% prevalece)
+    const high = new BitrateController(8000);
+    for (let i = 0; i < 20; i++) {
+      high.onSample({ lossPercent: 10, rttMs: 400 });
+    }
+    expect(high.getCurrentBitrateBps()).toBe(2000000);
   });
 
-  it('reduz o piso para 400 kbps quando a perda é severa (> 10%)', () => {
-    const controller = new BitrateController(2000); // piso = max(400k, 500k) = 500k
+  it('reduz o piso para 800 kbps (severo) quando a perda é severa (> 10%)', () => {
+    // 2000 kbps → piso severo = max(800k, 500k) = 800k
+    const controller = new BitrateController(2000);
     for (let i = 0; i < 30; i++) {
       controller.onSample({ lossPercent: 15, rttMs: 400 });
     }
-    expect(controller.getCurrentBitrateBps()).toBe(500000);
+    expect(controller.getCurrentBitrateBps()).toBe(800000);
 
-    const small = new BitrateController(1000); // piso = max(400k, 250k) = 400k
+    // 1000 kbps → piso severo = max(800k, 250k) = 800k
+    const small = new BitrateController(1000);
     for (let i = 0; i < 30; i++) {
       small.onSample({ lossPercent: 15, rttMs: 400 });
     }
-    expect(small.getCurrentBitrateBps()).toBe(400000);
+    expect(small.getCurrentBitrateBps()).toBe(800000);
   });
 
   it('recupera bitrate gradualmente (+10% do alvo) após 5 amostras saudáveis consecutivas respeitando o teto', () => {

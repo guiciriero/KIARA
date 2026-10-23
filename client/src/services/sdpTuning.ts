@@ -19,29 +19,52 @@ export interface SdpTuningOptions {
 }
 
 const DEFAULT_OPTIONS: Required<SdpTuningOptions> = {
-  targetBitrateKbps: 6000,
+  targetBitrateKbps: 8000,
   minBitrateKbps: 3000,
-  maxBitrateKbps: 12000,
+  maxBitrateKbps: 16000,
   audioBitrateKbps: 192,
 };
 
 /**
+ * Extrai os payload types associados ao codec Opus a partir das linhas a=rtpmap.
+ * É mais confiável do que assumir que Opus sempre usa o payload type 111.
+ *
+ * Exemplo: "a=rtpmap:111 opus/48000/2" → "111"
+ */
+function extractOpusPayloadTypes(sdp: string): Set<string> {
+  const result = new Set<string>();
+  const rtpmapRegex = /a=rtpmap:(\d+) opus\/\d+/gi;
+  let m: RegExpExecArray | null;
+  while ((m = rtpmapRegex.exec(sdp)) !== null) {
+    result.add(m[1]);
+  }
+  return result;
+}
+
+/**
  * Ajusta parâmetros do codec de áudio Opus no SDP para garantir reprodução
  * em estéreo de alta resolução (48 kHz) com taxa constante e correção de erros.
+ *
+ * A detecção do payload type Opus é feita via a=rtpmap, evitando dependência
+ * de valores hardcoded (p. ex. 111 nem sempre é Opus em todos os navegadores).
  */
 export function tuneOpusAudioSdp(sdp: string, audioBitrateKbps = 192): string {
   const maxAverageBitrate = audioBitrateKbps * 1000;
-  const opusFmtpRegex = /(a=fmtp:\d+ )((?:(?!stereo=).)*)(?:\r?\n|$)/gi;
+  const opusPayloadTypes = extractOpusPayloadTypes(sdp);
 
-  return sdp.replace(opusFmtpRegex, (match, prefix, rest) => {
-    // Só aplica na linha do Opus
-    if (!match.includes('opus') && !match.toLowerCase().includes('minptime') && !match.toLowerCase().includes('useinbandfec') && !rest.includes('111')) {
-      // Se não tem marcadores de Opus, confere se é payload Opus (geralmente 111)
-      if (!prefix.includes('111')) return match;
-    }
+  // Se não encontrou nenhum payload Opus, devolve o SDP intocado
+  if (opusPayloadTypes.size === 0) return sdp;
 
-    const cleanRest = rest.trim();
-    const separator = cleanRest.length > 0 && !cleanRest.endsWith(';') ? ';' : '';
+  const fmtpRegex = /(a=fmtp:(\d+) )([^\r\n]*)(\r?\n)/g;
+
+  return sdp.replace(fmtpRegex, (match, prefix, pt, rest, lineEnd) => {
+    // Aplica somente nas linhas fmtp do Opus
+    if (!opusPayloadTypes.has(pt)) return match;
+
+    // Remove parâmetros que serão sobrescritos para evitar duplicatas
+    const paramsToRemove = /\b(stereo|sprop-stereo|maxaveragebitrate|cbr|useinbandfec)=[^;]*/gi;
+    const cleanRest = rest.replace(paramsToRemove, '').replace(/;;+/g, ';').replace(/^;|;$/g, '');
+
     const params = [
       'stereo=1',
       'sprop-stereo=1',
@@ -50,14 +73,17 @@ export function tuneOpusAudioSdp(sdp: string, audioBitrateKbps = 192): string {
       'useinbandfec=1',
     ];
 
-    // Mantém CRLF
-    return `${prefix}${cleanRest}${separator}${params.join(';')}\r\n`;
+    const base = cleanRest.length > 0 ? `${cleanRest};` : '';
+    return `${prefix}${base}${params.join(';')}${lineEnd}`;
   });
 }
 
 /**
  * Injeta parâmetros de taxa de bits e limites do Google Congestion Control no SDP de vídeo.
  * Evita que movimentos rápidos na tela sejam interpretados erroneamente como queda de rede.
+ *
+ * Restringe a modificação das linhas a=fmtp à seção de vídeo do SDP para não
+ * afetar inadvertidamente codecs de áudio que também possuem a=fmtp.
  */
 export function tuneVideoBitrateSdp(
   sdp: string,
@@ -78,21 +104,32 @@ export function tuneVideoBitrateSdp(
     `$1\r\nb=TIAS:${targetTiasBps}\r\nb=AS:${opts.targetBitrateKbps}\r\n`
   );
 
-  // 3. Adiciona parâmetros x-google-* para os codecs de vídeo principais
-  const videoFmtpRegex = /(a=fmtp:\d+ [^\r\n]+)\r?\n/g;
-  result = result.replace(videoFmtpRegex, (match, fmtpLine) => {
-    // Evita duplicar se já houver
-    if (fmtpLine.includes('x-google-min-bitrate')) return match;
+  // 3. Adiciona parâmetros x-google-* somente na seção de vídeo.
+  //    Para identificar a seção de vídeo, splitamos o SDP em seções m= e
+  //    aplicamos a transformação apenas naquela que começa com "m=video".
+  const sections = result.split(/(?=m=)/);
+  result = sections.map((section) => {
+    if (!section.startsWith('m=video')) return section;
 
-    const additions = [
-      `x-google-min-bitrate=${opts.minBitrateKbps}`,
-      `x-google-max-bitrate=${opts.maxBitrateKbps}`,
-      `x-google-start-bitrate=${opts.targetBitrateKbps}`,
-    ].join(';');
+    return section.replace(/(a=fmtp:\d+ [^\r\n]+)(\r?\n)/g, (match, fmtpLine, lineEnd) => {
+      // Evita duplicar se já houver
+      if (fmtpLine.includes('x-google-min-bitrate')) return match;
 
-    const sep = fmtpLine.endsWith(';') ? '' : ';';
-    return `${fmtpLine}${sep}${additions}\r\n`;
-  });
+      // Não aplica em linhas de áudio que possam ter ficado na seção (não esperado, mas seguro)
+      if (fmtpLine.toLowerCase().includes('minptime') || fmtpLine.toLowerCase().includes('opus')) {
+        return match;
+      }
+
+      const additions = [
+        `x-google-min-bitrate=${opts.minBitrateKbps}`,
+        `x-google-max-bitrate=${opts.maxBitrateKbps}`,
+        `x-google-start-bitrate=${opts.targetBitrateKbps}`,
+      ].join(';');
+
+      const sep = fmtpLine.endsWith(';') ? '' : ';';
+      return `${fmtpLine}${sep}${additions}${lineEnd}`;
+    });
+  }).join('');
 
   return result;
 }

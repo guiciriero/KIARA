@@ -45,7 +45,7 @@ const DEFAULT_VIDEO_CONFIG: VideoConfig = {
   height: 1080,
   frameRate: 60,
   codec: 'H264',
-  bitrate: 5000,
+  bitrate: 8000,
   quality: 'high',
 };
 
@@ -214,7 +214,7 @@ export class WebRTCBroadcaster {
       }
       params.degradationPreference = degradationPreferenceFor(config?.quality);
       const fps = config?.frameRate || 60;
-      const baseBitrateKbps = config?.bitrate || 5000;
+      const baseBitrateKbps = config?.bitrate || 8000;
       const targetBitrateKbps = qualityPref?.maxBitrateKbps
         ? Math.min(qualityPref.maxBitrateKbps, baseBitrateKbps)
         : baseBitrateKbps;
@@ -240,17 +240,19 @@ export class WebRTCBroadcaster {
       return;
     }
 
-    // SVC opcional (AV1/VP9): tentativa separada, nunca impede o envio
-    if (config?.codec === 'AV1' || config?.codec === 'VP9') {
-      try {
-        const params = sender.getParameters();
-        if (params.encodings && params.encodings[0]) {
-          (params.encodings[0] as RTCRtpEncodingParameters & { scalabilityMode?: string }).scalabilityMode = 'L1T3';
-          await sender.setParameters(params);
-        }
-      } catch {
-        // Navegador rejeitou scalabilityMode: segue sem SVC
+    // scalabilityMode: controla B-frames e latência do encoder.
+    // - H264: L1T1 = sem temporal scaling, sem B-frames → menor latência possível.
+    // - AV1/VP9: L1T3 = 3 camadas temporais (SVC), melhora resiliência sem latência extra.
+    // Tentativa separada; falha silenciosa para nunca impedir o envio.
+    const scalabilityMode = config?.codec === 'AV1' || config?.codec === 'VP9' ? 'L1T3' : 'L1T1';
+    try {
+      const p = sender.getParameters();
+      if (p.encodings && p.encodings[0]) {
+        (p.encodings[0] as RTCRtpEncodingParameters & { scalabilityMode?: string }).scalabilityMode = scalabilityMode;
+        await sender.setParameters(p);
       }
+    } catch {
+      // Navegador rejeitou scalabilityMode: segue sem ele
     }
   }
 
@@ -562,8 +564,8 @@ export class WebRTCBroadcaster {
 
       const tunedSdp = optimizeSdpForGaming(offer.sdp ?? '', {
         targetBitrateKbps: this.videoConfig.bitrate,
-        minBitrateKbps: Math.max(2500, Math.round(this.videoConfig.bitrate * 0.5)),
-        maxBitrateKbps: Math.max(this.videoConfig.bitrate * 1.5, 12000),
+        minBitrateKbps: Math.max(3000, Math.round(this.videoConfig.bitrate * 0.375)),
+        maxBitrateKbps: Math.max(Math.round(this.videoConfig.bitrate * 1.5), 16000),
       });
       const tunedOffer: RTCSessionDescriptionInit = {
         type: offer.type,
