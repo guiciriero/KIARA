@@ -225,8 +225,7 @@
   background: #000000;
   position: relative;
   z-index: 2;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
   transform: translateZ(0);
   will-change: transform;
 }

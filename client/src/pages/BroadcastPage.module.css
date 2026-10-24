@@ -586,8 +586,7 @@
   max-height: 100%;
   object-fit: contain;
   display: block;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
   transform: translateZ(0);
 }
 
@@ -603,8 +602,7 @@
   background: #000000;
   border-radius: inherit;
   animation: panelEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
   transform: translateZ(0);
 }
 
