@@ -42,7 +42,9 @@ app.commandLine.appendSwitch('enable-accelerated-mjpeg-decode');
 app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
 app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('disable-frame-rate-limit');
+// NÃO usar 'disable-frame-rate-limit' (nem 'disable-gpu-vsync'): o compositor/rAF da UI passa a rodar
+// sem vsync (~5000 quadros/s medidos), saturando GPU + renderer (~29% da CPU total em 12 threads)
+// sem ganho algum: a captura nativa (DXGI) e o encode WebRTC não dependem do rAF da interface.
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
