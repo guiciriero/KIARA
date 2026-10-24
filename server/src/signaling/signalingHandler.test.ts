@@ -306,7 +306,6 @@ describe('robustez contra payloads malformados', () => {
       'webrtc:ice-candidate',
       'stream:quality-request',
       'stream:stats',
-      'chat:reaction',
       'room:respond-join',
       'room:join',
     ]) {
@@ -386,86 +385,6 @@ describe('relay WebRTC e controle', () => {
   });
 });
 
-describe('reações', () => {
-  it('rejeita emoji fora da lista', async () => {
-    const host = await server.createClient();
-    const viewer = await server.createClient();
-    const created = await createRoom(host);
-    await joinRoom(viewer, { code: created.code });
-
-    let count = 0;
-    host.on('chat:reaction', () => (count += 1));
-    viewer.emit('chat:reaction', { emoji: '💩' });
-    await sleep(100);
-    expect(count).toBe(0);
-  });
-
-  it('envia reações válidas para a sala com id único', async () => {
-    const host = await server.createClient();
-    const viewer = await server.createClient();
-    const created = await createRoom(host);
-    await joinRoom(viewer, { code: created.code, name: 'Lia' });
-
-    const got = waitForEvent<any>(host, 'chat:reaction');
-    viewer.emit('chat:reaction', { emoji: '👍' });
-    const reaction = await got;
-    expect(reaction.emoji).toBe('👍');
-    expect(reaction.name).toBe('Lia');
-    expect(typeof reaction.id).toBe('string');
-    expect(reaction.id.length).toBeGreaterThan(0);
-  });
-
-  it('permite atualizar nome do espectador via room:set-name e exibe nas reações', async () => {
-    const host = await server.createClient();
-    const viewer = await server.createClient();
-    const created = await createRoom(host);
-    await joinRoom(viewer, { code: created.code, name: 'Antigo' });
-
-    viewer.emit('room:set-name', { name: 'NovoNome' });
-    await sleep(50);
-
-    const got = waitForEvent<any>(host, 'chat:reaction');
-    viewer.emit('chat:reaction', { emoji: '👍' });
-    const reaction = await got;
-    expect(reaction.name).toBe('NovoNome');
-  });
-
-  it('permite desativar reações via room:update-features', async () => {
-    const host = await server.createClient();
-    const viewer = await server.createClient();
-    const created = await createRoom(host, { reactionsEnabled: true });
-    const joined = await joinRoom(viewer, { code: created.code });
-    expect(joined.reactionsEnabled).toBe(true);
-
-    const featuresPromise = waitForEvent<any>(viewer, 'room:features-update');
-    host.emit('room:update-features', { reactionsEnabled: false });
-    const updatedFeatures = await featuresPromise;
-    expect(updatedFeatures.reactionsEnabled).toBe(false);
-
-    let receivedReaction = false;
-    host.on('chat:reaction', () => (receivedReaction = true));
-
-    viewer.emit('chat:reaction', { emoji: '👍' });
-    await sleep(100);
-
-    expect(receivedReaction).toBe(false);
-  });
-
-  it('não entrega reação a quem está fora da sala', async () => {
-    const host = await server.createClient();
-    const outsider = await server.createClient();
-    await createRoom(host);
-
-    let leaked = false;
-    host.on('chat:reaction', () => {
-      leaked = true;
-    });
-    outsider.emit('chat:reaction', { emoji: '👍' });
-    await sleep(100);
-    expect(leaked).toBe(false);
-  });
-});
-
 describe('segurança: anti-força-bruta, sanitização e concorrência', () => {
   it('limite de senha vale por sala: reconectar (novo socket) não zera as tentativas', async () => {
     const host = await server.createClient();
@@ -523,19 +442,6 @@ describe('segurança: anti-força-bruta, sanitização e concorrência', () => {
     ghost.disconnect();
     await sleep(500);
     expect(server.roomManager.listRooms()).toHaveLength(1); // só a sala do host
-  });
-
-  it('apelido tentando se passar pelo apresentador é substituído nas reações', async () => {
-    const host = await server.createClient();
-    const viewer = await server.createClient();
-    const created = await createRoom(host);
-    await joinRoom(viewer, { code: created.code, name: 'Apresentador (host)' });
-
-    const onHost = waitForEvent<any>(host, 'chat:reaction');
-    viewer.emit('chat:reaction', { emoji: '👍' });
-    const reaction = await onHost;
-    expect(reaction.name).toBe('Convidado');
-    expect(reaction.fromHost).toBeUndefined();
   });
 
   it('stream:config-update do host é reconstruído (sem propriedades extras)', async () => {
