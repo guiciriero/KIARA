@@ -15,7 +15,7 @@ const RESOLUTIONS = [
   { id: '1440p', label: '2K',    sub: '2K',  width: 2560, height: 1440 },
 ];
 
-const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false, isSharing = false }) => {
+const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false }) => {
   const update = (partial: Partial<VideoConfig>) =>
     onChange({ ...config, ...partial });
 

@@ -154,13 +154,6 @@ const ViewerPage: React.FC = () => {
     [updateName],
   );
 
-  const handleRequireName = useCallback((): boolean => {
-    if (nameInput.trim().length > 0) return true;
-    setModalNameValue('');
-    setShowNameModal(true);
-    return false;
-  }, [nameInput]);
-
   const handleConfirmNameModal = (e?: React.FormEvent) => {
     e?.preventDefault();
     const clean = modalNameValue.trim();
