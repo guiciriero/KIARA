@@ -55,7 +55,7 @@ const DEFAULT_VIDEO_CONFIG: VideoConfig = {
   frameRate: 60,
   codec: 'auto',
   bitrate: 8000,
-  quality: 'high',
+  quality: 'game',
 };
 
 export interface RTCRtpCodecCapability {
@@ -189,15 +189,21 @@ export class WebRTCBroadcaster {
       newTrack.contentHint = 'motion';
     }
 
+    // Captura a referência antes de qualquer stop() para evitar que o handler
+    // onended (ex.: stopSharing) seja disparado sincronamente e zere this.localStream
+    // no meio da execução deste método.
+    const localStream = this.localStream ?? new MediaStream();
     if (this.localStream) {
       const oldTracks = this.localStream.getVideoTracks();
       for (const old of oldTracks) {
-        this.localStream.removeTrack(old);
+        old.onended = null; // impede que o stop() abaixo dispare stopSharing
+        localStream.removeTrack(old);
         old.stop();
       }
-      this.localStream.addTrack(newTrack);
+      localStream.addTrack(newTrack);
     } else {
-      this.localStream = new MediaStream([newTrack]);
+      localStream.addTrack(newTrack);
+      this.localStream = localStream;
     }
 
     const promises: Promise<void>[] = [];
@@ -210,7 +216,7 @@ export class WebRTCBroadcaster {
             .then(() => this.applySenderParameters(sender, this.videoConfig)),
         );
       } else {
-        const newSender = peerData.pc.addTrack(newTrack, this.localStream);
+        const newSender = peerData.pc.addTrack(newTrack, localStream);
         promises.push(this.applySenderParameters(newSender, this.videoConfig));
       }
     }
