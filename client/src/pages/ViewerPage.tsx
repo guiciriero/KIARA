@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useViewer } from '../hooks/useViewer';
-import { useReactions } from '../hooks/useReactions';
 import { useCopresenter } from '../hooks/useCopresenter';
 import { useAudioSources } from '../hooks/useAudioSources';
 import { useSocket } from '../services/SocketContext';
@@ -43,7 +42,6 @@ import AudioSourceList from '../components/Controls/AudioSourceList';
 import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
 import StatsOverlay from '../components/UI/StatsOverlay';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
-import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import styles from './ViewerPage.module.css';
 
@@ -55,7 +53,6 @@ const ViewerPage: React.FC = () => {
 
   const { state, leaveRoom, setQuality, join, updateName, storedName } = useViewer(code);
   const { socket } = useSocket();
-  const reactions = useReactions();
   const [passwordInput, setPasswordInput] = useState('');
   const [nameInput, setNameInput] = useState(() => storedName || '');
   const [showNameModal, setShowNameModal] = useState(false);
@@ -92,7 +89,7 @@ const ViewerPage: React.FC = () => {
     frameRate: 60,
     codec: 'auto',
     bitrate: 8000,
-    quality: 'high',
+    quality: 'game',
   });
   const [captureSourceId, setCaptureSourceId] = useState<string | null>(null);
   const audioHook = useAudioSources();
@@ -707,11 +704,6 @@ const ViewerPage: React.FC = () => {
           </div>
         )}
 
-        <ReactionOverlay
-          reactions={reactions.reactions}
-          enabled={state.reactionsEnabled}
-        />
-
         {/* Telemetria de Estatísticas */}
         {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} />}
       </div>
@@ -906,13 +898,6 @@ const ViewerPage: React.FC = () => {
               {showCoPresenterPanel ? <IconX size={16} /> : <IconBroadcast size={16} />}
               <span>Também transmitir</span>
             </button>
-          )}
-          {state.connectionState === 'connected' && (
-            <ReactionBar
-              onReact={reactions.sendReaction}
-              enabled={state.reactionsEnabled}
-              onRequestName={handleRequireName}
-            />
           )}
           {/* Seletor Individual de Resolução / Qualidade */}
           {state.connectionState === 'connected' && (

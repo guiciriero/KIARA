@@ -11,25 +11,8 @@ interface Props {
 }
 
 const RESOLUTIONS = [
-  { id: '720p',  label: '720p',  sub: 'HD',  width: 1280, height: 720  },
   { id: '1080p', label: '1080p', sub: 'FHD', width: 1920, height: 1080 },
-  { id: '1440p', label: '1440p', sub: '2K',  width: 2560, height: 1440 },
-  { id: '4k',    label: '4K',    sub: 'UHD', width: 3840, height: 2160 },
-];
-
-/** Modos de prioridade para o encoder do navegador (content hint). */
-const QUALITY_PRESETS: { id: VideoConfig['quality']; label: string; sub: string }[] = [
-  { id: 'game',   label: 'Jogo',        sub: 'Max FPS'   },
-  { id: 'ultra',  label: 'Ultra',       sub: 'Fluido'    },
-  { id: 'high',   label: 'Alto',        sub: 'Nítido'    },
-  { id: 'medium', label: 'Médio',       sub: 'Balanceado' },
-  { id: 'low',    label: 'Baixo',       sub: 'Economia'  },
-];
-
-const FPS_PRESETS = [
-  { id: '30fps',  label: '30 FPS',  sub: 'Padrão',     value: 30  },
-  { id: '60fps',  label: '60 FPS',  sub: 'Fluido',     value: 60  },
-  { id: '120fps', label: '120 FPS', sub: 'Kiara Mode', value: 120 },
+  { id: '1440p', label: '2K',    sub: '2K',  width: 2560, height: 1440 },
 ];
 
 const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false, isSharing = false }) => {
@@ -45,7 +28,7 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
         </div>
       </div>
 
-      {/* Seleção de Resolução em Chips/Pills Modernos */}
+      {/* Seleção de Resolução */}
       <div className={styles.field}>
         <label className={styles.fieldLabel}>Resolução da Transmissão</label>
         <div className={styles.resGrid}>
@@ -62,32 +45,6 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
               >
                 <span className={styles.resLabel}>{res.label}</span>
                 <span className={styles.resSub}>{res.sub}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Taxa de Quadros (FPS) */}
-      <div className={styles.field}>
-        <div className={styles.fieldHeader}>
-          <label className={styles.fieldLabel}>Taxa de Quadros (FPS)</label>
-          <span className={styles.fieldValue}>{config.frameRate} FPS</span>
-        </div>
-        <div className={styles.fpsGrid}>
-          {FPS_PRESETS.map((fps) => {
-            const isSelected = fps.value === config.frameRate;
-            return (
-              <button
-                key={fps.id}
-                type="button"
-                className={`${styles.resChip} ${isSelected ? styles.selectedRes : ''}`}
-                disabled={disabled}
-                onClick={() => update({ frameRate: fps.value })}
-                aria-pressed={isSelected}
-              >
-                <span className={styles.resLabel}>{fps.label}</span>
-                <span className={styles.resSub}>{fps.sub}</span>
               </button>
             );
           })}
@@ -133,43 +90,6 @@ const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false,
             <option value="VP9">VP9 (Eficiência e Qualidade Superior)</option>
             <option value="H265">H.265 / HEVC (Alta Performance)</option>
           </select>
-        </div>
-      </div>
-
-      {/* Prioridade do Encoder (content hint) */}
-      <div className={styles.field}>
-        <div className={styles.fieldHeader}>
-          <label className={styles.fieldLabel}>Prioridade do Encoder</label>
-          <span className={styles.fieldValue}>{QUALITY_PRESETS.find((q) => q.id === config.quality)?.label ?? config.quality}</span>
-        </div>
-        <div className={styles.fpsGrid}>
-          {QUALITY_PRESETS.map((preset) => {
-            const isSelected = preset.id === config.quality;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                className={`${styles.resChip} ${isSelected ? styles.selectedRes : ''}`}
-                disabled={disabled}
-                onClick={() => update({ quality: preset.id })}
-                aria-pressed={isSelected}
-                title={
-                  preset.id === 'game'
-                    ? 'Prioriza FPS máximo — ideal para jogos e conteúdo dinâmico'
-                    : preset.id === 'ultra'
-                      ? 'Fluido — equilibra FPS e nitidez com foco em movimento'
-                      : preset.id === 'high'
-                        ? 'Nítido — prioriza resolução visual; pode reduzir FPS em cenas rápidas'
-                        : preset.id === 'medium'
-                          ? 'Balanceado — equilíbrio entre qualidade e uso de recursos'
-                          : 'Econômico — reduz uso de CPU/rede, aceita menor qualidade'
-                }
-              >
-                <span className={styles.resLabel}>{preset.label}</span>
-                <span className={styles.resSub}>{preset.sub}</span>
-              </button>
-            );
-          })}
         </div>
       </div>
     </div>

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useBroadcast } from '../hooks/useBroadcast';
 import { useCopresenterStream } from '../hooks/useCopresenterStream';
 import { useAudioSources } from '../hooks/useAudioSources';
-import { useReactions } from '../hooks/useReactions';
 import { useSocket } from '../services/SocketContext';
 import { isDisplayCaptureSupported } from '../services/captureService';
 import {
@@ -49,10 +48,8 @@ import RoomOptionsPanel, {
   type RoomOptionsValue,
 } from '../components/Controls/RoomOptionsPanel';
 import StatsOverlay from '../components/UI/StatsOverlay';
-import UploadEstimate from '../components/UI/UploadEstimate';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
-import ReactionBar, { ReactionOverlay } from '../components/UI/Reactions';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import LiveScene from '../components/UI/PixelShihTzu/LiveScene';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
@@ -102,19 +99,16 @@ const BroadcastPage: React.FC = () => {
     frameRate: 60,
     codec: 'auto',
     bitrate: 8000,
-    quality: 'high',
+    quality: 'game',
   });
 
   const [roomOptions, setRoomOptions] = useState<RoomOptionsValue>({
     password: '',
     requireApproval: false,
     privacyMode: false,
-    reactionsEnabled: true,
   });
   const createRoomOptions = useMemo<CreateRoomPayload>(() => {
-    const options: CreateRoomPayload = {
-      reactionsEnabled: roomOptions.reactionsEnabled,
-    };
+    const options: CreateRoomPayload = {};
     if (roomOptions.password) options.password = roomOptions.password;
     if (roomOptions.requireApproval) options.requireApproval = true;
     if (roomOptions.privacyMode) options.privacyMode = true;
@@ -206,7 +200,6 @@ const BroadcastPage: React.FC = () => {
   } = useBroadcast(videoConfig, audioSelection, captureSourceId, createRoomOptions);
 
   const { socket } = useSocket();
-  const reactions = useReactions();
   const copresenter = useCopresenterStream(socket, state.isSharing, state.iceServers);
   const copresenterStream = copresenter.stream;
   const hasCopresenterVideo = copresenterStream !== null;
@@ -231,11 +224,6 @@ const BroadcastPage: React.FC = () => {
 
   const handleRoomOptionsChange = (newOptions: RoomOptionsValue) => {
     setRoomOptions(newOptions);
-    if (state.isSharing && socket?.connected) {
-      socket.emit('room:update-features', {
-        reactionsEnabled: newOptions.reactionsEnabled,
-      });
-    }
   };
 
   const handleSelectSource = async (sourceId: string) => {
@@ -608,12 +596,6 @@ const BroadcastPage: React.FC = () => {
             onChange={handleVideoConfigChange}
             isSharing={state.isSharing}
           />
-          <UploadEstimate
-            bitrateKbps={videoConfig.bitrate}
-            viewers={Math.max(1, state.viewerCount)}
-            maxViewers={state.maxViewers}
-          />
-
           {/* Seletor de Tela/Janela (Desktop Electron) */}
           {audioHook.isDesktop && (
             <CaptureSourcePicker
@@ -740,10 +722,6 @@ const BroadcastPage: React.FC = () => {
                 </div>
 
                 {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} />}
-                <ReactionOverlay
-                  reactions={reactions.reactions}
-                  enabled={roomOptions.reactionsEnabled}
-                />
 
                 {/* ── Barra flutuante: controles essenciais sempre acessíveis ── */}
                 <footer className={`${viewerStyles.bottomBar} ${styles.hostBar}`}>
@@ -849,11 +827,6 @@ const BroadcastPage: React.FC = () => {
                         {copresenterMuted ? <IconVolumeMute size={18} /> : <IconVolumeHigh size={18} />}
                       </button>
                     )}
-
-                    <ReactionBar
-                      onReact={reactions.sendReaction}
-                      enabled={roomOptions.reactionsEnabled}
-                    />
 
                     {state.stats && (
                       <button
