@@ -85,14 +85,6 @@ describe('viewerReducer', () => {
     expect(s.roomClosed).toBe(false);
   });
 
-  it('features-update atualiza reactionsEnabled', () => {
-    const s = run([
-      { type: 'joined', viewerCount: 1, reactionsEnabled: true },
-      { type: 'features-update', reactionsEnabled: false },
-    ]);
-    expect(s.reactionsEnabled).toBe(false);
-  });
-
   it('quality, stats e reset', () => {
     const stats = { fps: 30 } as ViewerState['stats'];
     let s = run([{ type: 'quality', preference: '720p' }, { type: 'stats', stats: stats! }]);

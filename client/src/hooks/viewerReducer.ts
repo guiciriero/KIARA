@@ -30,7 +30,6 @@ export interface ViewerState {
   roomClosed: boolean;
   hostDisconnected: boolean;
   selectedQuality: ViewerQualityPreference;
-  reactionsEnabled: boolean;
   /** Socket ID do host (destino do offer WebRTC do co-apresentador) */
   hostId: string | null;
   iceServers: IceServerConfig[];
@@ -49,7 +48,6 @@ export const INITIAL_VIEWER_STATE: ViewerState = {
   roomClosed: false,
   hostDisconnected: false,
   selectedQuality: 'auto',
-  reactionsEnabled: true,
   hostId: null,
   iceServers: [],
 };
@@ -59,11 +57,9 @@ export type ViewerAction =
   | {
       type: 'joined';
       viewerCount: number;
-      reactionsEnabled?: boolean;
       hostId?: string;
       iceServers?: IceServerConfig[];
     }
-  | { type: 'features-update'; reactionsEnabled: boolean }
   | { type: 'stream'; stream: MediaStream }
   | { type: 'pending-approval' }
   | { type: 'error'; message: string; code: RoomErrorCode }
@@ -96,7 +92,6 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
       return {
         ...state,
         viewerCount: action.viewerCount,
-        reactionsEnabled: action.reactionsEnabled !== undefined ? action.reactionsEnabled : state.reactionsEnabled,
         hostId: action.hostId !== undefined ? action.hostId : state.hostId,
         iceServers: action.iceServers !== undefined ? action.iceServers : state.iceServers,
         connectionState: 'connecting',
@@ -107,12 +102,6 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
         pendingApproval: false,
         roomClosed: false,
         hostDisconnected: false,
-      };
-
-    case 'features-update':
-      return {
-        ...state,
-        reactionsEnabled: action.reactionsEnabled,
       };
 
     case 'stream':

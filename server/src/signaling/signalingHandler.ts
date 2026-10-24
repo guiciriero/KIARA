@@ -3,10 +3,8 @@
  * Processa todos os eventos Socket.IO com validação estrita de payloads e tratamento de erros.
  */
 
-import { randomUUID } from 'crypto';
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import type {
-  ReactionEvent,
   RoomErrorPayload,
   RoomCreatedPayload,
   RoomJoinedPayload,
@@ -23,11 +21,9 @@ import { buildInviteUrl } from '../utils/publicUrl';
 import { getIceServers, isTurnConfigured } from '../utils/iceServers';
 import {
   validateCreateRoomPayload,
-  validateRoomFeaturesPayload,
   validateUpdateNamePayload,
   validateJoinRoomPayload,
   validateRespondJoinPayload,
-  validateReactionPayload,
   validateOfferPayload,
   validateAnswerPayload,
   validateIceCandidatePayload,
@@ -91,23 +87,6 @@ function recentJoinFailures(socketId: string): number[] {
 
 function registerJoinFailure(socketId: string): void {
   recentJoinFailures(socketId).push(Date.now());
-}
-
-/** Rate limit para reações: 10 reações a cada 5 segundos por socket */
-const REACTION_LIMIT_MAX = 10;
-const REACTION_LIMIT_WINDOW_MS = 5_000;
-const reactionTimestamps = new Map<string, number[]>();
-
-function checkReactionRateLimit(socketId: string): boolean {
-  const now = Date.now();
-  const cutoff = now - REACTION_LIMIT_WINDOW_MS;
-  const timestamps = (reactionTimestamps.get(socketId) ?? []).filter((t) => t > cutoff);
-  if (timestamps.length >= REACTION_LIMIT_MAX) {
-    return false;
-  }
-  timestamps.push(now);
-  reactionTimestamps.set(socketId, timestamps);
-  return true;
 }
 
 /** Wrapper para execução segura de handlers Socket.IO */
@@ -712,30 +691,6 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
       }),
     );
 
-    // ── Atualização de funcionalidades da sala (reações) (apenas host) ─────────
-    socket.on(
-      'room:update-features',
-      safe(socket, (rawPayload: unknown) => {
-        const data = validateRoomFeaturesPayload(rawPayload);
-        if (!data) return;
-
-        const roomId = socketRoomMap.get(socket.id);
-        if (!roomId) return;
-
-        const room = roomManager.getRoom(roomId);
-        if (!room || !room.isActive || room.hostId !== socket.id) return;
-
-        room.reactionsEnabled = data.reactionsEnabled;
-
-        io.to(roomId).emit('room:features-update', {
-          reactionsEnabled: room.reactionsEnabled,
-        });
-        logger.info(
-          `Sala ${roomId}: features atualizadas (reações: ${room.reactionsEnabled})`,
-        );
-      }),
-    );
-
     // ── Atualização de nome do espectador ─────────────────────────────────────
     socket.on(
       'room:set-name',
@@ -752,41 +707,6 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         if (roomId && room && !isHost) {
           room.viewerNames.set(socket.id, nickname);
         }
-      }),
-    );
-
-    // ── Reação com emoji ─────────────────────────────────────────────────────
-    socket.on(
-      'chat:reaction',
-      safe(socket, (rawPayload: unknown) => {
-        const data = validateReactionPayload(rawPayload);
-        if (!data) return;
-
-        const roomId = socketRoomMap.get(socket.id);
-        if (!roomId) return;
-
-        const room = roomManager.getRoom(roomId);
-        if (!room || !room.isActive) return;
-
-        // Se as reações foram desativadas pelo apresentador
-        if (!room.reactionsEnabled) return;
-
-        if (!checkReactionRateLimit(socket.id)) return; // Excedente descartado em silêncio
-
-        const isHost = room.hostId === socket.id;
-        const senderName = isHost
-          ? 'Apresentador'
-          : socketNicknames.get(socket.id) || room.viewerNames.get(socket.id) || 'Convidado';
-
-        const reaction: ReactionEvent = {
-          id: randomUUID(),
-          senderId: socket.id,
-          name: senderName,
-          emoji: data.emoji,
-          timestamp: Date.now(),
-        };
-
-        io.to(roomId).emit('chat:reaction', reaction);
       }),
     );
 
@@ -857,7 +777,6 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
     socket.on('disconnect', (reason) => {
       logger.info(`Conexão encerrada: ${socketLogId} (motivo: ${reason})`);
       joinFailures.delete(socket.id);
-      reactionTimestamps.delete(socket.id);
       // SEGURANÇA (vazamento de memória): estes mapas nunca eram limpos na desconexão
       socketNicknames.delete(socket.id);
       socketHwDecode.delete(socket.id);

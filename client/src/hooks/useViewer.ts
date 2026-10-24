@@ -19,7 +19,6 @@ import type {
   JoinRoomPayload,
   RoomJoinedPayload,
   RoomErrorPayload,
-  RoomFeaturesPayload,
 } from '@shared/index';
 
 export type { ViewerState } from './viewerReducer';
@@ -111,7 +110,6 @@ export function useViewer(roomCode: string | undefined) {
       dispatch({
         type: 'joined',
         viewerCount: data.viewerCount,
-        reactionsEnabled: data.reactionsEnabled,
         hostId: data.hostId,
         iceServers: data.iceServers,
       });
@@ -121,13 +119,6 @@ export function useViewer(roomCode: string | undefined) {
       const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers);
       viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
       viewerRef.current = viewer;
-    };
-
-    const onFeaturesUpdate = (features: RoomFeaturesPayload) => {
-      dispatch({
-        type: 'features-update',
-        reactionsEnabled: features.reactionsEnabled,
-      });
     };
 
     const onPendingApproval = () => dispatch({ type: 'pending-approval' });
@@ -163,7 +154,6 @@ export function useViewer(roomCode: string | undefined) {
     };
 
     socket.on('room:joined', onJoined);
-    socket.on('room:features-update', onFeaturesUpdate);
     socket.on('room:pending-approval', onPendingApproval);
     socket.on('room:error', onError);
     socket.on('room:host-disconnected', onHostDisconnected);
@@ -180,7 +170,6 @@ export function useViewer(roomCode: string | undefined) {
     return () => {
       cancelled = true;
       socket.off('room:joined', onJoined);
-      socket.off('room:features-update', onFeaturesUpdate);
       socket.off('room:pending-approval', onPendingApproval);
       socket.off('room:error', onError);
       socket.off('room:host-disconnected', onHostDisconnected);

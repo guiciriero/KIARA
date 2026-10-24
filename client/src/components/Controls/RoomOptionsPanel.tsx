@@ -1,5 +1,5 @@
 import React, { useId } from 'react';
-import { IconLock, IconUserCheck, IconShield, IconSparkles } from '../UI/Icons';
+import { IconLock, IconUserCheck, IconShield } from '../UI/Icons';
 import styles from './RoomOptionsPanel.module.css';
 
 export const MIN_ROOM_PASSWORD = 4;
@@ -9,7 +9,6 @@ export interface RoomOptionsValue {
   password: string;
   requireApproval: boolean;
   privacyMode: boolean;
-  reactionsEnabled: boolean;
 }
 
 /** Senha vazia é válida (sala sem senha); preenchida precisa ter de 4 a 64 caracteres */
@@ -100,22 +99,6 @@ const RoomOptionsPanel: React.FC<Props> = ({ value, onChange, disabled = false }
         </span>
       </label>
 
-      <div style={{ height: '1px', background: 'var(--kiara-border)', margin: '8px 0' }} />
-
-      <label className={styles.toggleRow}>
-        <input
-          type="checkbox"
-          className={styles.checkbox}
-          checked={value.reactionsEnabled}
-          onChange={(e) => onChange({ ...value, reactionsEnabled: e.target.checked })}
-        />
-        <span className={styles.toggleText}>
-          <span className={styles.toggleTitle}>
-            <IconSparkles size={14} /> Permitir reações
-          </span>
-          <span className={styles.hint}>Os espectadores podem reagir com emojis na tela.</span>
-        </span>
-      </label>
     </section>
   );
 };
