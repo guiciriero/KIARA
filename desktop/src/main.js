@@ -484,7 +484,7 @@ function registerDisplayMediaHandler() {
 
 function registerPermissions() {
   const ses = session.defaultSession;
-  const allowed = new Set(['display-capture', 'media']);
+  const allowed = new Set(['display-capture', 'media', 'fullscreen']);
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const url = (details && details.requestingUrl) || (webContents && webContents.getURL()) || '';
     callback(allowed.has(permission) && (isTrustedUrl(url) || isViewerUrl(url)));
