@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import type { VideoConfig } from '@shared/index';
+import type { CaptureSourceInfo, VideoConfig } from '@shared/index';
 import type { useAudioSources } from '../../hooks/useAudioSources';
 import VideoConfigPanel from '../Controls/VideoConfigPanel';
 import AudioSourceList from '../Controls/AudioSourceList';
 import CaptureSourceModal from '../Controls/CaptureSourceModal';
-import { IconScreen } from '../UI/Icons';
+import { IconScreen, IconWindow } from '../UI/Icons';
 import styles from '../../pages/BroadcastPage.module.css';
 
 interface Props {
@@ -26,6 +26,8 @@ const StudioConfigPanel: React.FC<Props> = ({
   onSelectSource,
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
+  // Nome/tipo da fonte escolhida, para mostrar sem reabrir o modal
+  const [selectedSource, setSelectedSource] = useState<CaptureSourceInfo | null>(null);
 
   return (
     <aside
@@ -63,6 +65,12 @@ const StudioConfigPanel: React.FC<Props> = ({
                 <span className={styles.captureSourceLivePill}>no ar</span>
               )}
             </button>
+            {captureSourceId && selectedSource?.id === captureSourceId && (
+              <div className={styles.captureSourceCurrent} title={selectedSource.name}>
+                {selectedSource.type === 'screen' ? <IconScreen size={13} /> : <IconWindow size={13} />}
+                <span className={styles.captureSourceCurrentName}>{selectedSource.name}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -86,7 +94,10 @@ const StudioConfigPanel: React.FC<Props> = ({
           isSharing={isSharing}
           videoConfig={videoConfig}
           onVideoConfigChange={onVideoConfigChange}
-          onConfirm={(id) => { void onSelectSource(id); }}
+          onConfirm={(id, source) => {
+            setSelectedSource(source ?? null);
+            void onSelectSource(id);
+          }}
           onClose={() => setModalOpen(false)}
         />
       )}

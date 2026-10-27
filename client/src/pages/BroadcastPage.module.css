@@ -1272,3 +1272,26 @@
   padding: 1px 6px;
   flex-shrink: 0;
 }
+
+/* Fonte escolhida, exibida abaixo do botão sem precisar reabrir o modal */
+.captureSourceCurrent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  min-width: 0;
+  font-size: 0.74rem;
+  color: var(--kiara-text-muted);
+}
+
+.captureSourceCurrent svg {
+  flex-shrink: 0;
+}
+
+.captureSourceCurrentName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

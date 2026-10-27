@@ -12,8 +12,8 @@ interface Props {
   /** Config de vídeo para o seletor de qualidade no rodapé */
   videoConfig: VideoConfig;
   onVideoConfigChange: (config: VideoConfig) => void;
-  /** Confirmar seleção (também fecha o modal) */
-  onConfirm: (sourceId: string) => void;
+  /** Confirmar seleção (também fecha o modal); `source` traz nome/tipo da fonte escolhida */
+  onConfirm: (sourceId: string, source?: CaptureSourceInfo) => void;
   /** Fechar sem confirmar */
   onClose: () => void;
 }
@@ -122,7 +122,7 @@ const CaptureSourceModal: React.FC<Props> = ({
     if (!pendingId || confirming) return;
     setConfirming(true);
     try {
-      await Promise.resolve(onConfirm(pendingId));
+      await Promise.resolve(onConfirm(pendingId, sources.find((s) => s.id === pendingId)));
       onClose();
     } finally {
       setConfirming(false);
