@@ -30,6 +30,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 ### Corrigido
 
 - App desktop: depois de sair de uma sala aberta por link de outra pessoa (ou de um erro nessa página), a janela ficava no site remoto e todo IPC falhava com "Remetente IPC não autorizado", exigindo fechar e abrir o app. Agora a janela volta sozinha ao servidor local ao sair da rota `/view/CÓDIGO` e, se o endereço remoto não carregar, mostra um aviso e também volta à tela inicial.
+- Espectador: às vezes a tela ficava preta ao entrar e só voltava saindo e entrando de novo. Agora o player confere se algum frame de vídeo foi decodificado; se em 12 s não chegou nenhum, refaz a entrada sozinho (até 2 vezes), sem anunciar decodificação por hardware para o host cair no H.264, que é mais compatível.
 - App desktop (Windows): a live voltava para "pronto para iniciar" ao dar alt-tab. A captura nativa agora tolera até 5 quedas consecutivas (o contador zera após 5 s estável), reinicia também em `acquire-failed`, `unsupported-format` e falha ao reiniciar, e, se ainda assim cair, a transmissão troca sozinha para o `getDisplayMedia` sem derrubar a sala. O motivo da queda vai para o console (`[KIARA] Captura nativa encerrada (...)`).
 - Falha ao trocar de tela durante a transmissão.
 - Serrilhado no player de vídeo; permissão de tela cheia no app desktop.

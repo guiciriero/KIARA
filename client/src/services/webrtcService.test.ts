@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { orderCodecs, degradationPreferenceFor, WebRTCBroadcaster, WebRTCViewer } from './webrtcService';
+import {
+  orderCodecs,
+  degradationPreferenceFor,
+  WebRTCBroadcaster,
+  WebRTCViewer,
+  VIDEO_STALL_TIMEOUT_MS,
+} from './webrtcService';
 import type { RTCRtpCodecCapability } from './webrtcService';
 import {
   FakeSocket,
@@ -701,6 +707,54 @@ describe('webrtcService', () => {
       });
 
       viewer.destroy();
+    });
+
+    describe('vigia de tela preta', () => {
+      const offer = { senderId: 'host-1', offer: { type: 'offer', sdp: 'v=0\r\no=host\r\n' } };
+      const inbound = (framesDecoded: number) =>
+        createMockStatsReport([{ id: 'in-v', type: 'inbound-rtp', kind: 'video', framesDecoded }]);
+
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => vi.useRealTimers());
+
+      it('avisa ok quando os primeiros frames são decodificados', async () => {
+        const viewer = new WebRTCViewer(socket as unknown as never, 'host-1');
+        const status = vi.fn();
+        viewer.onVideoStatus(status);
+        socket.simulateEvent('webrtc:offer', offer);
+        await vi.advanceTimersByTimeAsync(0);
+        FakeRTCPeerConnection.instances[0].mockStatsReport = inbound(3);
+        await vi.advanceTimersByTimeAsync(1100);
+        expect(status).toHaveBeenCalledExactlyOnceWith(true);
+        await vi.advanceTimersByTimeAsync(VIDEO_STALL_TIMEOUT_MS * 2);
+        expect(status).toHaveBeenCalledTimes(1);
+        viewer.destroy();
+      });
+
+      it('avisa falha quando nenhum frame é decodificado dentro do prazo', async () => {
+        const viewer = new WebRTCViewer(socket as unknown as never, 'host-1');
+        const status = vi.fn();
+        viewer.onVideoStatus(status);
+        socket.simulateEvent('webrtc:offer', offer);
+        await vi.advanceTimersByTimeAsync(0);
+        FakeRTCPeerConnection.instances[0].mockStatsReport = inbound(0);
+        await vi.advanceTimersByTimeAsync(VIDEO_STALL_TIMEOUT_MS - 2000);
+        expect(status).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(status).toHaveBeenCalledExactlyOnceWith(false);
+        viewer.destroy();
+      });
+
+      it('destroy cancela o vigia', async () => {
+        const viewer = new WebRTCViewer(socket as unknown as never, 'host-1');
+        const status = vi.fn();
+        viewer.onVideoStatus(status);
+        socket.simulateEvent('webrtc:offer', offer);
+        await vi.advanceTimersByTimeAsync(0);
+        viewer.destroy();
+        await vi.advanceTimersByTimeAsync(VIDEO_STALL_TIMEOUT_MS * 2);
+        expect(status).not.toHaveBeenCalled();
+      });
     });
 
     it('destroy fecha RTCPeerConnection e remove apenas seus próprios listeners', () => {

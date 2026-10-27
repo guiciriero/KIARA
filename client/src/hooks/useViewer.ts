@@ -58,6 +58,9 @@ function qualityLimits(pref: ViewerQualityPreference): { targetHeight: number | 
   }
 }
 
+/** Reentradas automáticas quando o vídeo não começa */
+const MAX_STALL_RETRIES = 2;
+
 export function useViewer(roomCode: string | undefined) {
   const { socket } = useSocket();
   const [state, dispatch] = useReducer(viewerReducer, INITIAL_VIEWER_STATE);
@@ -70,6 +73,8 @@ export function useViewer(roomCode: string | undefined) {
   const sessionRef = useRef(false);
   /** Envia room:join com as credenciais atuais (definida pelo efeito) */
   const sendJoinRef = useRef<(() => void) | null>(null);
+  /** Reentradas já feitas porque o vídeo não começou (tela preta) */
+  const stallRetriesRef = useRef(0);
 
   const destroyViewer = useCallback(() => {
     viewerRef.current?.destroy();
@@ -89,7 +94,8 @@ export function useViewer(roomCode: string | undefined) {
         const payload: JoinRoomPayload = { code: roomCode };
         if (credsRef.current.password) payload.password = credsRef.current.password;
         if (credsRef.current.name) payload.name = credsRef.current.name;
-        if (hwDecode) payload.hwDecode = hwDecode;
+        // Depois de uma tela preta, não anuncia decodificação por hardware: o host cai no H.264 (mais compatível)
+        if (hwDecode && stallRetriesRef.current === 0) payload.hwDecode = hwDecode;
         socket.emit('room:join', payload);
       });
     };
@@ -118,6 +124,21 @@ export function useViewer(roomCode: string | undefined) {
       destroyViewer();
       const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers);
       viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
+      // Conexão "ok" mas nenhum frame decodificado = tela preta. Refaz a entrada sozinho (o que o usuário
+      // faria à mão: sair e entrar), no máximo MAX_STALL_RETRIES vezes.
+      viewer.onVideoStatus((ok) => {
+        if (cancelled || viewerRef.current !== viewer) return;
+        if (ok) {
+          stallRetriesRef.current = 0;
+          return;
+        }
+        if (!sessionRef.current || stallRetriesRef.current >= MAX_STALL_RETRIES) return;
+        stallRetriesRef.current += 1;
+        socket.emit('room:leave');
+        destroyViewer();
+        dispatch({ type: 'joining' });
+        sendJoin();
+      });
       viewerRef.current = viewer;
     };
 

@@ -31,6 +31,10 @@ import {
 /** Máximo de candidatos ICE guardados antes da answer (descarta os mais antigos) */
 export const MAX_ICE_CANDIDATE_BUFFER = 100;
 
+/** Sem nenhum frame de vídeo decodificado por este tempo após a oferta, o espectador considera a tela travada */
+export const VIDEO_STALL_TIMEOUT_MS = 12000;
+const VIDEO_WATCHDOG_INTERVAL_MS = 1000;
+
 export interface BroadcasterOptions {
   iceServers: IceServerConfig[];
   /** true ⇒ iceTransportPolicy 'relay' (esconde o IP do apresentador) */
@@ -731,12 +735,65 @@ export class WebRTCViewer {
   private iceGraceTimer: ReturnType<typeof setTimeout> | null = null;
   private iceRestartTimer: ReturnType<typeof setTimeout> | null = null;
   private iceFailureHandled = false;
+  /** Vigia se o vídeo realmente começou a ser decodificado (evita tela preta com conexão "ok") */
+  private videoStatusCb?: (ok: boolean) => void;
+  private videoWatchdog: ReturnType<typeof setInterval> | null = null;
 
   constructor(socket: Socket, hostId: string, iceServers: IceServerConfig[] = []) {
     this.socket = socket;
     this.hostId = hostId;
     this.iceServers = iceServers;
     this.setupSocketListeners();
+  }
+
+  /**
+   * Avisa se o vídeo começou (`true`) ou se nenhum frame foi decodificado dentro de
+   * VIDEO_STALL_TIMEOUT_MS (`false`). Deve ser registrado antes da primeira oferta.
+   */
+  onVideoStatus(cb: (ok: boolean) => void): void {
+    this.videoStatusCb = cb;
+  }
+
+  private stopVideoWatchdog(): void {
+    if (this.videoWatchdog) {
+      clearInterval(this.videoWatchdog);
+      this.videoWatchdog = null;
+    }
+  }
+
+  private async hasDecodedVideo(pc: RTCPeerConnection): Promise<boolean> {
+    const report = await pc.getStats();
+    let decoded = false;
+    report.forEach((s: Record<string, unknown>) => {
+      if (s.type === 'inbound-rtp' && (s.kind === 'video' || s.mediaType === 'video') && Number(s.framesDecoded) > 0) {
+        decoded = true;
+      }
+    });
+    return decoded;
+  }
+
+  private startVideoWatchdog(pc: RTCPeerConnection): void {
+    if (!this.videoStatusCb || this.videoWatchdog) return;
+    const startedAt = Date.now();
+    this.videoWatchdog = setInterval(() => {
+      if (this.destroyed || pc !== this.pc) {
+        this.stopVideoWatchdog();
+        return;
+      }
+      this.hasDecodedVideo(pc)
+        .then((ok) => {
+          if (!this.videoWatchdog || pc !== this.pc) return;
+          if (ok) {
+            this.stopVideoWatchdog();
+            this.videoStatusCb?.(true);
+          } else if (Date.now() - startedAt >= VIDEO_STALL_TIMEOUT_MS) {
+            this.stopVideoWatchdog();
+            console.warn('[KIARA:viewer] Nenhum frame de vídeo decodificado; a conexão será refeita.');
+            this.videoStatusCb?.(false);
+          }
+        })
+        .catch(() => undefined);
+    }, VIDEO_WATCHDOG_INTERVAL_MS);
   }
 
   onStream(cb: (stream: MediaStream) => void): void {
@@ -895,6 +952,7 @@ export class WebRTCViewer {
   }
 
   private closePeerConnection(): void {
+    this.stopVideoWatchdog();
     if (this.iceGraceTimer) { clearTimeout(this.iceGraceTimer); this.iceGraceTimer = null; }
     if (this.iceRestartTimer) { clearTimeout(this.iceRestartTimer); this.iceRestartTimer = null; }
     this.pc?.close();
@@ -952,6 +1010,7 @@ export class WebRTCViewer {
           targetId: this.hostId,
           answer: { sdp: tunedAnswer.sdp, type: tunedAnswer.type },
         });
+        this.startVideoWatchdog(freshPc);
         return;
       }
 
@@ -968,6 +1027,7 @@ export class WebRTCViewer {
         targetId: this.hostId,
         answer: { sdp: tunedAnswer.sdp, type: tunedAnswer.type },
       });
+      this.startVideoWatchdog(pc);
     } catch (err) {
       console.error('[KIARA:viewer] Não foi possível estabelecer conexão com o apresentador:', err);
     }
