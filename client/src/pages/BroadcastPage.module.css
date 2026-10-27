@@ -1277,21 +1277,70 @@
 .captureSourceCurrent {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 4px;
+  gap: 10px;
   min-width: 0;
-  font-size: 0.74rem;
-  color: var(--kiara-text-muted);
+  padding: 8px 10px;
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-text-strong);
 }
 
-.captureSourceCurrent svg {
+.captureSourceAvatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--kiara-accent);
+  color: var(--kiara-on-accent);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* Com ícone do aplicativo: fundo neutro e imagem preenchendo o quadrado */
+.captureSourceAvatarIcon {
+  background: var(--kiara-surface-raised);
+}
+
+.captureSourceAvatarImg {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: contain;
+}
+
+
+.captureSourceBadge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--kiara-bg);
+  color: var(--kiara-text-strong);
 }
 
 .captureSourceCurrentName {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.captureSourceCurrentIcon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--kiara-text-muted);
 }
 

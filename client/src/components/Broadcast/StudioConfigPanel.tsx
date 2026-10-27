@@ -28,6 +28,7 @@ const StudioConfigPanel: React.FC<Props> = ({
   const [modalOpen, setModalOpen] = useState(false);
   // Nome/tipo da fonte escolhida, para mostrar sem reabrir o modal
   const [selectedSource, setSelectedSource] = useState<CaptureSourceInfo | null>(null);
+  const hasAppIcon = Boolean(selectedSource?.appIconDataUrl?.startsWith('data:image/'));
 
   return (
     <aside
@@ -67,8 +68,28 @@ const StudioConfigPanel: React.FC<Props> = ({
             </button>
             {captureSourceId && selectedSource?.id === captureSourceId && (
               <div className={styles.captureSourceCurrent} title={selectedSource.name}>
-                {selectedSource.type === 'screen' ? <IconScreen size={13} /> : <IconWindow size={13} />}
+                <div
+                  className={`${styles.captureSourceAvatar} ${hasAppIcon ? styles.captureSourceAvatarIcon : ''}`}
+                  aria-hidden="true"
+                >
+                  {hasAppIcon ? (
+                    <img
+                      src={selectedSource.appIconDataUrl}
+                      alt=""
+                      className={styles.captureSourceAvatarImg}
+                      draggable={false}
+                    />
+                  ) : (
+                    selectedSource.name.trim().charAt(0).toUpperCase() || '?'
+                  )}
+                  <span className={styles.captureSourceBadge}>
+                    {selectedSource.type === 'screen' ? <IconScreen size={10} /> : <IconWindow size={10} />}
+                  </span>
+                </div>
                 <span className={styles.captureSourceCurrentName}>{selectedSource.name}</span>
+                <span className={styles.captureSourceCurrentIcon} aria-hidden="true">
+                  <IconScreen size={16} />
+                </span>
               </div>
             )}
           </div>
