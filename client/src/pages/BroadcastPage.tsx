@@ -348,6 +348,7 @@ const BroadcastPage: React.FC = () => {
         isSettingsVisible={isSettingsVisible}
         onToggleSettings={toggleSettings}
         onBack={() => navigate('/')}
+        hasTitleBar={Boolean(window.screenShareHost?.window)}
       />
 
       {/* ── Conteúdo Principal do Estúdio ───────────────────────────────── */}

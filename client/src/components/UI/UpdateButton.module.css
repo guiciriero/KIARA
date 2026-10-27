@@ -57,17 +57,17 @@
 }
 
 .primary {
-  background: var(--kiara-text-strong);
-  border-color: var(--kiara-text-strong);
-  color: var(--kiara-bg);
+  background: var(--kiara-accent);
+  border-color: var(--kiara-accent);
+  color: var(--kiara-on-accent);
   font-weight: 600;
 }
 
 .primary:hover:not(:disabled) {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: var(--kiara-bg);
-  opacity: 0.95;
+  background: var(--kiara-accent-hover);
+  border-color: var(--kiara-accent-hover);
+  color: var(--kiara-on-accent);
+  box-shadow: 0 2px 10px var(--kiara-accent-glow);
 }
 
 .progress {

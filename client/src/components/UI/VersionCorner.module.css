@@ -1,0 +1,137 @@
+/* VersionCorner.module.css — canto inferior direito da tela inicial */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes cornerIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.corner {
+  position: fixed;
+  bottom: 14px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: cornerIn 400ms var(--ease-spring, ease-out) 600ms both;
+  pointer-events: auto;
+}
+
+.version {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--kiara-text-disabled);
+  letter-spacing: 0.03em;
+  font-family: var(--font-mono, monospace);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  transition: color var(--transition-fast, 150ms);
+}
+
+.corner:hover .version {
+  color: var(--kiara-text-muted);
+}
+
+/* Barra de progresso do download */
+.progressWrap {
+  width: 36px;
+  height: 3px;
+  background: var(--kiara-border-active);
+  border-radius: var(--radius-full, 999px);
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--kiara-accent);
+  border-radius: var(--radius-full, 999px);
+  transition: width 200ms linear;
+}
+
+/* Botão ícone */
+.iconBtn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--kiara-border-active);
+  background: var(--kiara-surface-raised);
+  color: var(--kiara-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast, 150ms),
+    border-color var(--transition-fast, 150ms),
+    color var(--transition-fast, 150ms),
+    transform var(--transition-fast, 150ms);
+}
+
+.iconBtn:hover {
+  background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-strong);
+  color: var(--kiara-text-strong);
+  transform: translateY(-1px);
+}
+
+.iconBtn:active {
+  transform: scale(0.92);
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid var(--kiara-accent);
+  outline-offset: 2px;
+}
+
+/* "download disponível" → acento azul */
+.iconBtn[data-state="available"],
+.iconBtn[data-state="downloaded"] {
+  border-color: var(--kiara-accent);
+  color: var(--kiara-accent);
+  background: var(--kiara-accent-subtle);
+  box-shadow: 0 0 8px var(--kiara-accent-glow);
+}
+
+.iconBtn[data-state="available"]:hover,
+.iconBtn[data-state="downloaded"]:hover {
+  background: var(--kiara-accent);
+  color: var(--kiara-on-accent);
+  border-color: var(--kiara-accent);
+}
+
+/* erro → vermelho */
+.iconBtn[data-state="error"] {
+  border-color: var(--kiara-danger);
+  color: var(--kiara-danger);
+  background: var(--kiara-danger-subtle);
+}
+
+.iconBtn[data-state="error"]:hover {
+  background: var(--kiara-danger);
+  color: var(--kiara-on-accent);
+  border-color: var(--kiara-danger);
+}
+
+/* Spinner silencioso */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--kiara-border-active);
+  border-top-color: var(--kiara-text-secondary);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .corner { animation: none; }
+  .spinner { animation: none; }
+  .iconBtn { transition: none; }
+}

@@ -1,7 +1,6 @@
 import React from 'react';
 import type { ConnectionState } from '@shared/index';
 import {
-  KiaraLogo,
   IconArrowLeft,
   IconUsers,
   IconSettings,
@@ -18,6 +17,8 @@ interface Props {
   isSettingsVisible: boolean;
   onToggleSettings: () => void;
   onBack: () => void;
+  /** No app Electron o TitleBar já exibe o logo — não duplicar */
+  hasTitleBar?: boolean;
 }
 
 /** Barra superior do estúdio: voltar, marca, alternância dos painéis, conexão e espectadores */
@@ -29,6 +30,7 @@ const BroadcastTopBar: React.FC<Props> = ({
   isSettingsVisible,
   onToggleSettings,
   onBack,
+  hasTitleBar = false,
 }) => (
   <header className={`${styles.topBar} ${isSharing ? styles.topBarLive : ''}`}>
     <div className={styles.topBarLeft}>
@@ -41,8 +43,7 @@ const BroadcastTopBar: React.FC<Props> = ({
         <IconArrowLeft size={16} />
         <span>Voltar</span>
       </button>
-      <div className={styles.divider} />
-      <KiaraLogo size={22} withText />
+      {!hasTitleBar && <div className={styles.divider} />}
     </div>
 
     {/* Durante a transmissão: Shih Tzu pedalando e alimentando o computador "LIVE ON" */}

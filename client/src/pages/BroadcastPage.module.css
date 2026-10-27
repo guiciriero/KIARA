@@ -1190,3 +1190,79 @@
     transition: none;
   }
 }
+
+/* ── Gatilho do modal de seleção de tela ──────────────────────────── */
+.captureSourceSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.captureSourceTrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-sm);
+  color: var(--kiara-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.captureSourceTrigger:hover {
+  background: var(--kiara-surface-hover);
+  border-color: var(--kiara-border-strong);
+  color: var(--kiara-text);
+  transform: translateY(-1px);
+}
+
+.captureSourceTrigger:active {
+  transform: scale(0.98);
+}
+
+.captureSourceTrigger:focus-visible {
+  outline: 2px solid var(--kiara-accent);
+  outline-offset: 2px;
+}
+
+.captureSourceTriggerActive {
+  border-color: var(--kiara-accent);
+  color: var(--kiara-text-strong);
+  background: var(--kiara-accent-subtle);
+}
+
+.captureSourceTriggerActive:hover {
+  border-color: var(--kiara-accent-hover);
+  background: rgba(47, 123, 255, 0.20);
+}
+
+.captureSourceTriggerText {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.captureSourceLivePill {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kiara-live);
+  background: var(--kiara-live-subtle);
+  border: 1px solid var(--kiara-live-glow);
+  border-radius: var(--radius-full);
+  padding: 1px 6px;
+  flex-shrink: 0;
+}

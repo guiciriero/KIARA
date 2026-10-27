@@ -15,11 +15,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes dotPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.5; transform: scale(0.85); }
-}
-
 /* ── Layout raiz ─────────────────────────────────────────────────────── */
 .container {
   position: relative;
@@ -121,16 +116,6 @@
   padding: 4px 12px;
   animation: eyebrowIn 400ms var(--ease-spring) both;
   white-space: nowrap;
-}
-
-.eyebrowDot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--kiara-live);
-  flex-shrink: 0;
-  animation: dotPulse 2s ease-in-out infinite;
 }
 
 /* ── Título principal ────────────────────────────────────────────────── */
@@ -424,7 +409,6 @@
   .eyebrow { animation: none; }
   .title { animation: none; }
   .cardsGrid { animation: none; }
-  .eyebrowDot { animation: none; }
   .btnPrimary { animation: none; }
   .card, .cardIcon, .spotlight { transition: none; }
 }

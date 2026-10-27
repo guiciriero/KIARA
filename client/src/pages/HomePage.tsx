@@ -9,10 +9,10 @@ import {
   IconArrowRight,
 } from '../components/UI/Icons';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
-import UpdateButton from '../components/UI/UpdateButton';
 import ServerWakeNotice from '../components/UI/ServerWakeNotice';
 import { useServerWake } from '../hooks/useServerWake';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
+import VersionCorner from '../components/UI/VersionCorner';
 import styles from './HomePage.module.css';
 
 /** Atualiza o glow de spotlight no card conforme o mouse se move sobre ele */
@@ -95,18 +95,18 @@ const HomePage: React.FC = () => {
               Baixar para Windows
             </a>
           )}
-          <UpdateButton />
           <ConnectionBadge state={connected ? 'connected' : 'connecting'} compact />
         </div>
       </header>
 
       {/* ── Conteúdo central ─────────────────────────────────────────────── */}
       <main className={styles.main}>
-        <div className={styles.eyebrow}>
-          {connected
-            ? <><span className={styles.eyebrowDot} />Pronto para transmitir</>
-            : 'Conectando ao servidor…'}
-        </div>
+        {/* Estado de conexão: só exibido quando desconectado — sem ponto verde redundante */}
+        {!connected && (
+          <div className={styles.eyebrow}>
+            Conectando ao servidor…
+          </div>
+        )}
 
         <h1 className={styles.title}>
           Compartilhe sua tela.<br />Sem complicação.
@@ -205,6 +205,9 @@ const HomePage: React.FC = () => {
 
       {/* Shih Tzu seguindo o cursor — identidade do app, pointer-events: none */}
       <PixelShihTzu followCursor zIndex={100} />
+
+      {/* ── Canto inferior direito: versão + botão de atualização ────────── */}
+      <VersionCorner />
     </div>
   );
 };
