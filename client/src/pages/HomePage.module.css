@@ -403,6 +403,49 @@
   .cardKbd { display: none; }
 }
 
+/* ── Canto inferior esquerdo: status de conexão discreto ─────────────── */
+@keyframes cornerIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dotLive {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(0.8); }
+}
+
+.connectionCorner {
+  position: fixed;
+  bottom: 14px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  user-select: none;
+  animation: cornerIn 400ms var(--ease-spring, ease-out) 700ms both;
+}
+
+.connectionCornerDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kiara-live);
+  flex-shrink: 0;
+  animation: dotLive 2.4s ease-in-out infinite;
+}
+
+.connectionCornerLabel {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--kiara-text-disabled);
+  letter-spacing: 0.03em;
+  font-family: var(--font-mono, monospace);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* ── Redução de movimento ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .bgMesh { animation: none; }
@@ -411,4 +454,6 @@
   .cardsGrid { animation: none; }
   .btnPrimary { animation: none; }
   .card, .cardIcon, .spotlight { transition: none; }
+  .connectionCorner { animation: none; }
+  .connectionCornerDot { animation: none; }
 }

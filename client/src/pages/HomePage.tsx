@@ -15,6 +15,14 @@ import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import VersionCorner from '../components/UI/VersionCorner';
 import styles from './HomePage.module.css';
 
+/** Ponto verde "Conectado" discreto no canto inferior esquerdo — espelho do VersionCorner */
+const ConnectionCorner: React.FC = () => (
+  <div className={styles.connectionCorner} aria-label="Conectado ao servidor" role="status">
+    <span className={styles.connectionCornerDot} />
+    <span className={styles.connectionCornerLabel}>Conectado</span>
+  </div>
+);
+
 /** Atualiza o glow de spotlight no card conforme o mouse se move sobre ele */
 function useCardSpotlight() {
   const ref = useRef<HTMLDivElement>(null);
@@ -95,7 +103,10 @@ const HomePage: React.FC = () => {
               Baixar para Windows
             </a>
           )}
-          <ConnectionBadge state={connected ? 'connected' : 'connecting'} compact />
+          {/* Badge só aparece no header quando há problema; no estado normal fica no canto */}
+          {!connected && (
+            <ConnectionBadge state="connecting" compact />
+          )}
         </div>
       </header>
 
@@ -206,8 +217,9 @@ const HomePage: React.FC = () => {
       {/* Shih Tzu seguindo o cursor — identidade do app, pointer-events: none */}
       <PixelShihTzu followCursor zIndex={100} />
 
-      {/* ── Canto inferior direito: versão + botão de atualização ────────── */}
+      {/* ── Canto inferior: versão (direita) + conexão (esquerda) ────────── */}
       <VersionCorner />
+      {connected && <ConnectionCorner />}
     </div>
   );
 };
