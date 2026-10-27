@@ -574,6 +574,20 @@ function textResponse(status, body) {
 
 // ─── Janela principal ─────────────────────────────────────────────────────────
 
+/** Endereço do app local (Vite em dev, servidor embutido em produção); null se ainda não está pronto. */
+function localHomeUrl() {
+  if (IS_DEV) return dev.url;
+  return embeddedPort ? `http://127.0.0.1:${embeddedPort}` : null;
+}
+
+function goHome(wc) {
+  const home = localHomeUrl();
+  if (!home || wc.isDestroyed()) return;
+  wc.loadURL(home).catch((err) => {
+    console.warn('[desktop] Falha ao voltar para a tela inicial:', err && err.message);
+  });
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -621,6 +635,40 @@ function createWindow() {
       stopAudio();
       nativeCapture.stop();
       pendingSourceId = null;
+    }
+  });
+
+  // Ao assistir o link de outra pessoa, a janela passa a carregar o site REMOTO. Se o usuário sai da
+  // sala (o React Router só troca a rota para "/") ou a rota deixa de ser /view/CÓDIGO, a janela ficaria
+  // numa origem não confiável: todo IPC falharia com "Remetente IPC não autorizado" e só reiniciando
+  // o app voltaria a funcionar. Aqui a janela volta sozinha para o servidor local.
+  const leaveForeignPage = (url) => {
+    if (!url || /^(data|about|chrome-error|devtools):/i.test(url)) return;
+    if (isTrustedUrl(url) || isViewerUrl(url)) return;
+    goHome(wc);
+  };
+  wc.on('did-navigate', (_event, url) => leaveForeignPage(url));
+  wc.on('did-navigate-in-page', (_event, url, isMainFrame) => {
+    if (isMainFrame) leaveForeignPage(url);
+  });
+
+  // Servidor remoto fora do ar, link morto, sem rede: o Chromium deixaria a página de erro dele, sem
+  // caminho de volta. Avisa e retorna ao servidor local.
+  wc.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) return; // -3 = ERR_ABORTED (navegação substituída)
+    if (!validatedURL || /^(data|about|chrome-error|devtools):/i.test(validatedURL)) return;
+    if (isTrustedUrl(validatedURL)) return;
+    goHome(wc);
+    if (!win.isDestroyed()) {
+      dialog.showMessageBox(win, {
+        type: 'warning',
+        title: 'Não foi possível abrir a transmissão',
+        message: 'Não foi possível conectar ao endereço da transmissão.',
+        detail:
+          'O link pode ter expirado, o apresentador pode ter encerrado a sala ou faltar conexão com a ' +
+          `internet. Você voltou para a tela inicial.\n(${errorDescription || `erro ${errorCode}`})`,
+        buttons: ['OK'],
+      }).catch(() => {});
     }
   });
   wc.on('render-process-gone', () => {
