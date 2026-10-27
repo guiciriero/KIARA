@@ -140,5 +140,3 @@ export class RoomStore {
     return this.metrics.slice(-limit);
   }
 }
-
-export const defaultRoomStore = new RoomStore();

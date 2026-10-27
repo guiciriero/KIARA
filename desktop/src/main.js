@@ -547,26 +547,6 @@ function openExternalSafe(urlString) {
 // Em PROD o renderer não carrega app://, mas o handler ainda precisa estar registrado.
 // Serve também como fallback caso alguém navegue para app:// por engano.
 
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.ico': 'image/x-icon',
-  '.webp': 'image/webp',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.map': 'application/json',
-  '.wasm': 'application/wasm',
-};
-
 function textResponse(status, body) {
   return new Response(body, {
     status,

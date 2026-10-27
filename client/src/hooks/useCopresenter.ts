@@ -11,11 +11,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
 import { WebRTCBroadcaster } from '../services/webrtcService';
-import { captureDisplay, stopStream } from '../services/captureService';
-import type { ContentHint } from '../services/captureService';
+import { captureDisplay, stopStream, contentHintForQuality } from '../services/captureService';
 import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
-import { isCancellation, toMediaError } from '../services/mediaError';
+import { isCancellation, toMediaError, getErrorMessage } from '../services/mediaError';
 import type {
   VideoConfig,
   IceServerConfig,
@@ -41,23 +40,7 @@ const INITIAL_STATE: CopresenterState = {
   starting: false,
 };
 
-/**
- * 'detail' → browser prioriza nitidez (bom para texto/código, ruim para jogos).
- * 'motion' → browser prioriza fluidez/FPS (bom para jogos e movimento rápido).
- *
- * 'game': explicitamente otimizado para jogos — 'motion' com prioridade total de FPS.
- * 'low'/'medium'/'ultra': 'motion' (fluidez em primeiro lugar).
- * 'high': 'detail' — apresentações e código onde nitidez importa mais que FPS.
- */
-function contentHintFor(quality: VideoConfig['quality']): ContentHint {
-  return quality === 'high' ? 'detail' : 'motion';
-}
-
 const CLAIM_TIMEOUT_MS = 8000;
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Ocorreu um erro inesperado. Tente novamente.';
-}
 
 export function useCopresenter(
   socket: Socket | null,
@@ -108,7 +91,7 @@ export function useCopresenter(
     const audio = audioRef.current;
     if (!audio) return;
     audio.sync(audioSelection).catch((err) => {
-      setState((s) => ({ ...s, error: errorMessage(err) }));
+      setState((s) => ({ ...s, error: getErrorMessage(err) }));
     });
   }, [audioSelection]);
 
@@ -158,7 +141,7 @@ export function useCopresenter(
       const capture = await captureDisplay(cfg.videoConfig, {
         withAudio: true,
         captureSourceId: cfg.captureSourceId,
-        contentHint: contentHintFor(cfg.videoConfig.quality),
+        contentHint: contentHintForQuality(cfg.videoConfig.quality),
       });
       captureStreamRef.current = capture.stream;
 
@@ -180,7 +163,7 @@ export function useCopresenter(
       try {
         await audio.sync(latest.current.audioSelection);
       } catch (err) {
-        audioError = errorMessage(err);
+        audioError = getErrorMessage(err);
       }
 
       const combined = new MediaStream([capture.videoTrack, audio.track]);

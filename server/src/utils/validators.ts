@@ -5,12 +5,9 @@
 
 import type {
   CreateRoomPayload,
-  RoomFeaturesPayload,
   JoinRoomPayload,
   RespondJoinPayload,
-  SendReactionPayload,
   UpdateNamePayload,
-  ReactionEmoji,
   RTCOfferPayload,
   RTCAnswerPayload,
   RTCIceCandidatePayload,
@@ -22,7 +19,6 @@ import type {
   VideoCodec,
 } from '@screen-share/shared';
 
-export const ALLOWED_REACTIONS: readonly ReactionEmoji[] = ['👍', '❤️', '😂', '😮', '👏', '🔥'] as const;
 export const ALLOWED_QUALITY_PREFERENCES: readonly ViewerQualityPreference[] = [
   'auto',
   '1080p',
@@ -117,20 +113,6 @@ export function validateCreateRoomPayload(data: unknown): {
   return { valid: true, payload: result };
 }
 
-/** Valida RoomFeaturesPayload */
-export function validateRoomFeaturesPayload(data: unknown): RoomFeaturesPayload | null {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-  const obj = data as Record<string, unknown>;
-
-  if (typeof obj.reactionsEnabled !== 'boolean') {
-    return null;
-  }
-
-  return {
-    reactionsEnabled: obj.reactionsEnabled,
-  };
-}
-
 /** Valida UpdateNamePayload */
 export function validateUpdateNamePayload(data: unknown): UpdateNamePayload | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
@@ -193,17 +175,6 @@ export function validateRespondJoinPayload(data: unknown): RespondJoinPayload | 
     viewerId: obj.viewerId,
     approved: obj.approved,
   };
-}
-
-/** Valida SendReactionPayload */
-export function validateReactionPayload(data: unknown): SendReactionPayload | null {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-  const obj = data as Record<string, unknown>;
-
-  if (typeof obj.emoji !== 'string') return null;
-  if (!ALLOWED_REACTIONS.includes(obj.emoji as ReactionEmoji)) return null;
-
-  return { emoji: obj.emoji as ReactionEmoji };
 }
 
 /** Valida RTCOfferPayload */
@@ -383,11 +354,6 @@ export function sanitizeStreamConfig(config: unknown): StreamConfig | null {
   };
 }
 
-/** Valida StreamConfig */
-export function isValidStreamConfig(config: unknown): config is StreamConfig {
-  return sanitizeStreamConfig(config) !== null;
-}
-
 /** Valida QualityRequestPayload */
 export function validateQualityRequestPayload(data: unknown): QualityRequestPayload | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
@@ -472,11 +438,6 @@ export function sanitizeStreamStats(stats: unknown): StreamStats | null {
   out.connectionQuality = s.connectionQuality;
 
   return out as unknown as StreamStats;
-}
-
-/** Valida StreamStats */
-export function isValidStreamStats(stats: unknown): stats is StreamStats {
-  return sanitizeStreamStats(stats) !== null;
 }
 
 /** Valida CopresentStartPayload (name opcional, máx 24 chars) */

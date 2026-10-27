@@ -74,3 +74,8 @@ export function toMediaError(err: unknown, fallback: MediaErrorCode = 'unknown')
 export function isCancellation(err: unknown): boolean {
   return err instanceof MediaError && err.code === 'cancelled';
 }
+
+/** Extrai mensagem amigável de qualquer erro ou rejeição. */
+export function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Ocorreu um erro inesperado. Tente novamente.';
+}

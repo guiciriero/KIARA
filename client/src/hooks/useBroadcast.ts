@@ -12,13 +12,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCBroadcaster } from '../services/webrtcService';
-import { captureDisplay, stopStream } from '../services/captureService';
+import { captureDisplay, stopStream, contentHintForQuality } from '../services/captureService';
 import { getCaptureEndReason } from '../services/nativeCapture';
-import type { ContentHint } from '../services/captureService';
 import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
 import { addJoinRequest, removeJoinRequest } from '../utils/joinRequests';
-import { isCancellation, toMediaError } from '../services/mediaError';
+import { isCancellation, toMediaError, getErrorMessage } from '../services/mediaError';
 import { getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import type {
   VideoConfig,
@@ -65,18 +64,6 @@ export interface BroadcastState {
 const ROOM_TIMEOUT_MS = 8000;
 const NO_ICE_SERVERS: IceServerConfig[] = [];
 
-/**
- * 'detail' → browser prioriza nitidez (bom para texto/código, ruim para jogos).
- * 'motion' → browser prioriza fluidez/FPS (bom para jogos, vídeo e movimento rápido).
- *
- * 'game': explicitamente otimizado para jogos — 'motion' com prioridade total de FPS.
- * 'low'/'medium'/'ultra': 'motion' (fluidez em primeiro lugar).
- * 'high': 'detail' — apresentações e código onde nitidez importa mais que FPS.
- */
-function contentHintFor(quality: VideoConfig['quality']): ContentHint {
-  return quality === 'high' ? 'detail' : 'motion';
-}
-
 const INITIAL_STATE: BroadcastState = {
   isSharing: false, isPaused: false,
   roomId: null, roomCode: null, inviteUrl: null,
@@ -108,10 +95,6 @@ function requestRoom(socket: AppSocket, options?: CreateRoomPayload): Promise<Ro
     socket.on('room:error', onError);
     socket.emit('room:create', options ?? {});
   });
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Ocorreu um erro inesperado. Tente novamente.';
 }
 
 export function useBroadcast(
@@ -165,7 +148,7 @@ export function useBroadcast(
         if (cancelled) return;
         setState((s) => ({
           ...s,
-          error: errorMessage(err),
+          error: getErrorMessage(err),
           activeAudioIds: audio.activeIds,
           audioFailures: s.audioFailures + 1,
         }));
@@ -255,7 +238,7 @@ export function useBroadcast(
       const capture = await captureDisplay(videoConfig, {
         withAudio: true,
         captureSourceId,
-        contentHint: contentHintFor(videoConfig.quality),
+        contentHint: contentHintForQuality(videoConfig.quality),
       });
       captureStreamRef.current = capture.stream;
 
@@ -269,7 +252,7 @@ export function useBroadcast(
       try {
         await audio.sync(selectionRef.current);
       } catch (err) {
-        audioError = errorMessage(err);
+        audioError = getErrorMessage(err);
         audioFailed = true;
       }
 
@@ -346,7 +329,7 @@ export function useBroadcast(
       const { videoTrack } = await captureDisplay(videoConfig, {
         withAudio: false,
         captureSourceId: newSourceId ?? captureSourceId,
-        contentHint: contentHintFor(videoConfig.quality),
+        contentHint: contentHintForQuality(videoConfig.quality),
         preferNative,
       });
       // O broadcaster troca a faixa no stream compartilhado e para a antiga

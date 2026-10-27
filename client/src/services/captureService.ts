@@ -18,6 +18,14 @@ export interface CaptureResult {
 
 export type ContentHint = 'motion' | 'detail';
 
+/**
+ * 'detail' → browser prioriza nitidez (bom para apresentações e texto/código).
+ * 'motion' → browser prioriza fluidez/FPS (jogos e movimento rápido).
+ */
+export function contentHintForQuality(quality: VideoConfig['quality']): ContentHint {
+  return quality === 'high' ? 'detail' : 'motion';
+}
+
 export interface CaptureOptions {
   withAudio: boolean;
   /** (desktop) fonte escolhida na interface; vale só para esta chamada */

@@ -62,6 +62,23 @@ const EVENT_WINDOW_MS = 10_000;
 const EVENT_LIMIT = 600;
 const EVENT_HARD_LIMIT = 3_000; // acima disto o socket é desconectado
 
+/** Sinalização permitida: host↔viewer ou copresentador↔host */
+function isSignalingAllowed(
+  room: ManagedRoom,
+  senderId: string,
+  targetId: string,
+  roomManager: RoomManager,
+): boolean {
+  const senderIsCopresenter = roomManager.isCopresenter(room.id, senderId);
+  const targetIsCopresenter = roomManager.isCopresenter(room.id, targetId);
+  return (
+    room.hostId === senderId ||
+    room.hostId === targetId ||
+    (senderIsCopresenter && targetId === room.hostId) ||
+    (targetIsCopresenter && senderId === room.hostId)
+  );
+}
+
 /** Timestamps recentes de uma chave (poda os antigos) */
 function recentHits(map: Map<string, number[]>, key: string, windowMs: number): number[] {
   const cutoff = Date.now() - windowMs;
@@ -519,15 +536,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const targetRoomId = socketRoomMap.get(data.targetId);
         if (targetRoomId !== roomId) return; // Remetente e destino devem estar na mesma sala
 
-        // Sinalização permitida: host↔viewer ou copresentador↔host
-        const senderIsCopresenter = roomManager.isCopresenter(roomId, socket.id);
-        const targetIsCopresenter = roomManager.isCopresenter(roomId, data.targetId);
-        const signalingAllowed =
-          room.hostId === socket.id ||
-          room.hostId === data.targetId ||
-          (senderIsCopresenter && data.targetId === room.hostId) ||
-          (targetIsCopresenter && socket.id === room.hostId);
-        if (!signalingAllowed) return;
+        if (!isSignalingAllowed(room, socket.id, data.targetId, roomManager)) return;
 
         io.to(data.targetId).emit('webrtc:offer', {
           senderId: socket.id,
@@ -552,15 +561,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const targetRoomId = socketRoomMap.get(data.targetId);
         if (targetRoomId !== roomId) return;
 
-        // Sinalização permitida: host↔viewer ou copresentador↔host
-        const senderIsCopresenter = roomManager.isCopresenter(roomId, socket.id);
-        const targetIsCopresenter = roomManager.isCopresenter(roomId, data.targetId);
-        const signalingAllowed =
-          room.hostId === socket.id ||
-          room.hostId === data.targetId ||
-          (senderIsCopresenter && data.targetId === room.hostId) ||
-          (targetIsCopresenter && socket.id === room.hostId);
-        if (!signalingAllowed) return;
+        if (!isSignalingAllowed(room, socket.id, data.targetId, roomManager)) return;
 
         io.to(data.targetId).emit('webrtc:answer', {
           senderId: socket.id,
@@ -613,15 +614,7 @@ export function setupSignaling(io: SocketIOServer, roomManager: RoomManager): ()
         const targetRoomId = socketRoomMap.get(data.targetId);
         if (targetRoomId !== roomId) return;
 
-        // Sinalização permitida: host↔viewer ou copresentador↔host
-        const senderIsCopresenter = roomManager.isCopresenter(roomId, socket.id);
-        const targetIsCopresenter = roomManager.isCopresenter(roomId, data.targetId);
-        const signalingAllowed =
-          room.hostId === socket.id ||
-          room.hostId === data.targetId ||
-          (senderIsCopresenter && data.targetId === room.hostId) ||
-          (targetIsCopresenter && socket.id === room.hostId);
-        if (!signalingAllowed) return;
+        if (!isSignalingAllowed(room, socket.id, data.targetId, roomManager)) return;
 
         io.to(data.targetId).emit('webrtc:ice-candidate', {
           senderId: socket.id,
