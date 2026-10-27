@@ -33,7 +33,7 @@
     "puppeteer-core": "^25.14.0",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.71.2",
-    "vite": "^7.3.7",
+    "vite": "^8.3.5",
     "vitest": "^4.1.12"
   }
 }
