@@ -329,6 +329,26 @@ function registerIpc() {
   // ── IPC novos ────────────────────────────────────────────────────────────
   handle('app:get-public-url', () => publicUrl);
 
+  // ── Controles da janela (titlebar customizado) ────────────────────────────
+  handle('window:minimize', () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize(); });
+  handle('window:maximize-toggle', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  handle('window:close', () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close(); });
+  handle('window:is-maximized', () => mainWindow ? mainWindow.isMaximized() : false);
+
+  // Notifica o renderer quando a janela muda de estado (maximizado/restaurado)
+  if (mainWindow) {
+    mainWindow.on('maximize', () => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window:maximized', true);
+    });
+    mainWindow.on('unmaximize', () => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window:maximized', false);
+    });
+  }
+
   handle('app:open-viewer-link', async (urlString) => {
     const href = validateViewerUrl(urlString);
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -487,12 +507,21 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 800,
+    minWidth: 860,
     minHeight: 600,
     show: false,
-    backgroundColor: '#000000',
+    backgroundColor: '#080B12',
     title: 'KIARA',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
+    // Titlebar customizado: frame nativo removido no Windows/Linux;
+    // no macOS usa titleBarStyle 'hidden' com semáforos nativos no lugar certo.
+    frame: process.platform === 'darwin',
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
+    titleBarOverlay: process.platform === 'darwin' ? {
+      color: '#0F1420',
+      symbolColor: '#7A8BA8',
+      height: 38,
+    } : false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

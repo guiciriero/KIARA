@@ -117,6 +117,18 @@ const api = {
     getPublicUrl: () => invoke('app:get-public-url'),
     openViewerLink: (url) => invoke('app:open-viewer-link', url),
   },
+  window: {
+    minimize: () => invoke('window:minimize'),
+    maximizeToggle: () => invoke('window:maximize-toggle'),
+    close: () => invoke('window:close'),
+    isMaximized: () => invoke('window:is-maximized'),
+    onMaximizedChange(cb) {
+      if (typeof cb !== 'function') return () => {};
+      const listener = (_event, maximized) => cb(maximized);
+      ipcRenderer.on('window:maximized', listener);
+      return () => ipcRenderer.removeListener('window:maximized', listener);
+    },
+  },
   updater: {
     getState: () => invoke('updater:get-state'),
     check: () => invoke('updater:check'),

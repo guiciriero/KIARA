@@ -158,6 +158,14 @@ export interface ScreenShareHostApi {
     /** Assina mudanças de estado; devolve a função que cancela a assinatura. */
     onState(cb: (state: UpdateState) => void): () => void;
   };
+  /** Controles da janela nativa (titlebar customizado — só Electron) */
+  window?: {
+    minimize(): Promise<void>;
+    maximizeToggle(): Promise<void>;
+    close(): Promise<void>;
+    isMaximized(): Promise<boolean>;
+    onMaximizedChange(cb: (maximized: boolean) => void): () => void;
+  };
 }
 
 

@@ -1,0 +1,130 @@
+/* TitleBar.module.css — Barra de título personalizada para o Electron */
+
+.titleBar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  flex-shrink: 0;
+  /* Toda a barra é arrastável por padrão */
+  -webkit-app-region: drag;
+  app-region: drag;
+  background: var(--kiara-surface);
+  border-bottom: 1px solid var(--kiara-border);
+  user-select: none;
+  z-index: 200;
+}
+
+/* Sutil hairline inferior */
+.titleBar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(47, 123, 255, 0.15), transparent);
+  pointer-events: none;
+}
+
+/* Metades esquerda e direita — region drag herdada */
+.dragRegion {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  flex: 1;
+}
+
+.left  { padding-left: 12px; }
+.right { padding-right: 4px; justify-content: flex-end; }
+
+/* Elementos clicáveis cancelam o drag */
+.noDrag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  display: flex;
+  align-items: center;
+}
+
+/* Título central */
+.titleCenter {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  -webkit-app-region: drag;
+  app-region: drag;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.titleText {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--kiara-text-secondary);
+  letter-spacing: 0.01em;
+}
+
+/* ── Botões de controle da janela ──────────────────────────────────── */
+.winControls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.winBtn {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  width: 46px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--kiara-text-secondary);
+  font-size: 0;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.winBtn:hover {
+  background: var(--kiara-surface-hover);
+  color: var(--kiara-text-strong);
+}
+
+.winBtn:active {
+  background: var(--kiara-surface-active);
+}
+
+/* Botão fechar: fica vermelho no hover */
+.winBtnClose:hover {
+  background: var(--kiara-danger);
+  color: #ffffff;
+}
+
+.winBtnClose:active {
+  background: #c82626;
+  color: #ffffff;
+}
+
+/* Durante a transmissão (barra mais discreta): passa a ocupar só 32px */
+.titleBarCompact {
+  height: 32px;
+  background: var(--kiara-surface-deep);
+}
+
+.titleBarCompact .winBtn {
+  height: 32px;
+  width: 40px;
+}
+
+/* Sem frame nativo (macOS usa semáforos nativos, não esta barra) */
+@media not all and (min-width: 0px) {
+  /* Regra vazia de fallback — nunca ativa */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .winBtn { transition: none; }
+}
