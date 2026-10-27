@@ -61,6 +61,7 @@ export class AudioMixer {
       throw new Error(
         'Não foi possível iniciar o processamento de áudio' +
           (err instanceof Error && err.message ? ` (${err.message}).` : '.'),
+        { cause: err },
       );
     }
 
