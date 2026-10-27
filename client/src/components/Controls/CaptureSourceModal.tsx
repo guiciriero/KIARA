@@ -104,12 +104,13 @@ const CaptureSourceModal: React.FC<Props> = ({
     if (idx === -1) return;
 
     const cols = Math.round(items.length / Math.max(1, Math.ceil(items.length / 3))); // aprox
-    let next = idx;
-    if (e.key === 'ArrowRight') next = Math.min(idx + 1, items.length - 1);
-    else if (e.key === 'ArrowLeft') next = Math.max(idx - 1, 0);
-    else if (e.key === 'ArrowDown') next = Math.min(idx + cols, items.length - 1);
-    else if (e.key === 'ArrowUp') next = Math.max(idx - cols, 0);
-    else return;
+    const next =
+      e.key === 'ArrowRight' ? Math.min(idx + 1, items.length - 1)
+      : e.key === 'ArrowLeft'  ? Math.max(idx - 1, 0)
+      : e.key === 'ArrowDown'  ? Math.min(idx + cols, items.length - 1)
+      : e.key === 'ArrowUp'    ? Math.max(idx - cols, 0)
+      : null;
+    if (next === null) return;
 
     e.preventDefault();
     items[next]?.focus();
