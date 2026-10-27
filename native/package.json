@@ -2,6 +2,7 @@
   "name": "@screen-share/native",
   "version": "1.0.0",
   "description": "Módulo nativo C++ para captura de tela e áudio por aplicativo",
+  "license": "MIT",
   "main": "build/Release/screen_capture.node",
   "scripts": {
     "build": "node-gyp configure && node-gyp build",

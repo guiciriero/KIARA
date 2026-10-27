@@ -3,7 +3,7 @@
   "productName": "KIARA",
   "version": "1.0.0",
   "description": "Aplicativo Desktop KIARA — Compartilhamento de tela e áudio por aplicativo",
-  "author": "KIARA",
+  "author": "Guilherme Ciriero",
   "license": "MIT",
   "private": true,
   "main": "src/main.js",

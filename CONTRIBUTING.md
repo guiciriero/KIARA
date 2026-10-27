@@ -68,3 +68,7 @@ Tipos: `feat` (nova funcionalidade), `fix` (correção), `update` (atualizaçõe
 - Atualize o `CHANGELOG.md` (seção *Unreleased*) quando houver impacto para o usuário.
 - Nunca inclua segredos, tokens ou credenciais. Vulnerabilidades: siga o `SECURITY.md`.
 - Comentários e documentação em português do Brasil.
+
+## Licença das contribuições
+
+Ao enviar um pull request, você concorda que sua contribuição seja distribuída sob a [licença MIT](LICENSE) do projeto. Não inclua código copiado de projetos com licença incompatível (por exemplo, GPL ou AGPL) nem binários de terceiros sem declarar a licença em [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

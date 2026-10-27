@@ -2,6 +2,7 @@
   "name": "@screen-share/shared",
   "version": "1.0.0",
   "description": "Tipos TypeScript compartilhados entre servidor e cliente",
+  "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

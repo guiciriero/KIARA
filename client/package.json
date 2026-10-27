@@ -2,6 +2,7 @@
   "name": "@kiara/client",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Interface web e estúdio de compartilhamento de tela e áudio KIARA",
   "scripts": {
     "dev": "vite",

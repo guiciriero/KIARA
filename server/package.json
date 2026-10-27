@@ -2,6 +2,7 @@
   "name": "@kiara/server",
   "version": "1.0.0",
   "description": "Servidor de sinalização WebRTC e salas KIARA",
+  "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

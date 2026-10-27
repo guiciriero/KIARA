@@ -2,6 +2,7 @@
   "name": "kiara-app",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "KIARA — Compartilhamento de tela e áudio em tempo real com baixa latência",
   "engines": {
