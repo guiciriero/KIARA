@@ -298,13 +298,30 @@
   pointer-events: none;
 }
 
-/* ── Nome ────────────────────────────────────────────────────────────── */
+/* ── Ícone do app + nome ─────────────────────────────────────────────── */
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+.appIcon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
 .name {
   display: block;
+  flex: 1;
+  min-width: 0;
   font-size: 0.74rem;
   font-weight: 500;
   color: var(--kiara-text);
-  padding: 6px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

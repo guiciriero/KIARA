@@ -279,8 +279,18 @@ const CaptureSourceModal: React.FC<Props> = ({
                         {isSelected && <div className={styles.selOverlay} aria-hidden="true" />}
                       </div>
 
-                      {/* Nome */}
-                      <span className={styles.name}>{src.name}</span>
+                      {/* Ícone do aplicativo + nome */}
+                      <span className={styles.nameRow}>
+                        {isSafeDataUrl(src.appIconDataUrl ?? '') && (
+                          <img
+                            src={src.appIconDataUrl}
+                            alt=""
+                            className={styles.appIcon}
+                            draggable={false}
+                          />
+                        )}
+                        <span className={styles.name}>{src.name}</span>
+                      </span>
                     </button>
                   </li>
                 );
