@@ -1,14 +1,54 @@
+/* ── Keyframes ─────────────────────────────────────────────────────── */
+@keyframes meshDrift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes eyebrowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* ── Layout raiz ─────────────────────────────────────────────────────── */
 .container {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 0 24px;
-  max-width: 900px;
+  padding: 0 28px;
+  max-width: 960px;
   margin: 0 auto;
+  overflow: hidden;
 }
 
-/* ── Header ───────────────────────────────────────────────────────── */
+/* ── Fundo: malha de gradiente em movimento ───────────────────────────── */
+.bgMesh {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 30%, rgba(47, 123, 255, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 70%, rgba(56, 189, 248, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(47, 123, 255, 0.05) 0%, transparent 70%),
+    var(--kiara-bg);
+  background-size: 300% 300%;
+  animation: meshDrift 18s ease-in-out infinite;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
 .header {
   display: flex;
   align-items: center;
@@ -22,10 +62,7 @@
   align-items: center;
   transition: opacity var(--transition-fast);
 }
-
-.logoWrap:hover {
-  opacity: 0.85;
-}
+.logoWrap:hover { opacity: 0.8; }
 
 .headerRight {
   display: flex;
@@ -34,33 +71,31 @@
 }
 
 .btnDownload {
-  padding: 6px 14px;
+  padding: 5px 14px;
   border-radius: var(--radius-full);
   border: 1px solid var(--kiara-border-active);
-  background: var(--kiara-surface);
+  background: transparent;
   color: var(--kiara-text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 500;
-  letter-spacing: var(--tracking-wide);
+  letter-spacing: 0.02em;
   white-space: nowrap;
   text-decoration: none;
   transition: background var(--transition-fast), border-color var(--transition-fast),
     color var(--transition-fast), transform var(--transition-fast);
 }
-
 .btnDownload:hover {
   background: var(--kiara-surface-hover);
   border-color: var(--kiara-border-strong);
   color: var(--kiara-text-strong);
   transform: translateY(-1px);
 }
-
 .btnDownload:focus-visible {
   outline: 2px solid var(--kiara-accent);
   outline-offset: 2px;
 }
 
-/* ── Main ─────────────────────────────────────────────────────────── */
+/* ── Main ─────────────────────────────────────────────────────────────── */
 .main {
   flex: 1;
   display: flex;
@@ -68,106 +103,106 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-7) 0 var(--space-6);
-  gap: var(--space-6);
-  position: relative;
+  gap: var(--space-5);
 }
 
-/* Halo de acento atrás do conteúdo */
-.main::before {
-  content: '';
-  position: absolute;
-  top: 8%;
-  left: 50%;
-  width: min(600px, 90%);
-  height: 280px;
-  transform: translateX(-50%);
-  background: radial-gradient(ellipse at center, var(--kiara-accent-subtle), transparent 72%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.heroText,
-.cardsGrid {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-}
-
-/* ── Bloco hero: shitzu + título ──────────────────────────────────── */
-.hero {
-  display: flex;
-  flex-direction: column;
+/* ── Eyebrow: chip de estado ─────────────────────────────────────────── */
+.eyebrow {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  text-align: center;
-  position: relative;
-  z-index: 1;
+  gap: 7px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--kiara-text-secondary);
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  animation: eyebrowIn 400ms var(--ease-spring) both;
+  white-space: nowrap;
 }
 
-.shihtzuWrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  position: relative;
+.eyebrowDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kiara-live);
+  flex-shrink: 0;
+  animation: dotPulse 2s ease-in-out infinite;
 }
 
-/* Aura sutil sob o shitzu */
-.shihtzuWrap::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80px;
-  height: 12px;
-  background: radial-gradient(ellipse, var(--kiara-accent-subtle), transparent 70%);
-  pointer-events: none;
-}
-
+/* ── Título principal ────────────────────────────────────────────────── */
 .title {
-  font-size: var(--text-xl);
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: var(--tracking-tight);
+  font-size: clamp(1.7rem, 1.2rem + 2.2vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
   color: var(--kiara-text-strong);
+  text-align: center;
   text-wrap: balance;
-  max-width: 24ch;
-  margin: 0;
+  max-width: 22ch;
+  animation: fadeSlideUp 500ms var(--ease-spring) 80ms both;
 }
 
-/* ── Grid de cards ────────────────────────────────────────────────── */
+/* ── Grid de cards ────────────────────────────────────────────────────── */
 .cardsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-4);
+  width: 100%;
+  animation: fadeSlideUp 500ms var(--ease-spring) 160ms both;
 }
 
+/* ── Card ─────────────────────────────────────────────────────────────── */
 .card {
+  --spot-x: 50%;
+  --spot-y: 50%;
   position: relative;
   background: var(--kiara-surface);
   border: 1px solid var(--kiara-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  padding: var(--space-5) var(--space-5) var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  box-shadow: var(--shadow-card);
-  transition:
-    border-color var(--transition-spring),
-    box-shadow var(--transition-spring),
-    transform var(--transition-spring);
-  will-change: transform, border-color;
   overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
+  will-change: transform, border-color;
 }
 
-/* Fio de luz topo */
+/* Spotlight que segue o cursor */
+.spotlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    200px circle at var(--spot-x) var(--spot-y),
+    rgba(47, 123, 255, 0.12) 0%,
+    transparent 80%
+  );
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.card:hover .spotlight,
+.card:focus-within .spotlight {
+  opacity: 1;
+}
+
+/* Borda brilhante no topo */
 .card::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 8%;
-  right: 8%;
+  left: 10%;
+  right: 10%;
   height: 1px;
   background: var(--kiara-hairline);
   pointer-events: none;
@@ -177,8 +212,11 @@
 
 .card:hover,
 .card:focus-within {
-  border-color: var(--kiara-accent-subtle);
-  box-shadow: var(--shadow-elevated), var(--shadow-glow);
+  border-color: rgba(47, 123, 255, 0.30);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(47, 123, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform: translateY(-2px);
 }
 
@@ -187,46 +225,62 @@
   opacity: 1;
 }
 
-/* Card de transmissão: fundo levemente diferenciado */
+/* Variante do card de transmissão */
 .cardBroadcast {
-  background: linear-gradient(160deg, var(--kiara-surface) 60%, rgba(124, 92, 255, 0.04) 100%);
+  background: linear-gradient(155deg, var(--kiara-surface) 55%, rgba(47, 123, 255, 0.06) 100%);
 }
 
-.cardTop {
+/* Atalho de teclado sutil no canto inferior direito */
+.cardKbd {
+  position: absolute;
+  bottom: 12px;
+  right: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--kiara-text-disabled);
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+  pointer-events: none;
+  letter-spacing: 0.06em;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.card:hover .cardKbd { opacity: 1; }
+
+/* ── Cabeçalho do card ────────────────────────────────────────────────── */
+.cardHeader {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
 }
 
 .cardIcon {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-sm);
   background: var(--kiara-accent-subtle);
-  border: 1px solid rgba(124, 92, 255, 0.15);
+  border: 1px solid rgba(47, 123, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--kiara-accent);
   flex-shrink: 0;
-  transition: transform var(--transition-fast), background var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .card:hover .cardIcon {
-  transform: scale(1.06);
-  background: rgba(124, 92, 255, 0.16);
+  transform: scale(1.05);
+  box-shadow: 0 0 14px var(--kiara-accent-glow);
 }
 
-.cardTitleRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--kiara-text-strong);
-}
-
-.cardTitleRow h2 {
+.cardTitle {
   font-size: 1.05rem;
   font-weight: 600;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   color: var(--kiara-text-strong);
 }
 
@@ -237,58 +291,59 @@
   flex: 1;
 }
 
-/* ── Botão primário (Iniciar Transmissão) ─────────────────────────── */
-.btnHost {
+/* ── Botão primário (Começar) ─────────────────────────────────────────── */
+.btnPrimary {
   width: 100%;
   min-height: 44px;
   background: var(--kiara-accent);
   color: var(--kiara-on-accent);
-  padding: 10px 16px;
+  padding: 10px 18px;
   border-radius: var(--radius-full);
   font-size: 0.88rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
   justify-content: space-between;
+  box-shadow: 0 2px 12px var(--kiara-accent-glow);
   transition:
     background-color var(--transition-fast),
-    transform var(--transition-fast),
-    box-shadow var(--transition-base);
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
   animation: kiaraReadyPulse 2.5s ease-in-out infinite;
 }
 
-.btnHost:hover:not(:disabled) {
+.btnPrimary svg {
+  transition: transform var(--transition-fast);
+}
+
+.btnPrimary:hover:not(:disabled) {
   background: var(--kiara-accent-hover);
+  box-shadow: 0 4px 20px var(--kiara-accent-glow);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px var(--kiara-accent-glow);
   animation: none;
 }
 
-.btnHost:active:not(:disabled) {
-  transform: scale(0.985);
+.btnPrimary:hover:not(:disabled) svg {
+  transform: translateX(3px);
+}
+
+.btnPrimary:active:not(:disabled) {
+  transform: scale(0.97);
   animation: none;
 }
 
-.btnHost:disabled {
+.btnPrimary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   animation: none;
 }
 
-/* ── Área de entrada do viewer ────────────────────────────────────── */
-.inputContainer {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.inputWrapper {
+/* ── Linha de entrada + botão secundário ─────────────────────────────── */
+.inputRow {
   display: flex;
   gap: 8px;
 }
 
 .input {
   flex: 1;
-  font-size: 0.86rem;
   min-width: 0;
   min-height: 44px;
   background: var(--kiara-surface-raised);
@@ -296,23 +351,19 @@
   padding: 8px 14px;
   border-radius: var(--radius-full);
   color: var(--kiara-text-strong);
+  font-size: 0.86rem;
   transition:
     border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    background-color var(--transition-fast);
+    box-shadow var(--transition-fast);
 }
 
-.input::placeholder {
-  color: var(--kiara-text-muted);
-}
+.input::placeholder { color: var(--kiara-text-muted); }
 
-.input:hover:not(:disabled) {
-  border-color: var(--kiara-border-input-hover);
-}
+.input:hover:not(:disabled) { border-color: var(--kiara-border-input-hover); }
 
 .input[aria-invalid='true'] {
   border-color: var(--kiara-danger);
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
 
 .input:focus {
@@ -321,8 +372,7 @@
   outline: none;
 }
 
-/* ── Botão secundário (Entrar) ───────────────────────────────────── */
-.btnViewer {
+.btnSecondary {
   min-height: 44px;
   background: transparent;
   border: 1px solid var(--kiara-border-input);
@@ -339,74 +389,42 @@
     transform var(--transition-fast);
 }
 
-.btnViewer:hover:not(:disabled) {
+.btnSecondary:hover:not(:disabled) {
   background: var(--kiara-accent);
   border-color: var(--kiara-accent);
   color: var(--kiara-on-accent);
   transform: translateY(-1px);
 }
 
-.btnViewer:active:not(:disabled) {
-  transform: scale(0.985);
-}
+.btnSecondary:active:not(:disabled) { transform: scale(0.97); }
+.btnSecondary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.btnViewer:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* ── Mensagens de erro/info ───────────────────────────────────────── */
+/* ── Erro ─────────────────────────────────────────────────────────────── */
 .error {
   color: var(--kiara-danger);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.4;
-  animation: kiaraSlideUp var(--transition-fast) both;
+  animation: fadeSlideUp 200ms var(--ease-spring) both;
 }
 
-.info {
-  color: var(--kiara-live);
-  font-size: 0.78rem;
-  line-height: 1.4;
-  animation: kiaraSlideUp var(--transition-fast) both;
+/* ── Responsividade ───────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .container { padding: 0 max(18px, env(safe-area-inset-left)); }
+  .main { padding: var(--space-6) 0 var(--space-5); gap: var(--space-4); }
+  .cardsGrid { grid-template-columns: 1fr; }
+  .header { flex-wrap: wrap; gap: 8px; }
+  .btnDownload { display: none; }
+  .title { font-size: clamp(1.5rem, 5vw, 1.9rem); }
+  .cardKbd { display: none; }
 }
 
-/* ── Responsividade ───────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .main {
-    padding: var(--space-6) 0 var(--space-5);
-    gap: var(--space-5);
-  }
-  .container {
-    padding: 0 max(20px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(20px, env(safe-area-inset-left));
-  }
-  .header {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .headerRight {
-    flex-wrap: wrap;
-  }
-  .btnDownload {
-    display: none;
-  }
-  .cardsGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── Animações de entrada escalonadas ────────────────────────────── */
-@media (prefers-reduced-motion: no-preference) {
-  .hero {
-    animation: kiaraFadeIn var(--transition-slow) both;
-  }
-
-  .card:nth-child(1) {
-    animation: kiaraFadeIn var(--transition-slow) both;
-    animation-delay: 80ms;
-  }
-
-  .card:nth-child(2) {
-    animation: kiaraFadeIn var(--transition-slow) both;
-    animation-delay: 160ms;
-  }
+/* ── Redução de movimento ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .bgMesh { animation: none; }
+  .eyebrow { animation: none; }
+  .title { animation: none; }
+  .cardsGrid { animation: none; }
+  .eyebrowDot { animation: none; }
+  .btnPrimary { animation: none; }
+  .card, .cardIcon, .spotlight { transition: none; }
 }

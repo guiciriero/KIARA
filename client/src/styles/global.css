@@ -7,42 +7,46 @@
 }
 
 :root {
-  /* ── Paleta Dark Moderna ──────────────────────────────────────── */
-  --kiara-bg:              #0B0D12;
-  --kiara-surface:         #141821;
-  --kiara-surface-raised:  #1C2230;
-  --kiara-surface-hover:   #222A3A;
-  --kiara-surface-active:  #2A3348;
-  --kiara-surface-deep:    #0E1018;
-  --kiara-surface-elevated: #1C2230;
-  --kiara-surface-strong:  #252E40;
+  /* ── Paleta Dark Azulada ─────────────────────────────────────── */
+  --kiara-bg:              #080B12;
+  --kiara-surface:         #0F1420;
+  --kiara-surface-raised:  #171E2E;
+  --kiara-surface-hover:   #1E2738;
+  --kiara-surface-active:  #263044;
+  --kiara-surface-deep:    #060810;
+  --kiara-surface-elevated: #171E2E;
+  --kiara-surface-strong:  #1F2A3C;
 
   /* ── Bordas ──────────────────────────────────────────────────── */
   --kiara-border:          rgba(255, 255, 255, 0.07);
   --kiara-border-subtle:   rgba(255, 255, 255, 0.04);
   --kiara-border-active:   rgba(255, 255, 255, 0.12);
-  --kiara-border-strong:   rgba(255, 255, 255, 0.18);
-  --kiara-border-focus:    #7C5CFF;
+  --kiara-border-strong:   rgba(255, 255, 255, 0.20);
+  --kiara-border-focus:    #2F7BFF;
   /* Borda de campos de formulário: ≥3:1 contra o fundo (WCAG 1.4.11) */
-  --kiara-border-input:    rgba(255, 255, 255, 0.20);
-  --kiara-border-input-hover: rgba(255, 255, 255, 0.30);
+  --kiara-border-input:    rgba(255, 255, 255, 0.22);
+  --kiara-border-input-hover: rgba(255, 255, 255, 0.34);
 
   /* ── Tipografia ──────────────────────────────────────────────── */
-  --kiara-text:            #E8ECF4;
-  --kiara-text-secondary:  #8B93A7;
-  --kiara-text-muted:      #636B80;
-  --kiara-text-disabled:   #4A5168;
+  --kiara-text:            #DCE6F5;
+  --kiara-text-secondary:  #7A8BA8;
+  --kiara-text-muted:      #4E5E78;
+  --kiara-text-disabled:   #374155;
 
-  /* ── Acento Roxo ─────────────────────────────────────────────── */
-  --kiara-accent:          #7C5CFF;
-  --kiara-accent-hover:    #9378FF;
-  --kiara-accent-active:   #6347E0;
-  --kiara-accent-subtle:   rgba(124, 92, 255, 0.12);
-  --kiara-accent-glow:     rgba(124, 92, 255, 0.25);
+  /* ── Acento Azul ─────────────────────────────────────────────── */
+  --kiara-accent:          #2F7BFF;
+  --kiara-accent-hover:    #5C9BFF;
+  --kiara-accent-active:   #1A63E0;
+  --kiara-accent-subtle:   rgba(47, 123, 255, 0.14);
+  --kiara-accent-glow:     rgba(47, 123, 255, 0.35);
+
+  /* ── Acento secundário (sky — usar com moderação) ────────────── */
+  --kiara-sky:             #38BDF8;
+  --kiara-sky-subtle:      rgba(56, 189, 248, 0.10);
 
   /* ── Status ──────────────────────────────────────────────────── */
   --kiara-live:            #22C55E;
-  --kiara-live-glow:       rgba(34, 197, 94, 0.20);
+  --kiara-live-glow:       rgba(34, 197, 94, 0.22);
   --kiara-live-subtle:     rgba(34, 197, 94, 0.10);
 
   --kiara-warning:         #F59E0B;
@@ -50,23 +54,23 @@
 
   --kiara-danger:          #EF4444;
   --kiara-danger-hover:    #F87171;
-  --kiara-danger-subtle:   rgba(239, 68, 68, 0.12);
+  --kiara-danger-subtle:   rgba(239, 68, 68, 0.14);
 
-  /* ── Cool (alias para compatibilidade — usa acento roxo) ─────── */
-  --kiara-cool:            #9378FF;
-  --kiara-cool-subtle:     rgba(124, 92, 255, 0.08);
-  --kiara-cool-glow:       rgba(124, 92, 255, 0.22);
+  /* ── Cool (alias para compatibilidade — agora azul) ──────────── */
+  --kiara-cool:            #5C9BFF;
+  --kiara-cool-subtle:     rgba(47, 123, 255, 0.10);
+  --kiara-cool-glow:       rgba(47, 123, 255, 0.30);
 
   /* ── Vidro e hairlines ───────────────────────────────────────── */
-  --kiara-glass:           rgba(14, 18, 30, 0.78);
+  --kiara-glass:           rgba(8, 11, 22, 0.82);
   --kiara-glass-border:    rgba(255, 255, 255, 0.08);
-  --kiara-glass-blur:      blur(16px) saturate(160%);
-  --kiara-hairline:        linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  --kiara-glass-blur:      blur(18px) saturate(180%);
+  --kiara-hairline:        linear-gradient(90deg, transparent, rgba(47, 123, 255, 0.18), transparent);
 
   /* ── Texto sobre acento / sobre mídia ────────────────────────── */
   --kiara-on-accent:       #ffffff;
-  --kiara-text-strong:     #F0F4FF;
-  --kiara-scrim:           rgba(0, 0, 0, 0.75);
+  --kiara-text-strong:     #EBF1FF;
+  --kiara-scrim:           rgba(0, 0, 0, 0.80);
 
   /* ── Escala de espaçamento (base 4px) ────────────────────────── */
   --space-1:               4px;
@@ -136,7 +140,7 @@
   --transition:            var(--transition-base);
 }
 
-html, body, #root {
+html, body {
   height: 100%;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
@@ -149,15 +153,19 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
-body {
-  overflow-x: hidden;
-  background-color: var(--kiara-bg);
+/* #root ocupa toda a viewport e empilha TitleBar + conteúdo verticalmente */
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--kiara-bg);
 }
 
 ::selection {
-  background: var(--kiara-cool-glow);
+  background: rgba(47, 123, 255, 0.30);
   color: var(--kiara-text-strong);
 }
 
