@@ -12,6 +12,6 @@
     "share": "node scripts/share.mjs",
     "share:desktop": "node scripts/share.mjs --desktop",
     "setup": "node scripts/share.mjs --setup-only",
-    "verify": "npm --prefix shared/types run build && npm --prefix server run typecheck && npm --prefix server test && npm --prefix server run build && npm --prefix client run lint && npm --prefix client run typecheck && npm --prefix client test && npm --prefix client run build"
+    "verify": "npm --prefix shared/types run build && npm --prefix server run lint && npm --prefix server run typecheck && npm --prefix server test && npm --prefix server run build && npm --prefix client run lint && npm --prefix client run typecheck && npm --prefix client test && npm --prefix client run build"
   }
 }

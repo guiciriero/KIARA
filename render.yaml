@@ -39,3 +39,10 @@ services:
         sync: false
       - key: CLOUDFLARE_TURN_API_TOKEN
         sync: false
+      # Grace period (ms) antes de desalocar o host após queda de conexão
+      - key: HOST_GRACE_MS
+        value: 20000
+        sync: false
+      # Token Bearer para GET /metrics. Sem este valor o endpoint fica desabilitado.
+      - key: METRICS_TOKEN
+        sync: false

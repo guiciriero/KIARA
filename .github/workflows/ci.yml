@@ -65,6 +65,10 @@ jobs:
         working-directory: server
         run: npm ci
 
+      - name: server - lint
+        working-directory: server
+        run: npm run lint
+
       - name: server - typecheck
         working-directory: server
         run: npm run typecheck
@@ -243,3 +247,59 @@ jobs:
       - name: Logout do registry
         if: always() && env.HAS_REDHAT_CREDS == 'true'
         run: docker logout registry.redhat.io
+
+  # Compila o módulo nativo C++ (WASAPI/DXGI) no Windows para validar que o código em native/
+  # ainda compila corretamente em PRs e builds manuais (sem publicar artefatos).
+  # Roda apenas em pull_request e workflow_dispatch para evitar custo duplicado com o
+  # build-windows.yml, que já compila o addon em push/tag.
+  native-windows:
+    name: Compilar módulo nativo (Windows)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            native/package-lock.json
+            desktop/package-lock.json
+
+      # Cache do addon compilado — mesma chave usada pelo build-windows.yml para
+      # aproveitar o cache gerado lá e evitar recompilação desnecessária.
+      - name: native - restaurar addon do cache
+        id: native-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: native/build/Release/screen_capture.node
+          key: native-addon-v1-${{ runner.os }}-node22-${{ hashFiles('native/src/**', 'native/binding.gyp', 'native/package-lock.json') }}
+
+      # Só compila quando não há cache (mesmo critério do build-windows.yml).
+      # Python e Visual Studio já vêm no windows-latest.
+      # --ignore-scripts evita que o npm dispare o node-gyp antigo embutido;
+      # usamos o node-gyp 13.x da devDependency via npx.
+      - name: native - instalar e compilar addon
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        working-directory: native
+        run: |
+          npm ci --ignore-scripts
+          npx node-gyp --version
+          npx node-gyp rebuild
+
+      # Smoke test: garante que o .node gerado (ou vindo do cache) carrega sem erro.
+      - name: native - smoke test (carregar o .node)
+        working-directory: native
+        shell: bash
+        run: |
+          ls -la build/Release/screen_capture.node
+          node -e "require('./build/Release/screen_capture.node')"

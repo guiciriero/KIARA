@@ -1,18 +1,28 @@
 # docker-compose.yml
-# Implantação 100% gratuita, autônoma e self-hosted do KIARA
-# Inclui servidor de sinalização Node.js + Servidor TURN/STUN Coturn próprio
-
-version: '3.8'
+# Implantação self-hosted do KIARA
+# Inclui: servidor de sinalização Node.js + servidor TURN/STUN Coturn + site Nginx
+#
+# Variáveis obrigatórias (defina em .env ou exporte no shell):
+#   TURN_PUBLIC_HOST — IP ou hostname público da máquina (ex.: 203.0.113.10).
+#                      Vai para o TURN_URLS entregue aos navegadores: nunca use "/" aqui.
+#                      Atrás de NAT, edite abaixo a linha --external-ip do coturn para
+#                      "IP_público/IP_privado" (ex.: 203.0.113.10/10.0.0.5).
+#   TURN_SECRET      — segredo HMAC compartilhado entre servidor e coturn
+#
+# Portas a liberar no firewall do host:
+#   3478/udp  — STUN/TURN UDP
+#   3478/tcp  — TURN TCP
+#   5349/tcp  — TURN TLS (opcional)
+#   49152-49252/udp — relay TURN (intervalo configurado em --min-port/--max-port)
 
 services:
-  # Servidor Coturn: Fornece STUN e TURN para contornar CGNAT e firewalls simétricos
+  # Servidor Coturn: Fornece STUN e TURN para contornar CGNAT e firewalls simétricos.
+  # network_mode: host é necessário para que o coturn alcance o intervalo de portas UDP de relay.
   coturn:
     image: coturn/coturn:latest
     container_name: kiara-coturn
     restart: unless-stopped
     network_mode: "host"
-    environment:
-      - DETECT_EXTERNAL_IP=yes
     command:
       - turnserver
       - -n
@@ -24,18 +34,34 @@ services:
       - --realm=kiara.local
       - --use-auth-secret
       - --static-auth-secret=${TURN_SECRET:?defina TURN_SECRET no ambiente}
+      # IP público do servidor. Atrás de NAT: --external-ip=IP_público/IP_privado
+      - --external-ip=${TURN_PUBLIC_HOST:?defina TURN_PUBLIC_HOST com o IP publico do servidor}
+      # Segurança: impede relay para redes privadas/loopback (mitiga SSRF via TURN)
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --no-multicast-peers
+      - --no-cli
+      - --fingerprint
+      # Cotas: máximo de 200 sessões TURN simultâneas no total, 10 por usuário
+      - --total-quota=200
+      - --user-quota=10
     healthcheck:
       test: ["CMD-SHELL", "turnutils_stunclient 127.0.0.1 3478 || exit 0"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-  # Servidor KIARA: Sinalização WebRTC, Salas Persistentes e Site SPA
+  # Servidor KIARA: Sinalização WebRTC e API
   kiara-server:
     build:
-      context: .
-      dockerfile: server/Dockerfile
+      context: ./server
+      dockerfile: Dockerfile
     container_name: kiara-server
+    # hostname "server" é o que o nginx.conf do cliente resolve (upstream kiara_server { server server:3001 })
+    hostname: server
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -43,13 +69,14 @@ services:
       - NODE_ENV=production
       - HOST=0.0.0.0
       - PORT=3001
-      - DATA_DIR=/app/data
       - MAX_VIEWERS_PER_ROOM=20
       - ROOM_MAX_HOURS=24
-      - TURN_URLS=turn:127.0.0.1:3478?transport=udp,turn:127.0.0.1:3478?transport=tcp
+      - TURN_URLS=turn:${TURN_PUBLIC_HOST:?defina TURN_PUBLIC_HOST}:3478?transport=udp,turn:${TURN_PUBLIC_HOST}:3478?transport=tcp
       - TURN_SECRET=${TURN_SECRET:?defina TURN_SECRET no ambiente}
-    volumes:
-      - kiara_data:/app/data
+      # Grace period (ms) antes de desalocar o host após queda de conexão (padrão 20000)
+      - HOST_GRACE_MS=${HOST_GRACE_MS:-20000}
+      # Token de acesso ao endpoint GET /metrics. Sem esta variável, o endpoint é desabilitado.
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
     depends_on:
       - coturn
     healthcheck:
@@ -58,7 +85,19 @@ services:
       timeout: 4s
       retries: 3
 
-volumes:
-  kiara_data:
-    driver: local
-
+  # Site KIARA: SPA React servida pelo Nginx com proxy para o servidor de sinalização
+  kiara-web:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: kiara-web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kiara-server
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8080/ -o /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

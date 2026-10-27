@@ -1,0 +1,112 @@
+# EXPERIMENTAL — NÃO EXECUTADO: este workflow nunca rodou em um runner real; pode precisar de ajustes.
+# Build do AppImage/deb (Linux x64) do app desktop KIARA. Só gera artifact (não publica release).
+# O addon nativo (native/) é opcional no Linux (sem áudio por aplicativo): se a compilação falhar,
+# o build segue sem ele e o app usa só getDisplayMedia/PipeWire.
+name: Build Linux (experimental)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: build-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Mesma versão do build-windows.yml. SEM CLOUDFLARED_SHA256 do binário linux-amd64 aqui
+  # (não calculado): o prepare-resources usa o digest da API do GitHub; se ela não informar,
+  # o build falha em CI (comportamento desejado). Defina CLOUDFLARED_SHA256 se isso ocorrer.
+  CLOUDFLARED_VERSION: "2026.10.1"
+
+jobs:
+  build:
+    name: Compilar AppImage/deb
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            shared/types/package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+            native/package-lock.json
+            desktop/package-lock.json
+
+      - name: shared/types - instalar e compilar
+        working-directory: shared/types
+        run: |
+          npm ci
+          npm run build
+
+      - name: server - instalar dependências
+        working-directory: server
+        run: npm ci
+
+      - name: client - instalar e compilar
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+
+      # Addon opcional no Linux (X11 para tela; sem áudio por app). Falha NÃO derruba o job.
+      - name: native - compilar addon (opcional)
+        working-directory: native
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxext-dev
+          npm ci --ignore-scripts
+          npx node-gyp rebuild
+
+      - name: desktop - instalar dependências
+        working-directory: desktop
+        run: npm ci
+
+      - name: desktop - empacotar servidor (bundle:server)
+        working-directory: desktop
+        run: npm run bundle:server
+
+      - name: desktop - preparar recursos (prepare:resources)
+        working-directory: desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run prepare:resources
+
+      - name: desktop - gerar pacotes (dist:linux)
+        working-directory: desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run build-info && npx electron-builder --linux AppImage deb --x64 --publish never
+
+      - name: Verificar pacotes
+        working-directory: desktop
+        run: |
+          ls -la release
+          ls release/*.AppImage release/*.deb
+
+      - name: Enviar pacotes como artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: KIARA-linux
+          path: |
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+          if-no-files-found: error
+          retention-days: 30

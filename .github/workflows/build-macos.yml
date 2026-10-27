@@ -1,0 +1,115 @@
+# EXPERIMENTAL — NÃO EXECUTADO: este workflow nunca rodou em um runner real; pode precisar de ajustes.
+# Build do dmg/zip (macOS) do app desktop KIARA, SEM assinatura nem notarização.
+# Só gera artifact (não publica release). Matriz: macos-15 (arm64) e macos-13 (x64): o addon e o
+# cloudflared são da arquitetura do runner, então cada arquitetura é compilada no seu runner.
+name: Build macOS (experimental)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CLOUDFLARED_VERSION: "2026.10.1"
+
+jobs:
+  build:
+    name: Compilar dmg/zip (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-13
+            arch: x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            shared/types/package-lock.json
+            server/package-lock.json
+            client/package-lock.json
+            native/package-lock.json
+            desktop/package-lock.json
+
+      - name: shared/types - instalar e compilar
+        working-directory: shared/types
+        run: |
+          npm ci
+          npm run build
+
+      - name: server - instalar dependências
+        working-directory: server
+        run: npm ci
+
+      - name: client - instalar e compilar
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+
+      - name: desktop - instalar dependências
+        working-directory: desktop
+        run: npm ci
+
+      # Addon ScreenCaptureKit (macOS 13+): obrigatório no macOS (prepare:resources exige o .node).
+      # Usa o node-gyp 13.x local (devDependency), como no workflow do Windows.
+      - name: native - compilar addon (build:native)
+        working-directory: desktop
+        run: npm run build:native
+
+      - name: desktop - empacotar servidor (bundle:server)
+        working-directory: desktop
+        run: npm run bundle:server
+
+      - name: desktop - preparar recursos (prepare:resources)
+        working-directory: desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUDFLARED_ARCH: ${{ matrix.arch == 'x64' && 'amd64' || 'arm64' }}
+        run: npm run prepare:resources
+
+      - name: desktop - gerar dmg/zip (sem assinatura)
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run build-info && npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never
+
+      - name: Verificar pacotes
+        working-directory: desktop
+        run: |
+          ls -la release
+          ls release/*.dmg release/*.zip
+
+      - name: Enviar pacotes como artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: KIARA-macos-${{ matrix.arch }}
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.zip
+          if-no-files-found: error
+          retention-days: 30
