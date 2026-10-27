@@ -24,7 +24,7 @@ O KIARA transmite a tela ligando você e os espectadores de forma direta (WebRTC
 1. Abra o link que a pessoa mandou.
 2. Clique em **Ativar Som da Transmissão** para ouvir o áudio (os navegadores bloqueiam o som até você clicar).
 3. Se a sala tiver senha, digite-a (e, se quiser, um apelido). Se exigir aprovação, aguarde o apresentador aceitar.
-4. Atalhos: **F** tela cheia, **M** mutar, **P** janela flutuante (PiP), **S** (ou **C**) ocultar/exibir o painel, **Z** preencher a tela ou manter a proporção. No player há também a **Qualidade** (Auto, 1080p, 720p, 480p, 360p), só para você.
+4. Atalhos: **F** tela cheia, **M** mutar, **P** janela flutuante com volume, tela cheia e estatísticas (Chrome, Edge e app desktop; nos demais, PiP nativo), **S** (ou **C**) ocultar/exibir o painel, **Z** preencher a tela ou manter a proporção. No player há também a **Qualidade** (Auto, 1080p, 720p, 480p, 360p), só para você.
 5. Para sair, clique em **Sair**.
 
 Se preferir, abra a página inicial no navegador, digite o código de 6 caracteres (ou cole o link) e clique em **Entrar**. No app instalado, cole o link completo.
@@ -36,6 +36,11 @@ Se preferir, abra a página inicial no navegador, digite o código de 6 caracter
 - Quem assiste pode clicar em **Também transmitir** e compartilhar a própria tela na mesma sala, na hora, sem pedir permissão a ninguém (só uma pessoa por vez, além de você).
 - Quem tiver o link e o código consegue assistir, a menos que você proteja a sala. Antes de iniciar, em **Acesso à sala**, dá para definir uma **senha** (4 a 64 caracteres) e marcar **Aprovar cada entrada**: cada pessoa aparece na tela como pedido e você clica em Aprovar ou Negar.
 - O **Modo privacidade** esconde seu IP dos espectadores, fazendo o vídeo passar por um servidor de retransmissão (TURN). Só funciona se o servidor tiver TURN configurado; depois de iniciar, a sala mostra se ele foi ativado de fato.
+- Se a sua conexão cair, a sala **espera cerca de 20 segundos** (`HOST_GRACE_MS`) pela sua volta: os espectadores veem um aviso e a transmissão é retomada sozinha quando o app reconecta. Passado esse tempo, a sala fecha. Clicar em **Encerrar** fecha na hora.
+- No painel do apresentador há a **lista de espectadores**, com os botões **Expulsar** (a pessoa pode voltar) e **Banir** (bloqueia o IP até a sala fechar), e um **QR code** do link para convidar pelo celular.
+- O botão **Gravar** salva a transmissão (vídeo e o som que você escolheu) em um arquivo `.webm` neste computador. Nada é enviado ao servidor, e gravar usa CPU e espaço em disco.
+- Quem assiste no celular pode ligar a **Economia de dados** (pede 480p). Ela já vem ligada em conexões lentas ou com o modo de economia do navegador.
+- Se o código fixo da sala estiver ocupado, o servidor gera outro e o painel avisa que o link mudou.
 - No celular dá para **assistir** (com tela cheia e tela sempre acesa), mas **não transmitir**: os navegadores de Android e iPhone não permitem compartilhar a tela. Para transmitir, use um computador ou o app para Windows.
 - Cada espectador recebe uma cópia do vídeo, então seu upload precisa dar conta (bitrate × espectadores). Com o padrão de 8 Mbps, três espectadores já pedem cerca de 24 Mbps de upload; reserve uma folga de uns 50 % (veja [`PERFORMANCE.md`](PERFORMANCE.md)). O limite padrão é de 8 espectadores por sala.
 - O botão de baixar o app só aparece no site. Dentro do app instalado você usa o **Atualizar**.
@@ -120,6 +125,8 @@ Todas são opcionais. Veja também [`.env.example`](.env.example).
 | `TURN_URLS` + `TURN_SECRET` | vazio | TURN próprio (coturn com `use-auth-secret`); o servidor gera credenciais temporárias |
 | `CLOUDFLARE_TURN_KEY_ID` + `CLOUDFLARE_TURN_API_TOKEN` | vazio | Alternativa: Cloudflare Realtime TURN (o plano gratuito inclui 1000 GB por mês, conforme a Cloudflare na data da pesquisa; confira o preço atual) |
 | `LOG_LEVEL` / `LOG_DIR` | `info` / vazio | Nível e pasta dos logs |
+| `HOST_GRACE_MS` | `20000` | Tempo, em ms, que a sala espera o apresentador voltar depois de uma queda de conexão (`0` fecha na hora) |
+| `METRICS_TOKEN` | vazio | Habilita `GET /metrics` (formato Prometheus), exigindo `Authorization: Bearer <token>`. Sem o token a rota responde 404. Não expõe códigos de sala nem IPs |
 
 Sem TURN configurado, o **Modo privacidade** é ignorado (o apresentador é avisado) e só o STUN público é usado.
 
@@ -129,7 +136,7 @@ Sem TURN configurado, o **Modo privacidade** é ignorado (o apresentador é avis
 npm run verify      # na raiz: tipos compartilhados, servidor e cliente (tipos, testes, build)
 
 cd server
-npm run typecheck && npm test   # Vitest: sinalização, salas, senha, aprovação, TURN, limites
+npm run lint && npm run typecheck && npm test   # ESLint e Vitest: sinalização, salas, senha, aprovação, TURN, limites
 
 cd ../client
 npm run lint        # ESLint
@@ -156,18 +163,23 @@ O botão **Baixar KIARA para Windows** do site funciona por um endereço do pró
 
 ### Docker
 
-O [`docker-compose.yml`](docker-compose.yml) sobe o servidor de sinalização (porta 3001, verificação em `/health`) e um coturn próprio. O `TURN_SECRET` é obrigatório: defina-o no `.env`.
+O [`docker-compose.yml`](docker-compose.yml) sobe o servidor de sinalização (porta 3001, verificação em `/health`), um coturn próprio e o site (Nginx na porta 8080, com proxy de `/socket.io` e `/download` para o servidor). São obrigatórios no `.env`:
+
+- `TURN_SECRET`: segredo longo e aleatório.
+- `TURN_PUBLIC_HOST`: IP ou hostname **público** da máquina. Ele é entregue aos navegadores como endereço do TURN, por isso `127.0.0.1` não serve para quem assiste de fora. Atrás de NAT, edite a linha `--external-ip` do coturn para `IP_público/IP_privado`.
 
 ```bash
-cp .env.example .env            # e preencha TURN_SECRET com um segredo longo e aleatório
+cp .env.example .env            # preencha TURN_SECRET e TURN_PUBLIC_HOST
 cd shared/types && npm install && npm run build && cd ../..
 cd server && npm install && npm run build && cd ..
 docker compose up -d --build
 ```
 
-Para parar: `docker compose down`. A imagem do site (`client/Dockerfile`, Nginx na porta 8080 com proxy de `/socket.io` e `/download`) não faz parte do compose e precisa ser construída e publicada à parte. Os arquivos Docker **não foram testados** no ambiente de desenvolvimento do autor, e há uma suspeita conhecida: o compose usa `context: .` com `server/Dockerfile`, que copia `package*.json` e `dist` como se o contexto fosse `server/`. Se o build falhar, ajuste o contexto e abra uma issue. As imagens-base vêm de `registry.redhat.io`, que exige login.
+Libere no firewall `3478` (UDP e TCP), `5349` (TCP, opcional) e `49152-49252` (UDP). O coturn nega relay para redes privadas e loopback. Para parar: `docker compose down`. O servidor não grava nada em disco, então não há volume. Os arquivos Docker **não foram testados** no ambiente de desenvolvimento do autor (o compose foi corrigido para usar `context: ./server`, mas nunca rodou). As imagens-base vêm de `registry.redhat.io`, que exige login.
 
 ### App desktop (som por aplicativo)
+
+> **Linux e macOS são experimentais.** Os alvos `AppImage`/`deb` e `dmg`/`zip` e os workflows `build-linux.yml` e `build-macos.yml` foram escritos, mas **nunca foram executados**. No Linux não há captura de som por aplicativo (só o som do sistema). Os pacotes de macOS não são assinados: o Gatekeeper bloqueia a primeira abertura (botão direito, **Abrir**).
 
 O navegador só consegue compartilhar o som do sistema inteiro. O app desktop (Electron) usa um módulo nativo em C++ para captar o som de programas específicos.
 
@@ -255,6 +267,8 @@ A faixa de áudio enviada pelo WebRTC é sempre a mesma: a saída de um mixer We
 | Codec automático (fixo, sem seletor na interface): H.265 se o apresentador codifica e o espectador decodifica por hardware, senão H.264, decidido por espectador | Nos testes em loopback com RTX 3070, o H.265 teve menos latência e menos tempo de encode que o H.264; VP9 e AV1 codificam em software nessa placa e não seguram 1080p60 |
 | Captura nativa no app para Windows: DXGI com textura compartilhada na GPU, entregue ao WebRTC como `VideoFrame`. Se falhar (monitor girado, HDR, janela em vez de tela inteira), cai no `getDisplayMedia`. Para desligar: `localStorage['kiara:nativeCapture']='0'` | O capturador do Chromium ficou em 31 a 50 FPS; o nativo entregou cerca de 60 FPS no Electron avulso (veja a auditoria) |
 | Controle individual de resolução para quem assiste | O espectador escolhe no player (Auto, 1080p, 720p, 480p, 360p) e o apresentador aplica `scaleResolutionDownBy` só para ele |
+| Camadas temporais (SVC) `L1T3` em VP9 e AV1; H.264 e H.265 ficam em `L1T1`. Quem pede 480p ou menos recebe no máximo 30 FPS (`maxFramerate` por espectador) | Só há camadas **temporais**. Camadas espaciais foram evitadas de propósito porque multiplicam o custo de codificação. O teto de FPS reduz o que é enviado a quem tem tela pequena ou rede lenta sem reencodar |
+| Baixa latência (experimental, desligada por padrão): WebCodecs (`VideoDecoder`) e canvas WebGL num worker, no lugar do `<video>`. Só VP9, que o host só envia em sala com criptografia ponta a ponta; em sala comum volta ao `<video>` com aviso | Pula o jitter buffer do WebRTC, o que pode reduzir a latência. **Ganho não medido**: em loopback o worker mede ~10 ms de chegada até o desenho, valor que não é comparável com o do `<video>` e que não inclui rede nem jitter. Sem keyframe sob demanda, um erro de decodificação congela a imagem até o próximo keyframe; em loopback houve 2 a 4 erros nos primeiros segundos (causa não identificada). Desativa o Picture-in-Picture e a janela flutuante |
 | App desktop com aceleração direta de GPU (NVENC/WebRTC) | Flags no Electron para codificação e decodificação aceleradas por hardware sem engasgos |
 | `bundlePolicy: 'max-bundle'`, `rtcpMuxPolicy: 'require'`, `iceCandidatePoolSize: 2` | Uma única porta de transporte e ICE mais rápido |
 | ICE restart: `disconnected` por 3 s ou `failed` chama `restartIce()` com nova offer; depois de 3 tentativas o peer é recriado | Recupera de troca de rede ou de Wi-Fi sem derrubar a sala |
@@ -298,6 +312,10 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 - O vídeo e o áudio são protegidos por DTLS 1.2 e SRTP, o padrão do WebRTC.
 - As credenciais do TURN ficam só no servidor (variáveis de ambiente) e são entregues ao cliente como credenciais temporárias; nada vai para o bundle.
 - Salas podem ter senha (guardada só como hash scrypt) e aprovação manual. Tentativas erradas de senha ou código são limitadas por conexão.
+- **Criptografia de ponta a ponta (opcional):** ao criar a sala com "Cifra ponta a ponta", o vídeo e o áudio são cifrados no navegador (AES-GCM, Insertable Streams) e o servidor não consegue decifrá-los. A chave de mídia é derivada da senha no navegador e nunca é enviada; ao servidor vai só um "token de entrada" derivado separadamente.
+  - **É tão forte quanto a senha.** Quem tiver o token pode tentar adivinhar a senha offline. Use uma senha longa e não a reaproveite. Uma chave aleatória no link (`#k=...`) seria mais forte e não foi implementada.
+  - **Metadados não são cifrados:** o servidor continua vendo quem entrou, o SDP, as estatísticas e o tamanho e o ritmo dos quadros. Não há rotação de chave.
+  - **Só VP9 (ou VP8):** AV1, H.264, H.265 e o modo "auto" ficam desativados na sala cifrada. Navegador sem `RTCRtpScriptTransform` recusa a sala em vez de assistir sem cifra.
 - O servidor usa Helmet (CSP, HSTS em produção), limite de requisições, limite de conexões por IP e valida todo payload de Socket.IO.
 - Para reportar uma vulnerabilidade, veja [`SECURITY.md`](SECURITY.md).
 - O túnel é temporário: o endereço do túnel pode mudar a cada sessão e nada fica gravado no servidor.
