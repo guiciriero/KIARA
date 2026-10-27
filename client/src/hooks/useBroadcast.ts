@@ -13,6 +13,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCBroadcaster } from '../services/webrtcService';
 import { captureDisplay, stopStream } from '../services/captureService';
+import { getCaptureEndReason } from '../services/nativeCapture';
 import type { ContentHint } from '../services/captureService';
 import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
@@ -212,6 +213,22 @@ export function useBroadcast(
     setState(INITIAL_STATE);
   }, [socket, release]);
 
+  // A faixa de vídeo terminou. Se foi a captura nativa que caiu (alt-tab, troca de modo de vídeo...), a live
+  // continua: troca para o getDisplayMedia sem derrubar a sala. Se foi o usuário (ou o fallback também falhou), encerra.
+  const swapToDisplayMediaRef = useRef<() => Promise<boolean>>(async () => false);
+  const handleVideoEnded = useCallback(
+    (track: MediaStreamTrack) => () => {
+      if (!getCaptureEndReason(track) || !broadcasterRef.current) {
+        stopSharing();
+        return;
+      }
+      void swapToDisplayMediaRef.current().then((ok) => {
+        if (!ok) stopSharing();
+      });
+    },
+    [stopSharing],
+  );
+
   /** Aprova ou recusa um espectador que aguarda entrada */
   const respondJoin = useCallback(
     (viewerId: string, approved: boolean) => {
@@ -301,7 +318,7 @@ export function useBroadcast(
       broadcasterRef.current = broadcaster;
 
       // O usuário clicou em "Parar compartilhamento" no seletor nativo
-      capture.videoTrack.onended = stopSharing;
+      capture.videoTrack.onended = handleVideoEnded(capture.videoTrack);
     } catch (err) {
       release();
       setState((s) => ({
@@ -311,7 +328,7 @@ export function useBroadcast(
         stream: null,
       }));
     }
-  }, [socket, videoConfig, captureSourceId, release, stopSharing]);
+  }, [socket, videoConfig, captureSourceId, release, handleVideoEnded]);
 
   const togglePause = useCallback(() => {
     const track = streamRef.current?.getVideoTracks()[0];
@@ -320,31 +337,35 @@ export function useBroadcast(
     setState((s) => ({ ...s, isPaused: !s.isPaused }));
   }, []);
 
-  /** Troca a tela ou janela sem derrubar a sala nem o áudio */
-  const changeCaptureSource = useCallback(async (newSourceId?: string | null) => {
+  /** Troca a tela ou janela sem derrubar a sala nem o áudio. Devolve true se a troca foi feita. */
+  const changeCaptureSource = useCallback(async (newSourceId?: string | null, preferNative = true): Promise<boolean> => {
     const broadcaster = broadcasterRef.current;
-    if (!broadcaster) return;
+    if (!broadcaster) return false;
 
     try {
       const { videoTrack } = await captureDisplay(videoConfig, {
         withAudio: false,
         captureSourceId: newSourceId ?? captureSourceId,
         contentHint: contentHintFor(videoConfig.quality),
+        preferNative,
       });
       // O broadcaster troca a faixa no stream compartilhado e para a antiga
       await broadcaster.replaceVideoTrack(videoTrack);
-      videoTrack.onended = stopSharing;
+      videoTrack.onended = handleVideoEnded(videoTrack);
 
       const current = streamRef.current;
       if (current) {
         setState((s) => ({ ...s, stream: new MediaStream(current.getVideoTracks()) }));
       }
+      return true;
     } catch (err) {
       // Cancelar o seletor mantém a transmissão atual intacta
-      if (isCancellation(err)) return;
-      setState((s) => ({ ...s, error: toMediaError(err).message }));
+      if (!isCancellation(err)) setState((s) => ({ ...s, error: toMediaError(err).message }));
+      return false;
     }
-  }, [videoConfig, captureSourceId, stopSharing]);
+  }, [videoConfig, captureSourceId, handleVideoEnded]);
+
+  swapToDisplayMediaRef.current = () => changeCaptureSource(undefined, false);
 
   const updateVideoConfig = useCallback(async (partial: Partial<VideoConfig>) => {
     await broadcasterRef.current?.updateVideoConfig(partial);

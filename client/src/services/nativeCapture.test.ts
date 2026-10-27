@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NativeCaptureTexture, ScreenShareHostApi } from '@shared/index';
 import {
   canUseNativeCapture,
+  getCaptureEndReason,
   getCaptureSize,
   startNativeVideoTrack,
   IDLE_REPEAT_MS,
@@ -242,9 +243,10 @@ describe('startNativeVideoTrack', () => {
     await vi.advanceTimersByTimeAsync(0);
     push(makeTexture().tex);
     await p;
-    end('unsupported-format');
+    end('motivo-desconhecido');
     await vi.advanceTimersByTimeAsync(700);
     expect(events).toContain('ended');
+    expect(getCaptureEndReason(gen)).toBe('motivo-desconhecido');
     expect(nativeCapture.start).toHaveBeenCalledTimes(1);
   });
 });

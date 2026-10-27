@@ -24,6 +24,8 @@ export interface CaptureOptions {
   captureSourceId?: string | null;
   /** 'motion' prioriza fluidez; 'detail' prioriza nitidez de texto/código (padrão: 'motion') */
   contentHint?: ContentHint;
+  /** (desktop) false pula a captura nativa e vai direto ao getDisplayMedia (padrão: true) */
+  preferNative?: boolean;
 }
 
 export function isMacOS(): boolean {
@@ -90,7 +92,7 @@ export function isDisplayCaptureSupported(): boolean {
 
 export async function captureDisplay(
   config: VideoConfig,
-  { withAudio, captureSourceId, contentHint = 'motion' }: CaptureOptions,
+  { withAudio, captureSourceId, contentHint = 'motion', preferNative = true }: CaptureOptions,
 ): Promise<CaptureResult> {
   const host = window.screenShareHost;
 
@@ -98,7 +100,7 @@ export async function captureDisplay(
 
   try {
     // Desktop/Windows: captura nativa zero-copy (60 fps estáveis). Qualquer falha cai no getDisplayMedia.
-    if (host && (await canUseNativeCapture(host, captureSourceId))) {
+    if (host && preferNative && (await canUseNativeCapture(host, captureSourceId))) {
       try {
         const videoTrack = await startNativeVideoTrack(host, {
           fps: config.frameRate || 60,

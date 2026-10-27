@@ -17,7 +17,20 @@ const RESTART_DELAY_MS = 500;
 /** Com frames chegando por este tempo após um reinício, a captura é considerada recuperada. */
 const STABLE_AFTER_MS = 5000;
 // `start-failed`: o Windows ainda não liberou o DXGI logo após alt-tab/troca de modo de vídeo; tenta de novo.
-const RESTARTABLE_REASONS = new Set(['access-lost', 'resolution-changed', 'acquire-failed', 'start-failed']);
+// `unsupported-format`: na transição de tela cheia/alt-tab o DXGI pode entregar, por instantes, outro formato (HDR/10 bits).
+const RESTARTABLE_REASONS = new Set([
+  'access-lost',
+  'resolution-changed',
+  'acquire-failed',
+  'start-failed',
+  'unsupported-format',
+]);
+
+// Motivo pelo qual a captura nativa encerrou a faixa (diagnóstico mostrado ao usuário).
+const endReasons = new WeakMap<MediaStreamTrack, string>();
+export function getCaptureEndReason(track: MediaStreamTrack): string | undefined {
+  return endReasons.get(track);
+}
 
 interface TrackGenerator extends MediaStreamTrack {
   writable: WritableStream<VideoFrame>;
@@ -113,8 +126,10 @@ export async function startNativeVideoTrack(
     void writer.close().catch(() => undefined);
   };
 
-  const endTrack = (): void => {
+  const endTrack = (reason = 'unknown'): void => {
     if (closed) return;
+    endReasons.set(gen, reason);
+    console.warn(`[KIARA] Captura nativa encerrada (${reason}).`);
     cleanup();
     gen.dispatchEvent(new Event('ended'));
   };
@@ -184,7 +199,7 @@ export async function startNativeVideoTrack(
       }, RESTART_DELAY_MS);
       return;
     }
-    endTrack();
+    endTrack(reason);
   }
 
   // Tela parada: sem frames novos o encoder ficaria ocioso e o espectador veria congelamento.
