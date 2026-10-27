@@ -1,4 +1,9 @@
 # Atualizações automáticas de dependências (semanais), com minor/patch agrupados.
+#
+# Versões MAIORES (major) das dependências npm ficam de fora de propósito: elas costumam trocar
+# peer dependencies (ex.: typescript 7 x typescript-eslint, @types/react 19 x @types/react-dom 18)
+# e quebram o `npm ci` com ERESOLVE. Migre majors à mão, em um PR próprio, validando com
+# `npm run verify`. Correções de segurança continuam chegando pelos alertas do GitHub.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -9,6 +14,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /server
@@ -18,6 +26,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /client
@@ -27,23 +38,11 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
-    # Majors abaixo quebram o `npm ci` (ERESOLVE) e precisam ser migrados à mão:
-    # - typescript 7: typescript-eslint só aceita typescript <6.1.0. Reavalie quando ele suportar o 7.
-    # - react / react-dom / @types/react / @types/react-dom 19: sobem juntos com a migração do React;
-    #   @types/react-dom 18 exige @types/react ^18, então atualizar só um deles trava a instalação.
     ignore:
-      - dependency-name: typescript
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react
-        update-types: ["version-update:semver-major"]
-      - dependency-name: react-dom
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/react"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/react-dom"
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
-  # Electron: majors exigem validação manual do addon N-API (NAPI_VERSION=8); ficam fora do grupo.
+  # Electron: majors exigem validação manual do addon N-API (NAPI_VERSION=8).
   - package-ecosystem: npm
     directory: /desktop
     schedule:
@@ -52,6 +51,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /native
@@ -61,6 +63,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
