@@ -218,6 +218,7 @@ function requireNative() {
 
 /** @type {BrowserWindow|null} */
 let mainWindow = null;
+let appUpdater = null;
 let audioActive = false;
 let pendingSourceId = null;
 
@@ -431,7 +432,7 @@ function registerIpc() {
   });
 
   // ── Atualização do app ───────────────────────────────────────────────────
-  const updater = createUpdater({
+  appUpdater = createUpdater({
     app,
     isDev: IS_DEV,
     onState: (state) => {
@@ -440,12 +441,12 @@ function registerIpc() {
     // Mesma limpeza do encerramento normal: sem túnel/servidor/áudio órfãos ao instalar.
     beforeInstall: () => { stopAudio(); nativeCapture.stop(); stopRuntime(); },
   });
-  handle('updater:get-state', () => updater.getState());
-  handle('updater:check', () => updater.check());
-  handle('updater:download', () => updater.download());
-  handle('updater:install', () => updater.install());
-  // Procura (e baixa) a atualização sozinho ao abrir o app e a cada poucas horas.
-  updater.startAutoCheck();
+  handle('updater:get-state', () => appUpdater.getState());
+  handle('updater:check', () => appUpdater.check());
+  handle('updater:download', () => appUpdater.download());
+  handle('updater:install', () => appUpdater.install());
+  // Procura (e baixa) a atualização sozinho periodicamente enquanto o app estiver aberto.
+  appUpdater.startAutoCheck();
 }
 
 // ─── getDisplayMedia ─────────────────────────────────────────────────────────
@@ -534,6 +535,14 @@ main{max-width:560px;padding:24px}h1{font-size:20px;margin:0 0 12px;color:#f43f5
 
 function loadSplashPage(win) {
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(SPLASH_HTML)}`);
+}
+
+function updateSplashStatus(win, text) {
+  if (!win || win.isDestroyed()) return;
+  const safeText = JSON.stringify(text);
+  win.webContents
+    .executeJavaScript(`(() => { const el = document.getElementById('splash-status'); if (el) el.textContent = ${safeText}; })()`)
+    .catch(() => {});
 }
 
 function openExternalSafe(urlString) {
@@ -672,6 +681,18 @@ function createWindow() {
 // ─── Fluxo de inicialização em produção ──────────────────────────────────────
 
 async function startEmbeddedRuntime(win) {
+  // 0. Verifica e aplica atualizações no splash antes de iniciar serviços e abrir o menu
+  if (appUpdater) {
+    const updated = await appUpdater.checkStartupUpdate({
+      timeoutMs: 3500,
+      onStatus: (msg) => updateSplashStatus(win, msg),
+    });
+    if (updated) {
+      // O instalador foi iniciado para atualizar o aplicativo
+      return;
+    }
+  }
+
   // 1. Descobre porta livre
   const port = await findFreePort();
   embeddedPort = port;

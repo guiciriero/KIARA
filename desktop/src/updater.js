@@ -150,8 +150,74 @@ function createUpdater({
   }
 
   /**
-   * Verifica ao abrir o app (após `initialDelayMs`, para não competir com a inicialização) e
-   * depois a cada `intervalMs`. Não faz nada quando as atualizações estão desativadas.
+   * Verifica se há atualizações na inicialização (durante a tela de splash).
+   * Se houver uma versão mais nova, baixa e instala imediatamente antes de abrir o menu.
+   * Se não houver, falhar ou demorar mais que `timeoutMs`, libera a inicialização normal.
+   * @param {object} [options]
+   * @param {number} [options.timeoutMs] Tempo limite para verificação de versão (padrão: 3500ms)
+   * @param {(statusText: string) => void} [options.onStatus] Notificação de texto para a tela de splash
+   * @returns {Promise<boolean>} true se a atualização foi instalada (reiniciando o app), false caso contrário
+   */
+  async function checkStartupUpdate({ timeoutMs = 3500, onStatus = () => {} } = {}) {
+    if (state.status === 'disabled') return false;
+
+    const updateProgress = (s) => {
+      if (s.status === 'downloading') {
+        const pct = typeof s.progress === 'number' && s.progress > 0 ? ` (${s.progress}%)` : '';
+        onStatus(`Baixando atualização${pct}...`);
+      } else if (s.status === 'downloaded') {
+        onStatus('Reiniciando para aplicar atualização...');
+      }
+    };
+
+    try {
+      onStatus('Procurando atualizações...');
+
+      let timeoutId;
+      const timeoutPromise = new Promise((resolve) => {
+        timeoutId = setTimeout(() => resolve('timeout'), timeoutMs);
+        if (timeoutId && typeof timeoutId.unref === 'function') timeoutId.unref();
+      });
+
+      const checkPromise = check({ automatic: true });
+
+      const checkInterval = setInterval(() => {
+        if (state.status === 'downloading') {
+          updateProgress(state);
+        }
+      }, 100);
+      if (typeof checkInterval.unref === 'function') checkInterval.unref();
+
+      const result = await Promise.race([checkPromise, timeoutPromise]);
+      clearTimeout(timeoutId);
+
+      if (result === 'timeout') {
+        if (state.status === 'downloading') {
+          onStatus('Baixando atualização...');
+          await checkPromise;
+        } else {
+          clearInterval(checkInterval);
+          return false;
+        }
+      }
+
+      clearInterval(checkInterval);
+
+      if (state.status === 'downloaded') {
+        onStatus('Reiniciando para aplicar atualização...');
+        install();
+        return true;
+      }
+    } catch {
+      // Falhas no startup são silenciosas: o app segue para o menu normalmente
+    }
+
+    return false;
+  }
+
+  /**
+   * Verifica em segundo plano periodicamente a cada `intervalMs` enquanto o app estiver aberto.
+   * Não faz nada quando as atualizações estão desativadas.
    * @returns {() => void} cancela os temporizadores
    */
   function startAutoCheck({ initialDelayMs = 10_000, intervalMs = 4 * 60 * 60 * 1000 } = {}) {
@@ -164,7 +230,7 @@ function createUpdater({
     return () => { clearTimeout(first); clearInterval(timer); };
   }
 
-  return { getState: () => state, check, download, install, startAutoCheck };
+  return { getState: () => state, check, download, install, checkStartupUpdate, startAutoCheck };
 }
 
 module.exports = { createUpdater, readBuildInfo };
