@@ -1,0 +1,85 @@
+.container {
+  background: var(--kiara-surface-raised);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--kiara-text-strong);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 6px 6px 10px;
+}
+
+.name {
+  font-size: 0.84rem;
+  color: var(--kiara-text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn,
+.btnDanger {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--kiara-text);
+  border: 1px solid var(--kiara-border-input);
+}
+
+.btnDanger {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.btn:hover {
+  background: var(--kiara-surface-hover);
+  color: var(--kiara-text-strong);
+}
+
+.btnDanger:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.btn:focus-visible,
+.btnDanger:focus-visible {
+  outline: 2px solid var(--kiara-border-focus);
+  outline-offset: 2px;
+}

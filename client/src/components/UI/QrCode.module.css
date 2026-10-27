@@ -1,0 +1,68 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.dialog {
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border-active);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 320px;
+  width: calc(100% - 32px);
+}
+
+.title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--kiara-text-strong);
+}
+
+.qr {
+  width: 100%;
+  background: #ffffff;
+  border-radius: var(--radius-sm);
+  line-height: 0;
+}
+
+.qr svg {
+  width: 100%;
+  height: auto;
+}
+
+.url {
+  font-size: 0.78rem;
+  color: var(--kiara-text-secondary);
+  word-break: break-all;
+  text-align: center;
+}
+
+.close {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--kiara-border-input);
+  background: transparent;
+  color: var(--kiara-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.close:hover {
+  background: var(--kiara-surface-hover);
+  color: var(--kiara-text-strong);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--kiara-border-focus);
+  outline-offset: 2px;
+}

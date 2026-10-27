@@ -9,7 +9,8 @@
   border: 1px solid var(--kiara-border-active);
   border-radius: var(--radius-md);
   padding: 12px 14px;
-  min-width: 210px;
+  min-width: 260px;
+  max-width: calc(100% - 24px);
   user-select: none;
   box-shadow: var(--shadow-elevated), 0 0 1px rgba(255, 255, 255, 0.08);
   animation: kiaraSlideUp var(--transition-fast) both;
@@ -101,6 +102,15 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px 14px;
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--kiara-border);
 }
 
 .metric {

@@ -19,7 +19,20 @@ import {
   isPictureInPictureSupported,
   togglePictureInPicture,
 } from '../utils/pip';
+import { useDocumentPip } from '../hooks/useDocumentPip';
 import { useWakeLock } from '../hooks/useWakeLock';
+import { useServerWake } from '../hooks/useServerWake';
+import ServerWakeNotice from '../components/UI/ServerWakeNotice';
+import {
+  DATA_SAVER_QUALITY,
+  DEFAULT_QUALITY,
+  getNetworkConnection,
+  isConstrainedConnection,
+  readStoredDataSaver,
+  resolveDataSaver,
+  storeDataSaver,
+  subscribeConnectionChange,
+} from '../utils/dataSaver';
 import { useHudNotification } from '../hooks/useHudNotification';
 import { DEFAULT_VIDEO_CONFIG } from '../services/rtcConfig';
 import type { ViewerQualityPreference, VideoConfig } from '@shared/index';
@@ -43,6 +56,10 @@ import VideoConfigPanel from '../components/Controls/VideoConfigPanel';
 import AudioSourceList from '../components/Controls/AudioSourceList';
 import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
 import StatsOverlay from '../components/UI/StatsOverlay';
+import { useStatsHistory } from '../hooks/useStatsHistory';
+import PipPlayer from '../components/UI/PipPlayer';
+import LowLatencyCanvas from '../components/UI/LowLatencyCanvas';
+import { fallbackReasonText } from '../utils/lowLatency';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import styles from './ViewerPage.module.css';
@@ -53,8 +70,13 @@ const ViewerPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { state, leaveRoom, setQuality, join, updateName, storedName } = useViewer(code);
+  const { state, leaveRoom, setQuality, join, updateName, mediaKey, lowLatency, setLowLatencyMode, storedName } = useViewer(code);
+  // O canvas só cobre o <video> enquanto o worker está de fato desenhando (sem fallback)
+  const canvasActive = Boolean(lowLatency.canvas && lowLatency.state?.active);
+  const lowLatencyFallback = lowLatency.state?.fallbackReason ?? null;
+  const statsHistory = useStatsHistory(state.stats);
   const { socket } = useSocket();
+  const serverWake = useServerWake();
   const [passwordInput, setPasswordInput] = useState('');
   const [nameInput, setNameInput] = useState(() => storedName || '');
   const [showNameModal, setShowNameModal] = useState(false);
@@ -63,8 +85,15 @@ const ViewerPage: React.FC = () => {
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
+  const docPip = useDocumentPip();
+  // Com a janela flutuante aberta, o áudio sai por ela: o <video> da página fica mudo
+  const mainMuted = isMuted || docPip.isOpen;
   const [isCoverMode, setIsCoverMode] = useState(false);
   const { hudMessage, showHud } = useHudNotification();
+  // Baixa latência: avisa uma vez por que voltou ao <video> (o vídeo segue normalmente)
+  useEffect(() => {
+    if (lowLatencyFallback) showHud(`Baixa latência indisponível: ${fallbackReasonText(lowLatencyFallback)}. Usando o player normal.`);
+  }, [lowLatencyFallback, showHud]);
   const [showControls, setShowControls] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,6 +123,7 @@ const ViewerPage: React.FC = () => {
     audioSelection,
     captureSourceId,
     copresentOptions,
+    mediaKey,
   );
   const {
     state: coState,
@@ -145,14 +175,35 @@ const ViewerPage: React.FC = () => {
     setShowNameModal(false);
   };
 
+  // Modo canvas: o worker retém os quadros de vídeo, e um <video> com faixa de vídeo sem quadros nunca
+  // inicia (medido no Chrome 156: readyState 0, sem áudio). Ele recebe só as faixas de áudio.
+  const audioOnlyRef = useRef<{ source: MediaStream; audio: MediaStream } | null>(null);
+
   // Conecta o stream remoto ao elemento <video> e garante a reprodução sem tela preta no mobile
   useEffect(() => {
     const video = videoRef.current;
-    const stream = state.remoteStream;
-    if (!video || !stream) return;
+    const remote = state.remoteStream;
+    if (!video || !remote) return;
+
+    let stream = remote;
+    let onAddTrack: ((event: MediaStreamTrackEvent) => void) | null = null;
+    if (canvasActive) {
+      if (audioOnlyRef.current?.source !== remote) {
+        audioOnlyRef.current = { source: remote, audio: new MediaStream(remote.getAudioTracks()) };
+      }
+      const audio = audioOnlyRef.current.audio;
+      stream = audio;
+      // O áudio pode chegar depois do evento 'stream'
+      onAddTrack = (event) => {
+        if (event.track.kind === 'audio' && !audio.getTracks().includes(event.track)) audio.addTrack(event.track);
+      };
+      remote.addEventListener('addtrack', onAddTrack);
+    } else {
+      audioOnlyRef.current = null;
+    }
 
     // Garante propriedades nativas essenciais para navegadores mobile (iOS Safari e Android)
-    video.muted = isMuted;
+    video.muted = mainMuted;
     video.defaultMuted = true;
     video.playsInline = true;
     video.setAttribute('playsinline', 'true');
@@ -186,8 +237,19 @@ const ViewerPage: React.FC = () => {
       for (const track of videoTracks) {
         track.removeEventListener('unmute', attemptPlay);
       }
+      if (onAddTrack) remote.removeEventListener('addtrack', onAddTrack);
     };
-  }, [state.remoteStream, isMuted]);
+  }, [state.remoteStream, mainMuted, canvasActive]);
+
+  // Fecha a janela flutuante quando a transmissão acaba
+  const closeDocPip = docPip.close;
+  // Em modo canvas o PipPlayer (que usa o MediaStream) ficaria preto: fecha se estava aberto
+  useEffect(() => {
+    if (canvasActive) closeDocPip();
+  }, [canvasActive, closeDocPip]);
+  useEffect(() => {
+    if (state.connectionState === 'failed' || state.connectionState === 'disconnected') closeDocPip();
+  }, [state.connectionState, closeDocPip]);
 
   // Sincroniza estado de Picture-in-Picture
   useEffect(() => {
@@ -256,10 +318,48 @@ const ViewerPage: React.FC = () => {
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     };
   }, []);
+  // ── Economia de dados ─────────────────────────────────────────────────
+  const [dataSaver, setDataSaver] = useState(() =>
+    resolveDataSaver(readStoredDataSaver(), getNetworkConnection()),
+  );
+  /** O usuário escolheu a qualidade à mão: a economia automática não a sobrescreve mais */
+  const manualQualityRef = useRef(false);
+  /** A economia de dados aplicou 480p (e portanto pode desfazê-lo ao desligar) */
+  const dataSaverAppliedRef = useRef(false);
+
+  // Sem escolha salva, o padrão acompanha mudanças da conexão (evento `change`)
+  useEffect(() => {
+    const conn = getNetworkConnection();
+    return subscribeConnectionChange(conn, () => {
+      if (readStoredDataSaver() !== null) return;
+      setDataSaver(isConstrainedConnection(conn));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (dataSaver) {
+      if (manualQualityRef.current) return;
+      dataSaverAppliedRef.current = true;
+      setQuality(DATA_SAVER_QUALITY);
+    } else if (dataSaverAppliedRef.current) {
+      dataSaverAppliedRef.current = false;
+      if (!manualQualityRef.current) setQuality(DEFAULT_QUALITY);
+    }
+  }, [dataSaver, setQuality]);
+
+  const handleToggleDataSaver = () => {
+    const next = !dataSaver;
+    storeDataSaver(next);
+    manualQualityRef.current = false;
+    setDataSaver(next);
+    resetHideTimer();
+  };
+
+
 
   const handleEnableAudio = () => {
     if (videoRef.current) {
-      videoRef.current.muted = false;
+      videoRef.current.muted = docPip.isOpen;
       videoRef.current.volume = localVolume;
       if (videoRef.current.paused) {
         videoRef.current.play().catch((err) => {
@@ -275,7 +375,7 @@ const ViewerPage: React.FC = () => {
   const handleToggleMute = () => {
     if (!videoRef.current) return;
     const nextMuted = !isMuted;
-    videoRef.current.muted = nextMuted;
+    videoRef.current.muted = nextMuted || docPip.isOpen;
     setIsMuted(nextMuted);
     showHud(nextMuted ? 'Áudio silenciado (Mudo)' : 'Áudio ativado');
     resetHideTimer();
@@ -287,11 +387,17 @@ const ViewerPage: React.FC = () => {
     if (videoRef.current) {
       videoRef.current.volume = val;
       if (val > 0 && isMuted) {
-        videoRef.current.muted = false;
+        videoRef.current.muted = docPip.isOpen;
         setIsMuted(false);
       }
     }
     resetHideTimer();
+  };
+
+  /** Volume vindo da janela flutuante: mesmo estado da página (o <video> principal segue mudo) */
+  const handlePipVolumeChange = (val: number) => {
+    setLocalVolume(val);
+    if (val > 0 && isMuted) setIsMuted(false);
   };
 
   const handleToggleFullscreen = async () => {
@@ -312,6 +418,24 @@ const ViewerPage: React.FC = () => {
 
   const handleTogglePip = async () => {
     if (!videoRef.current) return;
+    // Em modo canvas o <video> e o PipPlayer não recebem quadros: abririam uma janela preta
+    if (canvasActive) {
+      showHud('Janela flutuante indisponível no modo baixa latência');
+      return;
+    }
+    // Chrome/Edge/Electron: janela flutuante própria, com volume, tela cheia e estatísticas
+    if (docPip.supported) {
+      if (docPip.isOpen) {
+        docPip.close();
+        return;
+      }
+      const video = videoRef.current;
+      if (await docPip.open(video.videoWidth, video.videoHeight)) {
+        showHud('Janela flutuante aberta');
+        resetHideTimer();
+        return;
+      }
+    }
     try {
       const entered = await togglePictureInPicture(videoRef.current);
       showHud(entered ? 'Picture-in-Picture ativado' : 'Picture-in-Picture fechado');
@@ -341,7 +465,8 @@ const ViewerPage: React.FC = () => {
 
   // iPhone só tem tela cheia pelo player do <video>; sem nenhum suporte, o botão some
   const fullscreenSupported = deviceSupportsFullscreen();
-  const pipSupported = isPictureInPictureSupported();
+  const pipSupported = (docPip.supported || isPictureInPictureSupported()) && !canvasActive;
+  const pipActive = isPip || docPip.isOpen;
 
   /** Mouse: mostra os controles. Toque: um toque no vídeo alterna mostrar/esconder */
   const handleSurfaceClick = (e: React.MouseEvent) => {
@@ -366,7 +491,7 @@ const ViewerPage: React.FC = () => {
   const handleSubmitPassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput.length === 0) return;
-    join({ password: passwordInput, name: nameInput.trim() || undefined });
+    void join({ password: passwordInput, name: nameInput.trim() || undefined });
   };
 
   // Atalhos: F = tela cheia, M = mutar, P = Picture-in-Picture, S/C = painéis laterais, Z = enquadramento
@@ -460,6 +585,12 @@ const ViewerPage: React.FC = () => {
           <PixelShihTzu pose="idle" scale={5} speech="Esta sala tem senha! 🔒" />
           <h2>Sala protegida</h2>
           <p>Digite a senha enviada pelo apresentador.</p>
+          {state.e2ee && (
+            <p className={styles.fieldLabel}>
+              Esta sala usa criptografia de ponta a ponta: a senha é transformada no seu navegador e a
+              chave do vídeo não é enviada ao servidor.
+            </p>
+          )}
           <label htmlFor="kiara-viewer-name" className={styles.fieldLabel}>Seu apelido (opcional)</label>
           <input
             id="kiara-viewer-name"
@@ -530,6 +661,8 @@ const ViewerPage: React.FC = () => {
         text: 'Confira o código. A sala pode já ter sido encerrada.',
       },
       closed: { title: 'Sala encerrada', text: 'Esta sala já foi encerrada pelo apresentador.' },
+      kicked: { title: 'Você foi removido', text: 'Você foi removido da sala pelo apresentador.' },
+      banned: { title: 'Entrada bloqueada', text: 'Você não pode entrar nesta sala.' },
       'rate-limited': {
         title: 'Muitas tentativas',
         text: 'Aguarde um minuto antes de tentar entrar de novo.',
@@ -623,6 +756,13 @@ const ViewerPage: React.FC = () => {
         {/* Aura ambiente sutil */}
         {state.connectionState === 'connected' && <div className={styles.ambientAura} />}
 
+        {/* Apresentador caiu: mantém o último frame e avisa que a sala aguarda a volta dele */}
+        {state.connectionState === 'connected' && state.hostReconnecting && (
+          <div className={styles.hudNotification} role="status" aria-live="polite">
+            <span>O apresentador perdeu a conexão. Aguardando ele voltar… 🐾</span>
+          </div>
+        )}
+
         {/* Loading / Reconectando */}
         {state.connectionState !== 'connected' && (
           <div className={styles.loadingOverlay} role="status" aria-live="polite">
@@ -637,13 +777,14 @@ const ViewerPage: React.FC = () => {
                 : 'Aguardando o vídeo do apresentador…'}
             </h3>
             <p>Conexão direta em andamento</p>
+            {serverWake.waking && <ServerWakeNotice seconds={serverWake.seconds} />}
           </div>
         )}
 
         <video
           ref={videoRef}
           autoPlay
-          muted={isMuted}
+          muted={mainMuted}
           playsInline
           preload="auto"
           className={`${styles.videoElement} ${isCoverMode ? styles.videoCover : ''}`}
@@ -658,6 +799,9 @@ const ViewerPage: React.FC = () => {
             }
           }}
         />
+
+        {/* Baixa latência (experimental): o canvas WebGL cobre o <video>, que segue tocando o áudio */}
+        {canvasActive && lowLatency.canvas && <LowLatencyCanvas canvas={lowLatency.canvas} cover={isCoverMode} />}
 
         {/* Botão Central de Desmutar (Unmute Overlay) */}
         {state.connectionState === 'connected' && isMuted && (
@@ -680,7 +824,21 @@ const ViewerPage: React.FC = () => {
         )}
 
         {/* Telemetria de Estatísticas */}
-        {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} />}
+        {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} history={statsHistory} />}
+
+        {docPip.pipWindow && (
+          <PipPlayer
+            pipWindow={docPip.pipWindow}
+            stream={state.remoteStream}
+            muted={isMuted}
+            volume={localVolume}
+            stats={state.stats}
+            targetFps={videoConfig.frameRate}
+            onToggleMute={handleToggleMute}
+            onVolumeChange={handlePipVolumeChange}
+            onClose={docPip.close}
+          />
+        )}
       </div>
 
       {/* ── Painel Lateral de Co-apresentação ────────────────────────────── */}
@@ -874,6 +1032,37 @@ const ViewerPage: React.FC = () => {
               <span>Também transmitir</span>
             </button>
           )}
+          {/* Economia de dados: limita a qualidade a 480p */}
+          {state.connectionState === 'connected' && (
+            <button
+              type="button"
+              className={`${styles.coPresenterToggleBtn} ${styles.dataSaverBtn} ${dataSaver ? styles.activeBtn : ''}`}
+              onClick={handleToggleDataSaver}
+              aria-pressed={dataSaver}
+              title="Economia de dados: reproduz em 480p para gastar menos internet"
+            >
+              Economia de dados
+            </button>
+          )}
+          {/* Baixa latência (experimental): WebCodecs + WebGL no lugar do <video> */}
+          {state.connectionState === 'connected' && lowLatency.supported && (
+            <button
+              type="button"
+              className={`${styles.coPresenterToggleBtn} ${lowLatency.enabled ? styles.activeBtn : ''}`}
+              onClick={() => {
+                setLowLatencyMode(!lowLatency.enabled);
+                resetHideTimer();
+              }}
+              aria-pressed={lowLatency.enabled}
+              title={
+                canvasActive && lowLatency.state
+                  ? `Baixa latência (experimental), ativa. Chegada→desenho: ${lowLatency.state.avgMs.toFixed(1)} ms (não inclui rede nem jitter buffer). Desativa a janela flutuante.`
+                  : 'Baixa latência (experimental): decodifica com WebCodecs e desenha em WebGL. Exige VP9 do apresentador e refaz a entrada. Desativa a janela flutuante.'
+              }
+            >
+              Baixa latência (exp.)
+            </button>
+          )}
           {/* Seletor Individual de Resolução / Qualidade */}
           {state.connectionState === 'connected' && (
             <div className={styles.qualitySelectWrapper}>
@@ -881,6 +1070,8 @@ const ViewerPage: React.FC = () => {
                 className={styles.qualitySelect}
                 value={state.selectedQuality}
                 onChange={(e) => {
+                  manualQualityRef.current = true;
+                  dataSaverAppliedRef.current = false;
                   setQuality(e.target.value as ViewerQualityPreference);
                   resetHideTimer();
                 }}
@@ -890,8 +1081,8 @@ const ViewerPage: React.FC = () => {
                 <option value="auto">Qualidade: Auto</option>
                 <option value="1080p">1080p (FHD)</option>
                 <option value="720p">720p (HD)</option>
-                <option value="480p">480p (SD)</option>
-                <option value="360p">360p (Economia)</option>
+                <option value="480p">{dataSaver ? '480p (Economia)' : '480p (SD)'}</option>
+                <option value="360p">360p (Mínima)</option>
               </select>
             </div>
           )}
@@ -931,12 +1122,12 @@ const ViewerPage: React.FC = () => {
           {pipSupported && state.connectionState === 'connected' && (
             <button
               type="button"
-              className={`${styles.iconBtn} ${isPip ? styles.activeBtn : ''}`}
+              className={`${styles.iconBtn} ${pipActive ? styles.activeBtn : ''}`}
               onClick={handleTogglePip}
-              title={isPip ? 'Sair de janela flutuante (PiP) (P)' : 'Assistir em janela flutuante (PiP) (P)'}
-              aria-label={isPip ? 'Sair do Picture-in-Picture' : 'Assistir em janela flutuante Picture-in-Picture'}
+              title={pipActive ? 'Sair de janela flutuante (PiP) (P)' : 'Assistir em janela flutuante (PiP) (P)'}
+              aria-label={pipActive ? 'Sair do Picture-in-Picture' : 'Assistir em janela flutuante Picture-in-Picture'}
               aria-keyshortcuts="P"
-              aria-pressed={isPip}
+              aria-pressed={pipActive}
             >
               <IconPictureInPicture size={18} />
             </button>

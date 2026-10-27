@@ -15,6 +15,7 @@ import { captureDisplay, stopStream, contentHintForQuality } from '../services/c
 import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
 import { isCancellation, toMediaError, getErrorMessage } from '../services/mediaError';
+import { E2eeSession } from '../services/e2ee';
 import type {
   VideoConfig,
   IceServerConfig,
@@ -52,8 +53,11 @@ export function useCopresenter(
   captureSourceId: string | null,
   /** Dados enviados ao iniciar (ex.: apelido) */
   roomOptions?: CopresentStartPayload,
+  /** Sala E2EE: chave de mídia derivada da senha (null = sala sem E2EE) */
+  mediaKey: CryptoKey | null = null,
 ) {
   const broadcasterRef = useRef<WebRTCBroadcaster | null>(null);
+  const e2eeRef = useRef<E2eeSession | null>(null);
   const audioRef = useRef<BroadcastAudio | null>(null);
   /** Stream enviado ao WebRTC (vídeo + faixa estável do mixer) */
   const streamRef = useRef<MediaStream | null>(null);
@@ -62,14 +66,16 @@ export function useCopresenter(
   /** true entre o clique em Iniciar e a transmissão estar no ar (evita cliques duplos) */
   const startingRef = useRef(false);
 
-  const latest = useRef({ hostId, iceServers, videoConfig, audioSelection, captureSourceId, roomOptions });
-  latest.current = { hostId, iceServers, videoConfig, audioSelection, captureSourceId, roomOptions };
+  const latest = useRef({ hostId, iceServers, videoConfig, audioSelection, captureSourceId, roomOptions, mediaKey });
+  latest.current = { hostId, iceServers, videoConfig, audioSelection, captureSourceId, roomOptions, mediaKey };
 
   const [state, setState] = useState<CopresenterState>(INITIAL_STATE);
 
   const release = useCallback(() => {
     broadcasterRef.current?.destroy();
     broadcasterRef.current = null;
+    e2eeRef.current?.destroy();
+    e2eeRef.current = null;
 
     void audioRef.current?.destroy();
     audioRef.current = null;
@@ -169,11 +175,16 @@ export function useCopresenter(
       const combined = new MediaStream([capture.videoTrack, audio.track]);
       streamRef.current = combined;
 
+      // Sala E2EE: a tela do co-apresentador também sai cifrada com a chave da sala
+      const e2ee = cfg.mediaKey ? new E2eeSession(cfg.mediaKey) : undefined;
+      e2eeRef.current = e2ee ?? null;
+
       // maxViewers 1: o co-apresentador só envia para o host, nunca para outros espectadores
       const broadcaster = new WebRTCBroadcaster(socket, cfg.videoConfig, {
         iceServers: cfg.iceServers,
         privacyMode: false,
         maxViewers: 1,
+        e2ee,
       });
       broadcaster.setLocalStream(combined);
       broadcasterRef.current = broadcaster;

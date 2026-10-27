@@ -9,6 +9,7 @@
 
 import type { Socket } from 'socket.io-client';
 import { WebRTCViewer } from './webrtcService';
+import type { E2eeTransform } from './e2ee';
 import type { CopresenterChangedPayload, IceServerConfig } from '@shared/index';
 
 export interface CopresenterInfo {
@@ -34,6 +35,8 @@ export class CopresenterReceiver {
     private readonly socket: Socket,
     private readonly iceServers: IceServerConfig[],
     private readonly onChange: (snapshot: CopresenterSnapshot) => void,
+    /** Sala E2EE: a tela do co-apresentador chega cifrada com a chave da sala */
+    private readonly e2ee?: E2eeTransform,
   ) {
     socket.on('room:copresenter-joined', this.handleJoined);
     socket.on('room:copresenter-left', this.handleLeft);
@@ -46,7 +49,7 @@ export class CopresenterReceiver {
     const info: CopresenterInfo = { id: data.copresenterId, name: data.name };
     this.current = info;
 
-    const viewer = new WebRTCViewer(this.socket, info.id, this.iceServers);
+    const viewer = new WebRTCViewer(this.socket, info.id, this.iceServers, this.e2ee);
     viewer.onStream((stream) => {
       // Ignora vídeo de uma conexão já substituída ou encerrada
       if (this.destroyed || this.viewer !== viewer) return;

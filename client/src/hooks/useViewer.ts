@@ -5,13 +5,19 @@
  * A lógica de estados fica em viewerReducer.ts e o backoff em utils/reconnector.ts.
  */
 
-import { useReducer, useEffect, useRef, useCallback } from 'react';
+import { useReducer, useEffect, useRef, useCallback, useState } from 'react';
 import { useSocket } from '../services/SocketContext';
 import { WebRTCViewer } from '../services/webrtcService';
 import { detectViewerHwDecode } from '../services/codecSelection';
+import { E2eeSession, isE2eeSupported } from '../services/e2ee';
+import { LowLatencyRenderer } from '../services/lowLatencyRenderer';
+import type { LowLatencyState } from '../services/lowLatencyRenderer';
+import { isLowLatencySupported, readStoredLowLatency, storeLowLatency } from '../utils/lowLatency';
+import { deriveE2eeKeys } from '../utils/e2eeCrypto';
+import type { E2eeKeys } from '../utils/e2eeCrypto';
 import { createReconnector } from '../utils/reconnector';
 import type { Reconnector } from '../utils/reconnector';
-import { viewerReducer, INITIAL_VIEWER_STATE, isPasswordError } from './viewerReducer';
+import { viewerReducer, INITIAL_VIEWER_STATE, isPasswordError, isRemovalError } from './viewerReducer';
 import type {
   StreamStats,
   ViewerQualityPreference,
@@ -19,6 +25,7 @@ import type {
   JoinRoomPayload,
   RoomJoinedPayload,
   RoomErrorPayload,
+  HostResumedPayload,
 } from '@shared/index';
 
 export type { ViewerState } from './viewerReducer';
@@ -61,6 +68,9 @@ function qualityLimits(pref: ViewerQualityPreference): { targetHeight: number | 
 /** Reentradas automáticas quando o vídeo não começa */
 const MAX_STALL_RETRIES = 2;
 
+const E2EE_UNSUPPORTED_MESSAGE =
+  'Esta sala usa criptografia de ponta a ponta, que este navegador não suporta. Use o Chrome, o Edge ou o app para Windows. Por segurança, a transmissão não é exibida sem cifra.';
+
 export function useViewer(roomCode: string | undefined) {
   const { socket } = useSocket();
   const [state, dispatch] = useReducer(viewerReducer, INITIAL_VIEWER_STATE);
@@ -75,10 +85,32 @@ export function useViewer(roomCode: string | undefined) {
   const sendJoinRef = useRef<(() => void) | null>(null);
   /** Reentradas já feitas porque o vídeo não começou (tela preta) */
   const stallRetriesRef = useRef(0);
+  /** Última preferência de qualidade escolhida (reenviada a cada room:joined, inclusive nas reconexões) */
+  const qualityRef = useRef<ViewerQualityPreference>('1080p');
+  /** A sala é E2EE (anunciado pelo servidor no password-required): a senha vira token + chave */
+  const e2eeRoomRef = useRef(false);
+  /** Chaves derivadas da senha digitada; a senha em si não é guardada */
+  const keysRef = useRef<E2eeKeys | null>(null);
+  const e2eeSessionRef = useRef<E2eeSession | null>(null);
+  /** Chave de mídia da sala E2EE (também usada pelo co-apresentador); null em sala comum */
+  const [mediaKey, setMediaKey] = useState<CryptoKey | null>(null);
+
+  // ── Baixa latência (experimental): WebCodecs + canvas WebGL no lugar do <video> ──
+  const lowLatencySupported = isLowLatencySupported();
+  const [lowLatencyEnabled, setLowLatencyEnabled] = useState(() => lowLatencySupported && readStoredLowLatency());
+  const lowLatencyEnabledRef = useRef(lowLatencyEnabled);
+  const rendererRef = useRef<LowLatencyRenderer | null>(null);
+  /** Canvas montado pela página + estado medido pelo worker; null fora do modo */
+  const [lowLatencyView, setLowLatencyView] = useState<{ canvas: HTMLCanvasElement; state: LowLatencyState } | null>(null);
 
   const destroyViewer = useCallback(() => {
     viewerRef.current?.destroy();
     viewerRef.current = null;
+    e2eeSessionRef.current?.destroy();
+    e2eeSessionRef.current = null;
+    rendererRef.current?.destroy();
+    rendererRef.current = null;
+    setLowLatencyView(null);
   }, []);
 
   useEffect(() => {
@@ -113,19 +145,66 @@ export function useViewer(roomCode: string | undefined) {
 
     const onJoined = (data: RoomJoinedPayload) => {
       reconnector.reset();
+
+      // Nunca dois WebRTCViewer ao mesmo tempo
+      destroyViewer();
+
+      // Sala E2EE: sem chave ou sem suporte do navegador, recusa. Nunca assiste em silêncio sem cifra.
+      let e2ee: E2eeSession | undefined;
+      if (data.e2ee) {
+        try {
+          if (!keysRef.current || !isE2eeSupported()) throw new Error(E2EE_UNSUPPORTED_MESSAGE);
+          e2ee = new E2eeSession(keysRef.current.mediaKey);
+          e2eeSessionRef.current = e2ee;
+          setMediaKey(keysRef.current.mediaKey);
+        } catch (err) {
+          sessionRef.current = false;
+          reconnector.cancel();
+          socket.emit('room:leave');
+          dispatch({
+            type: 'error',
+            message: err instanceof Error ? err.message : E2EE_UNSUPPORTED_MESSAGE,
+            code: 'internal',
+            e2ee: true,
+          });
+          return;
+        }
+      } else {
+        setMediaKey(null);
+      }
+
       dispatch({
         type: 'joined',
         viewerCount: data.viewerCount,
         hostId: data.hostId,
         iceServers: data.iceServers,
+        e2ee: Boolean(data.e2ee),
       });
 
-      // Notifica o apresentador da preferência padrão (1080p)
-      socket.emit('stream:quality-request', { ...qualityLimits('1080p'), preference: '1080p' });
+      // Notifica o apresentador da preferência atual (padrão 1080p)
+      const preference = qualityRef.current;
+      socket.emit('stream:quality-request', { ...qualityLimits(preference), preference });
 
-      // Nunca dois WebRTCViewer ao mesmo tempo
-      destroyViewer();
-      const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers);
+      // Modo experimental: se não der para criar o worker, segue com o <video> normal
+      let renderer: LowLatencyRenderer | undefined;
+      if (lowLatencyEnabledRef.current && isLowLatencySupported()) {
+        try {
+          const created: LowLatencyRenderer = new LowLatencyRenderer(
+            (next) => {
+              if (rendererRef.current === created) setLowLatencyView({ canvas: created.canvas, state: next });
+            },
+            // Sala E2EE: o worker de baixa latência decifra o vídeo antes de decodificar
+            data.e2ee ? keysRef.current?.mediaKey : undefined,
+          );
+          renderer = created;
+          rendererRef.current = created;
+          setLowLatencyView({ canvas: created.canvas, state: created.current });
+        } catch (err) {
+          console.warn('[KIARA:viewer] Baixa latência indisponível; usando o <video>:', err);
+        }
+      }
+
+      const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers, e2ee, renderer);
       viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
       // Conexão "ok" mas nenhum frame decodificado = tela preta. Refaz a entrada sozinho (o que o usuário
       // faria à mão: sair e entrar), no máximo MAX_STALL_RETRIES vezes.
@@ -151,7 +230,26 @@ export function useViewer(roomCode: string | undefined) {
       // Qualquer erro encerra o ciclo de reconexão; senha apenas espera o usuário
       reconnector.cancel();
       if (!isPasswordError(data.code)) destroyViewer();
-      dispatch({ type: 'error', message: data.message, code: data.code });
+      // Removido/banido pelo apresentador: encerra a sessão para que nenhuma reconexão reenvie o join
+      if (isRemovalError(data.code)) sessionRef.current = false;
+      if (data.e2ee) {
+        e2eeRoomRef.current = true;
+        // Navegador sem suporte: recusa já, em vez de pedir uma senha que não adiantaria
+        if (!isE2eeSupported()) {
+          sessionRef.current = false;
+          dispatch({ type: 'error', message: E2EE_UNSUPPORTED_MESSAGE, code: 'internal', e2ee: true });
+          return;
+        }
+      }
+      dispatch({ type: 'error', message: data.message, code: data.code, e2ee: data.e2ee });
+    };
+
+    // O apresentador caiu, mas a sala aguarda a volta dele: mantém o vídeo e a sessão
+    const onHostReconnecting = () => dispatch({ type: 'host-reconnecting' });
+
+    const onHostResumed = (data: HostResumedPayload) => {
+      dispatch({ type: 'host-resumed', hostId: data.hostId });
+      viewerRef.current?.setHostId(data.hostId);
     };
 
     const onHostDisconnected = () => {
@@ -181,12 +279,16 @@ export function useViewer(roomCode: string | undefined) {
     socket.on('room:pending-approval', onPendingApproval);
     socket.on('room:error', onError);
     socket.on('room:host-disconnected', onHostDisconnected);
+    socket.on('room:host-reconnecting', onHostReconnecting);
+    socket.on('room:host-resumed', onHostResumed);
     socket.on('stream:stats', onStats);
     socket.on('disconnect', onDisconnect);
     socket.on('connect', onConnect);
 
-    // Entrada automática, com o apelido salvo (se houver)
+    // Entrada automática, com o apelido salvo (se houver). Cada sala começa sem E2EE conhecida.
     credsRef.current = { name: readStoredName() };
+    e2eeRoomRef.current = false;
+    keysRef.current = null;
     sessionRef.current = true;
     dispatch({ type: 'joining' });
     sendJoin();
@@ -197,6 +299,8 @@ export function useViewer(roomCode: string | undefined) {
       socket.off('room:pending-approval', onPendingApproval);
       socket.off('room:error', onError);
       socket.off('room:host-disconnected', onHostDisconnected);
+      socket.off('room:host-reconnecting', onHostReconnecting);
+      socket.off('room:host-resumed', onHostResumed);
       socket.off('stream:stats', onStats);
       socket.off('disconnect', onDisconnect);
       socket.off('connect', onConnect);
@@ -208,22 +312,64 @@ export function useViewer(roomCode: string | undefined) {
     };
   }, [socket, roomCode, destroyViewer]);
 
-  /** (Re)envia a entrada na sala, p. ex. com a senha digitada pelo espectador */
-  const join = useCallback((opts: JoinOptions = {}) => {
+  /**
+   * (Re)envia a entrada na sala, p. ex. com a senha digitada pelo espectador. Em sala E2EE a senha
+   * é derivada aqui (PBKDF2): só o token de entrada vai ao servidor, e a chave de mídia fica na memória.
+   */
+  const join = useCallback(async (opts: JoinOptions = {}) => {
     if (!sendJoinRef.current) return;
-    if (opts.password !== undefined) credsRef.current.password = opts.password;
     if (opts.name !== undefined) {
       credsRef.current.name = opts.name;
       storeName(opts.name);
     }
     sessionRef.current = true;
     dispatch({ type: 'joining' });
-    sendJoinRef.current();
-  }, []);
+
+    if (opts.password !== undefined) {
+      if (e2eeRoomRef.current && roomCode) {
+        try {
+          const keys = await deriveE2eeKeys(opts.password, roomCode);
+          keysRef.current = keys;
+          credsRef.current.password = keys.entryToken;
+        } catch (err) {
+          sessionRef.current = false;
+          dispatch({
+            type: 'error',
+            message: err instanceof Error ? err.message : 'Não foi possível derivar a chave da sala.',
+            code: 'internal',
+            e2ee: true,
+          });
+          return;
+        }
+      } else {
+        credsRef.current.password = opts.password;
+      }
+    }
+    sendJoinRef.current?.();
+  }, [roomCode]);
+
+  /**
+   * Liga ou desliga a baixa latência. O RTCRtpScriptTransform é definido na criação da conexão,
+   * então, com a sessão aberta, a entrada é refeita (o que o usuário faria à mão).
+   */
+  const setLowLatencyMode = useCallback(
+    (enabled: boolean) => {
+      storeLowLatency(enabled);
+      lowLatencyEnabledRef.current = enabled;
+      setLowLatencyEnabled(enabled);
+      if (!sessionRef.current || !viewerRef.current) return;
+      socket?.emit('room:leave');
+      destroyViewer();
+      dispatch({ type: 'joining' });
+      sendJoinRef.current?.();
+    },
+    [socket, destroyViewer],
+  );
 
   /** Define a preferência de resolução individual do espectador */
   const setQuality = useCallback(
     (pref: ViewerQualityPreference) => {
+      qualityRef.current = pref;
       dispatch({ type: 'quality', preference: pref });
       const payload: QualityRequestPayload = { ...qualityLimits(pref), preference: pref };
       socket?.emit('stream:quality-request', payload);
@@ -247,8 +393,17 @@ export function useViewer(roomCode: string | undefined) {
     reconnectorRef.current?.cancel();
     socket?.emit('room:leave');
     destroyViewer();
+    keysRef.current = null;
+    setMediaKey(null);
     dispatch({ type: 'reset' });
   }, [socket, destroyViewer]);
 
-  return { state, leaveRoom, setQuality, join, updateName, storedName: readStoredName() };
+  const lowLatency = {
+    supported: lowLatencySupported,
+    enabled: lowLatencyEnabled,
+    canvas: lowLatencyView?.canvas ?? null,
+    state: lowLatencyView?.state ?? null,
+  };
+
+  return { state, leaveRoom, setQuality, join, updateName, mediaKey, lowLatency, setLowLatencyMode, storedName: readStoredName() };
 }

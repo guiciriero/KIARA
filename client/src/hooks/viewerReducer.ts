@@ -29,10 +29,14 @@ export interface ViewerState {
   /** A sala acabou: apresentador saiu ou as tentativas de reconexão se esgotaram */
   roomClosed: boolean;
   hostDisconnected: boolean;
+  /** O apresentador perdeu a conexão e o servidor aguarda ele voltar (a sala continua aberta) */
+  hostReconnecting: boolean;
   selectedQuality: ViewerQualityPreference;
   /** Socket ID do host (destino do offer WebRTC do co-apresentador) */
   hostId: string | null;
   iceServers: IceServerConfig[];
+  /** A sala usa criptografia de ponta a ponta (descoberto ao pedir a senha ou ao entrar) */
+  e2ee: boolean;
 }
 
 export const INITIAL_VIEWER_STATE: ViewerState = {
@@ -47,9 +51,11 @@ export const INITIAL_VIEWER_STATE: ViewerState = {
   pendingApproval: false,
   roomClosed: false,
   hostDisconnected: false,
+  hostReconnecting: false,
   selectedQuality: '1080p',
   hostId: null,
   iceServers: [],
+  e2ee: false,
 };
 
 export type ViewerAction =
@@ -59,11 +65,14 @@ export type ViewerAction =
       viewerCount: number;
       hostId?: string;
       iceServers?: IceServerConfig[];
+      e2ee?: boolean;
     }
   | { type: 'stream'; stream: MediaStream }
   | { type: 'pending-approval' }
-  | { type: 'error'; message: string; code: RoomErrorCode }
+  | { type: 'error'; message: string; code: RoomErrorCode; e2ee?: boolean }
   | { type: 'host-disconnected' }
+  | { type: 'host-reconnecting' }
+  | { type: 'host-resumed'; hostId: string }
   | { type: 'socket-disconnected' }
   | { type: 'reconnect-exhausted' }
   | { type: 'stats'; stats: StreamStats }
@@ -73,6 +82,11 @@ export type ViewerAction =
 /** Erros em que o espectador fica esperando a senha em vez de falhar */
 export function isPasswordError(code: RoomErrorCode | undefined | null): boolean {
   return code === 'password-required' || code === 'wrong-password';
+}
+
+/** Erros em que o espectador foi barrado pelo apresentador: nunca reentra sozinho */
+export function isRemovalError(code: RoomErrorCode | undefined | null): boolean {
+  return code === 'kicked' || code === 'banned';
 }
 
 export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
@@ -94,6 +108,7 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
         viewerCount: action.viewerCount,
         hostId: action.hostId !== undefined ? action.hostId : state.hostId,
         iceServers: action.iceServers !== undefined ? action.iceServers : state.iceServers,
+        e2ee: action.e2ee ?? state.e2ee,
         connectionState: 'connecting',
         error: null,
         errorCode: null,
@@ -102,6 +117,7 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
         pendingApproval: false,
         roomClosed: false,
         hostDisconnected: false,
+        hostReconnecting: false,
       };
 
     case 'stream':
@@ -115,17 +131,28 @@ export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerS
         ...state,
         error: action.message,
         errorCode: action.code,
+        e2ee: action.e2ee ?? state.e2ee,
         needsPassword: isPasswordError(action.code),
         wrongPassword: action.code === 'wrong-password',
         pendingApproval: false,
+        hostReconnecting: false,
         // Senha pedida/errada: continua 'connecting' esperando o usuário digitar
         connectionState: isPasswordError(action.code) ? 'connecting' : 'failed',
       };
+
+    case 'host-reconnecting':
+      // Sala já encerrada: nada a aguardar. Mantém stream e último frame.
+      if (state.roomClosed) return state;
+      return { ...state, hostReconnecting: true };
+
+    case 'host-resumed':
+      return { ...state, hostReconnecting: false, hostId: action.hostId };
 
     case 'host-disconnected':
       return {
         ...state,
         hostDisconnected: true,
+        hostReconnecting: false,
         roomClosed: true,
         pendingApproval: false,
         connectionState: 'disconnected',

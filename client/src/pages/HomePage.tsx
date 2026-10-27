@@ -10,12 +10,15 @@ import {
 } from '../components/UI/Icons';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import UpdateButton from '../components/UI/UpdateButton';
+import ServerWakeNotice from '../components/UI/ServerWakeNotice';
+import { useServerWake } from '../hooks/useServerWake';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
 import styles from './HomePage.module.css';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { connected } = useSocket();
+  const serverWake = useServerWake();
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState('');
   const [codeInfo, setCodeInfo] = useState('');
@@ -75,6 +78,8 @@ const HomePage: React.FC = () => {
             Compartilhamento de tela direto, sem atrito.
           </h1>
         </div>
+
+        {serverWake.waking && <ServerWakeNotice seconds={serverWake.seconds} />}
 
         {/* ── Grid Minimalista ────────────────────────────────────────────── */}
         <div className={styles.cardsGrid}>

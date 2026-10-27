@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { viewerReducer, INITIAL_VIEWER_STATE, isPasswordError } from './viewerReducer';
+import { viewerReducer, INITIAL_VIEWER_STATE, isPasswordError, isRemovalError } from './viewerReducer';
 import type { ViewerAction, ViewerState } from './viewerReducer';
 
 const run = (actions: ViewerAction[], from: ViewerState = INITIAL_VIEWER_STATE) =>
@@ -29,6 +29,17 @@ describe('viewerReducer', () => {
     expect(s.needsPassword).toBe(false);
     expect(s.wrongPassword).toBe(false);
     expect(s.errorCode).toBe(code);
+  });
+
+  it('e2ee: descoberto pelo password-required, mantido nos erros seguintes e confirmado no joined', () => {
+    const asked = run([{ type: 'joining' }, { type: 'error', message: 'senha', code: 'password-required', e2ee: true }]);
+    expect(asked.e2ee).toBe(true);
+    expect(asked.needsPassword).toBe(true);
+
+    // Um erro sem o campo (ex.: rate-limited) não apaga o que já se sabe da sala
+    expect(run([{ type: 'error', message: 'm', code: 'rate-limited' }], asked).e2ee).toBe(true);
+    expect(run([{ type: 'joined', viewerCount: 1, e2ee: true }], asked).e2ee).toBe(true);
+    expect(run([{ type: 'joined', viewerCount: 1 }]).e2ee).toBe(false);
   });
 
   it('pending-approval liga a espera e é limpo ao entrar ou errar', () => {
@@ -92,5 +103,46 @@ describe('viewerReducer', () => {
     expect(s.stats).toBe(stats);
     s = run([{ type: 'reset' }], s);
     expect(s).toEqual(INITIAL_VIEWER_STATE);
+  });
+});
+
+describe('viewerReducer: queda e retomada do apresentador', () => {
+  it('host-reconnecting liga o aviso sem encerrar a sala nem perder o stream', () => {
+    const stream = {} as MediaStream;
+    const live = run([{ type: 'joined', viewerCount: 1, hostId: 'h1' }, { type: 'stream', stream }]);
+    const s = run([{ type: 'host-reconnecting' }], live);
+    expect(s.hostReconnecting).toBe(true);
+    expect(s.roomClosed).toBe(false);
+    expect(s.remoteStream).toBe(stream);
+    expect(s.connectionState).toBe('connected');
+  });
+
+  it('host-resumed limpa o aviso e atualiza o hostId', () => {
+    const s = run([
+      { type: 'joined', viewerCount: 1, hostId: 'h1' },
+      { type: 'host-reconnecting' },
+      { type: 'host-resumed', hostId: 'h2' },
+    ]);
+    expect(s.hostReconnecting).toBe(false);
+    expect(s.hostId).toBe('h2');
+  });
+
+  it('host-disconnected ainda encerra de fato e limpa o aviso', () => {
+    const s = run([{ type: 'host-reconnecting' }, { type: 'host-disconnected' }]);
+    expect(s.hostReconnecting).toBe(false);
+    expect(s.roomClosed).toBe(true);
+  });
+
+  it('host-reconnecting é ignorado em sala já encerrada', () => {
+    const closed = run([{ type: 'host-disconnected' }]);
+    expect(run([{ type: 'host-reconnecting' }], closed)).toBe(closed);
+  });
+
+  it.each(['kicked', 'banned'] as const)('erro %s ⇒ failed, sem pedir senha', (code) => {
+    const s = run([{ type: 'joining' }, { type: 'error', message: 'm', code }]);
+    expect(s.connectionState).toBe('failed');
+    expect(s.needsPassword).toBe(false);
+    expect(s.errorCode).toBe(code);
+    expect(isRemovalError(code)).toBe(true);
   });
 });

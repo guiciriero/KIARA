@@ -1,0 +1,55 @@
+@keyframes wakeSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(320px, 100%);
+  text-align: center;
+}
+
+.text {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--kiara-text);
+}
+
+.track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--kiara-surface-active);
+}
+
+.bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: var(--radius-full);
+  background: var(--kiara-text-strong);
+}
+
+.seconds {
+  font-size: 0.72rem;
+  color: var(--kiara-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar {
+    animation: wakeSlide 1.4s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    width: 100%;
+    opacity: 0.5;
+  }
+}

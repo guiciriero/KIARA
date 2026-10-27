@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import type { StreamStats } from '@shared/index';
+import type { StatsSample } from '../../utils/statsHistory';
 import { IconActivity } from './Icons';
+import Sparkline from './Sparkline';
 import styles from './StatsOverlay.module.css';
 
 interface Props {
   stats: StreamStats;
   /** FPS-alvo configurado (para mostrar % de atingimento) */
   targetFps?: number;
+  /** Últimos 30 s de amostras (ver `useStatsHistory`); sem isso os gráficos não aparecem */
+  history?: readonly StatsSample[];
 }
 
 const QUALITY_CONFIG: Record<
@@ -32,7 +36,7 @@ function fpsColor(fps: number, target: number): string {
   return '#f43f5e';                            // < 75% → vermelho
 }
 
-const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60 }) => {
+const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
   const [minimized, setMinimized] = useState(false);
   const quality = QUALITY_CONFIG[stats.connectionQuality] || QUALITY_CONFIG.good;
   const limitation = LIMIT_LABELS[stats.qualityLimitation];
@@ -171,6 +175,51 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60 }) => {
           </div>
         )}
       </div>
+
+      {history && (
+        <div className={styles.charts} aria-label="Histórico dos últimos 30 segundos">
+          <Sparkline
+            label="Latência RTT"
+            unit="ms"
+            values={history.map((s) => s.latencyMs)}
+            times={history.map((s) => s.t)}
+            scaleMax={100}
+            reference={100}
+            referenceLabel="limite recomendado"
+            color={stats.latencyMs < 100 ? '#10b981' : '#f59e0b'}
+          />
+          <Sparkline
+            label="FPS real"
+            unit={`/ ${targetFps}`}
+            values={history.map((s) => s.fps)}
+            times={history.map((s) => s.t)}
+            scaleMax={targetFps}
+            reference={targetFps}
+            referenceLabel="FPS nominal"
+            color={fpsColor(stats.fps, targetFps)}
+          />
+          <Sparkline
+            label="Bitrate"
+            unit="Mbps"
+            values={history.map((s) => s.videoBitrate / 1000)}
+            times={history.map((s) => s.t)}
+            scaleMax={1}
+            color="#60a5fa"
+            decimals={1}
+          />
+          <Sparkline
+            label="Perda"
+            unit="%"
+            values={history.map((s) => s.lossPercent)}
+            times={history.map((s) => s.t)}
+            scaleMax={5}
+            reference={2}
+            referenceLabel="limite de alerta"
+            color={stats.lossPercent > 2 ? '#f43f5e' : '#10b981'}
+            decimals={1}
+          />
+        </div>
+      )}
     </div>
   );
 };

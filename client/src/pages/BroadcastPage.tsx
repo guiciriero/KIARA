@@ -19,50 +19,20 @@ import {
   isPictureInPictureSupported,
   togglePictureInPicture,
 } from '../utils/pip';
-import {
-  KiaraLogo,
-  IconArrowLeft,
-  IconUsers,
-  IconScreen,
-  IconAlertTriangle,
-  IconEye,
-  IconEyeOff,
-  IconCopy,
-  IconCheck,
-  IconBroadcast,
-  IconPause,
-  IconPlay,
-  IconStop,
-  IconSettings,
-  IconActivity,
-  IconFullscreen,
-  IconExitFullscreen,
-  IconVolumeHigh,
-  IconVolumeMute,
-  IconPictureInPicture,
-  IconX,
-} from '../components/UI/Icons';
-import StreamControls from '../components/Controls/StreamControls';
-import AudioSourceList from '../components/Controls/AudioSourceList';
-import CaptureSourcePicker from '../components/Controls/CaptureSourcePicker';
-import VideoConfigPanel from '../components/Controls/VideoConfigPanel';
-import RoomOptionsPanel, {
-  isRoomPasswordValid,
-  type RoomOptionsValue,
-} from '../components/Controls/RoomOptionsPanel';
+import { IconAlertTriangle, IconBroadcast } from '../components/UI/Icons';
+import BroadcastTopBar from '../components/Broadcast/BroadcastTopBar';
+import RoomAccessPanel from '../components/Broadcast/RoomAccessPanel';
+import StudioConfigPanel from '../components/Broadcast/StudioConfigPanel';
+import HostFeed from '../components/Broadcast/HostFeed';
+import HostControlBar from '../components/Broadcast/HostControlBar';
+import StagePlaceholder from '../components/Broadcast/StagePlaceholder';
+import { isRoomPasswordValid, isRoomE2eeValid, type RoomOptionsValue } from '../components/Controls/RoomOptionsPanel';
 import StatsOverlay from '../components/UI/StatsOverlay';
-import ConnectionBadge from '../components/UI/ConnectionBadge';
-import JoinRequestsPanel from '../components/UI/JoinRequestsPanel';
-import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
-import LiveScene from '../components/UI/PixelShihTzu/LiveScene';
+import { useStatsHistory } from '../hooks/useStatsHistory';
+import QrCode from '../components/UI/QrCode';
+import { useRecorder } from '../hooks/useRecorder';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
-import {
-  clampMiniWidth,
-  parseStoredMiniWidth,
-  MINI_MAX_WIDTH,
-  MINI_MIN_WIDTH,
-  MINI_STEP,
-} from '../utils/miniPlayer';
+import { clampMiniWidth, parseStoredMiniWidth } from '../utils/miniPlayer';
 import styles from './BroadcastPage.module.css';
 // Barra flutuante e botões do player: as mesmas classes do espectador, para os dois ficarem idênticos
 import viewerStyles from './ViewerPage.module.css';
@@ -89,12 +59,14 @@ const BroadcastPage: React.FC = () => {
     password: '',
     requireApproval: false,
     privacyMode: false,
+    e2ee: false,
   });
   const createRoomOptions = useMemo<CreateRoomPayload>(() => {
     const options: CreateRoomPayload = {};
     if (roomOptions.password) options.password = roomOptions.password;
     if (roomOptions.requireApproval) options.requireApproval = true;
     if (roomOptions.privacyMode) options.privacyMode = true;
+    if (roomOptions.e2ee) options.e2ee = true;
     return options;
   }, [roomOptions]);
 
@@ -175,15 +147,20 @@ const BroadcastPage: React.FC = () => {
     changeCaptureSource,
     updateVideoConfig,
     respondJoin,
+    kickViewer,
+    getCombinedStream,
   } = useBroadcast(videoConfig, audioSelection, captureSourceId, createRoomOptions);
+  const statsHistory = useStatsHistory(state.stats);
+  const [showQr, setShowQr] = useState(false);
+  const recorder = useRecorder(getCombinedStream, state.isSharing);
 
   const { socket } = useSocket();
-  const copresenter = useCopresenterStream(socket, state.isSharing, state.iceServers);
+  const copresenter = useCopresenterStream(socket, state.isSharing, state.iceServers, state.e2ee);
   const copresenterStream = copresenter.stream;
   const hasCopresenterVideo = copresenterStream !== null;
   /** Retorno local vira miniplayer assim que há tela de co-apresentador no player principal */
   const hostIsMini = hasCopresenterVideo;
-  const passwordValid = isRoomPasswordValid(roomOptions.password);
+  const passwordValid = isRoomPasswordValid(roomOptions.password) && isRoomE2eeValid(roomOptions);
   const privacyIgnored = state.isSharing && roomOptions.privacyMode && !state.privacyMode;
 
   const captureSupported = isDisplayCaptureSupported() || window.screenShareHost !== undefined;
@@ -363,227 +340,52 @@ const BroadcastPage: React.FC = () => {
       )}
 
       {/* ── Barra Superior de Estúdio ────────────────────────────────────── */}
-      <header className={`${styles.topBar} ${state.isSharing ? styles.topBarLive : ''}`}>
-        <div className={styles.topBarLeft}>
-          <button
-            type="button"
-            className={styles.backBtn}
-            onClick={() => navigate('/')}
-            title="Voltar para a página inicial"
-          >
-            <IconArrowLeft size={16} />
-            <span>Voltar</span>
-          </button>
-          <div className={styles.divider} />
-          <KiaraLogo size={24} withText />
-          <span className={styles.studioBadge}>Estúdio do Host</span>
-        </div>
-
-        {/* Durante a transmissão: Shih Tzu pedalando e alimentando o computador "LIVE ON" */}
-        {state.isSharing && <LiveScene scale={2} className={styles.liveScene} />}
-
-        <div className={styles.topBarRight}>
-          <button
-            type="button"
-            className={`${styles.settingsToggle} ${!isSettingsVisible ? styles.settingsToggleOff : ''}`}
-            onClick={toggleSettings}
-            aria-expanded={isSettingsVisible}
-            aria-controls="studio-room-panel studio-config-panel"
-            title={isSettingsVisible ? 'Ocultar abas laterais (S)' : 'Exibir abas laterais (S)'}
-          >
-            <IconSettings size={15} />
-            <span>{isSettingsVisible ? 'Ocultar Painéis' : 'Exibir Painéis'}</span>
-          </button>
-
-          <ConnectionBadge state={state.connectionState} />
-
-          {state.isSharing && (
-            <div className={styles.viewersCountPill}>
-              <IconUsers size={15} />
-              <span>
-                <strong>{state.viewerCount}</strong>
-                {state.maxViewers > 0 ? ` de ${state.maxViewers}` : ''}{' '}
-                espectador{state.viewerCount !== 1 ? 'es' : ''}
-              </span>
-            </div>
-          )}
-        </div>
-      </header>
+      <BroadcastTopBar
+        isSharing={state.isSharing}
+        connectionState={state.connectionState}
+        viewerCount={state.viewerCount}
+        maxViewers={state.maxViewers}
+        isSettingsVisible={isSettingsVisible}
+        onToggleSettings={toggleSettings}
+        onBack={() => navigate('/')}
+      />
 
       {/* ── Conteúdo Principal do Estúdio ───────────────────────────────── */}
       <div className={`${styles.bodyLayout} ${!isSettingsVisible ? styles.settingsHidden : ''}`}>
 
         {/* ── Painel Esquerdo: Acesso à Sala ─────────────────────────────── */}
-        <aside
-          id="studio-room-panel"
-          className={styles.sidebarRoom}
-          aria-label="Sala e transmissão"
-        >
-          <div className={styles.sidebarInner}>
-
-          {/* Seção: Controles de transmissão */}
-          <div className={styles.panelSection}>
-            <StreamControls
-              isSharing={state.isSharing}
-              isPaused={state.isPaused}
-              previewAtivo={previewAtivo}
-              onStart={handleStart}
-              startDisabled={!captureSupported}
-              onStop={stopSharing}
-              onTogglePause={togglePause}
-              onTogglePreview={togglePreview}
-            />
-
-            {!captureSupported && (
-              <div className={styles.errorBox} role="alert">
-                <IconAlertTriangle size={16} className={styles.errorIcon} />
-                <span>
-                  Este aparelho não consegue compartilhar a tela pelo navegador. Para transmitir, use
-                  um computador (Chrome, Edge ou Firefox) ou o app para Windows.
-                </span>
-              </div>
-            )}
-
-            {!passwordValid && !state.isSharing && (
-              <div className={styles.errorBox} role="alert">
-                <IconAlertTriangle size={16} className={styles.errorIcon} />
-                <span>Corrija a senha da sala antes de iniciar.</span>
-              </div>
-            )}
-
-            {state.error && (
-              <div className={styles.errorBox} role="alert">
-                <IconAlertTriangle size={16} className={styles.errorIcon} />
-                <span>{state.error}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Seção: Link Fixo da Sala (pré e pós-transmissão) */}
-          <div className={styles.panelSection}>
-            <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>Acesso à Sala</span>
-              {state.isSharing ? (
-                <span className={styles.statusLive}>
-                  <span className={styles.liveDotSmall} />
-                  Ao Vivo
-                </span>
-              ) : (
-                <span className={styles.statusOffline}>Aguardando</span>
-              )}
-            </div>
-
-            <div className={styles.permanentLinkCard}>
-              <div className={styles.permanentLinkMeta}>
-                <span className={styles.permanentBadge}>Link Fixo</span>
-              </div>
-
-              <div className={styles.codeDisplay}>
-                <span className={styles.codeDisplayText}>{displayCode}</span>
-              </div>
-
-              <div className={styles.urlCopyRow}>
-                <span className={styles.urlDisplayShort} title={displayUrl}>
-                  {displayUrl.replace(/^https?:\/\//, '')}
-                </span>
-                <button
-                  type="button"
-                  className={`${styles.copyLinkBtn} ${copiedLink ? styles.copyLinkBtnCopied : ''}`}
-                  onClick={() => void handleCopyLink()}
-                  aria-label="Copiar link da sala"
-                >
-                  {copiedLink ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                  <span>{copiedLink ? 'Copiado!' : 'Copiar'}</span>
-                </button>
-              </div>
-
-              {!state.isSharing && (
-                <p className={styles.permanentNote}>
-                  Este link é sempre o mesmo e já pode ser compartilhado. Os espectadores verão uma tela de espera até você iniciar.
-                </p>
-              )}
-            </div>
-
-            {/* Selos da sala e avisos (ao vivo) */}
-            {state.isSharing && (
-              <>
-                <div className={styles.roomBadges}>
-                  <span className={styles.roomBadge}>
-                    {state.hasPassword ? 'Protegida por senha' : 'Sem senha'}
-                  </span>
-                  {state.requireApproval && <span className={styles.roomBadge}>Aprovação manual</span>}
-                  {state.privacyMode && <span className={styles.roomBadge}>Modo privacidade</span>}
-                </div>
-
-                {privacyIgnored && (
-                  <div className={styles.tunnelWarning} role="status">
-                    <IconAlertTriangle size={16} />
-                    <span>Modo privacidade não ativado: servidor sem TURN. IP pode ficar visível.</span>
-                  </div>
-                )}
-                {tunnelDown && (
-                  <div className={styles.tunnelWarning} role="status">
-                    <IconAlertTriangle size={16} />
-                    <span>Túnel público indisponível: link funciona apenas na mesma rede local.</span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Seção: Contagem de espectadores + pedidos de entrada (ao vivo) */}
-          {state.isSharing && (
-            <div className={styles.panelSection}>
-              <JoinRequestsPanel requests={state.pendingRequests} onRespond={respondJoin} />
-            </div>
-          )}
-
-          {/* Seção: Configurações da Sala */}
-          <RoomOptionsPanel
-            value={roomOptions}
-            onChange={handleRoomOptionsChange}
-            disabled={state.isSharing}
-          />
-
-          </div>
-        </aside>
+        <RoomAccessPanel
+          state={state}
+          previewAtivo={previewAtivo}
+          captureSupported={captureSupported}
+          passwordValid={passwordValid}
+          privacyIgnored={privacyIgnored}
+          tunnelDown={tunnelDown}
+          displayCode={displayCode}
+          displayUrl={displayUrl}
+          copiedLink={copiedLink}
+          roomOptions={roomOptions}
+          onRoomOptionsChange={handleRoomOptionsChange}
+          onStart={handleStart}
+          onStop={stopSharing}
+          onTogglePause={togglePause}
+          onTogglePreview={togglePreview}
+          onCopyLink={() => void handleCopyLink()}
+          onShowQr={() => setShowQr(true)}
+          onRespondJoin={respondJoin}
+          onKickViewer={kickViewer}
+        />
+        {showQr && <QrCode value={displayUrl} onClose={() => setShowQr(false)} />}
 
         {/* ── Painel Direito: Configurações de Transmissão ──────────────── */}
-        <aside
-          id="studio-config-panel"
-          className={styles.sidebarConfig}
-          aria-label="Configurações de transmissão"
-        >
-          <div className={styles.sidebarInner}>
-
-          {/* Configurações de Qualidade de Vídeo */}
-          <VideoConfigPanel
-            config={videoConfig}
-            onChange={handleVideoConfigChange}
-            isSharing={state.isSharing}
-          />
-          {/* Seletor de Tela/Janela (Desktop Electron) */}
-          {audioHook.isDesktop && (
-            <CaptureSourcePicker
-              selectedId={captureSourceId}
-              onSelect={handleSelectSource}
-              isSharing={state.isSharing}
-            />
-          )}
-
-          {/* Fontes de Áudio por Processo */}
-          <AudioSourceList
-            sources={audioHook.sources}
-            selected={audioHook.selected}
-            loading={audioHook.loading}
-            onToggle={audioHook.toggleSource}
-            onVolumeChange={audioHook.setVolume}
-            onMuteToggle={audioHook.toggleMute}
-            onRefresh={audioHook.refreshSources}
-            webMode={!audioHook.isDesktop}
-          />
-          </div>
-        </aside>
+        <StudioConfigPanel
+          videoConfig={videoConfig}
+          onVideoConfigChange={handleVideoConfigChange}
+          isSharing={state.isSharing}
+          audio={audioHook}
+          captureSourceId={captureSourceId}
+          onSelectSource={handleSelectSource}
+        />
 
         {/* ── Área Central: palco no padrão do player do espectador ─────── */}
         <main className={styles.mainArea}>
@@ -602,65 +404,15 @@ const BroadcastPage: React.FC = () => {
                 )}
 
                 {/* Retorno local: ocupa o palco todo ou vira miniplayer flutuante (PiP) */}
-                <div
-                  className={[
-                    styles.hostFeed,
-                    hostIsMini ? styles.hostFeedMini : '',
-                    hostIsMini && !miniVisible ? styles.hostFeedHidden : '',
-                  ].join(' ')}
-                  style={hostIsMini ? ({ '--mini-w': `min(${miniWidth}px, 60vw)` } as React.CSSProperties) : undefined}
-                  aria-label={hostIsMini ? 'Sua transmissão (miniplayer)' : 'Sua transmissão'}
-                  aria-hidden={hostIsMini && !miniVisible}
-                >
-                  <video
-                    ref={previewRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    className={previewAtivo ? styles.previewVideo : styles.previewVideoOculto}
-                  />
-                  {!previewAtivo && (
-                    <div className={styles.previewDesabilitado}>
-                      <IconEyeOff size={hostIsMini ? 20 : 32} />
-                      {!hostIsMini && <span>Retorno de tela desabilitado</span>}
-                    </div>
-                  )}
-                  {hostIsMini && <span className={styles.miniLabel}>Você</span>}
-
-                  {hostIsMini && (
-                    <div className={styles.miniControls} role="group" aria-label="Miniplayer">
-                      <button
-                        type="button"
-                        className={styles.miniBtn}
-                        onClick={() => resizeMini(-MINI_STEP * 2)}
-                        disabled={miniWidth <= MINI_MIN_WIDTH}
-                        title="Diminuir miniplayer"
-                        aria-label="Diminuir miniplayer"
-                      >
-                        <span aria-hidden="true">−</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.miniBtn}
-                        onClick={() => resizeMini(MINI_STEP * 2)}
-                        disabled={miniWidth >= MINI_MAX_WIDTH}
-                        title="Aumentar miniplayer"
-                        aria-label="Aumentar miniplayer"
-                      >
-                        <span aria-hidden="true">+</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.miniBtn}
-                        onClick={toggleMini}
-                        title="Ocultar miniplayer"
-                        aria-label="Ocultar miniplayer"
-                      >
-                        <IconX size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <HostFeed
+                  previewRef={previewRef}
+                  previewAtivo={previewAtivo}
+                  isMini={hostIsMini}
+                  miniVisible={miniVisible}
+                  miniWidth={miniWidth}
+                  onResizeMini={resizeMini}
+                  onToggleMini={toggleMini}
+                />
 
                 {/* Avisos flutuantes sobre o palco */}
                 <div className={styles.previewOverlayTop}>
@@ -687,185 +439,46 @@ const BroadcastPage: React.FC = () => {
                   )}
                 </div>
 
-                {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} />}
+                {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} history={statsHistory} />}
 
                 {/* ── Barra flutuante: controles essenciais sempre acessíveis ── */}
-                <footer className={`${viewerStyles.bottomBar} ${styles.hostBar}`}>
-                  <div className={viewerStyles.bottomBarLeft}>
-                    <div className={viewerStyles.liveIndicator}>
-                      <span className={viewerStyles.liveDot} />
-                      <span>AO VIVO</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      className={`${viewerStyles.iconBtn} ${state.isPaused ? viewerStyles.activeBtn : ''}`}
-                      onClick={togglePause}
-                      title={state.isPaused ? 'Retomar transmissão de tela' : 'Pausar transmissão momentaneamente'}
-                      aria-label={state.isPaused ? 'Retomar transmissão' : 'Pausar transmissão'}
-                      aria-pressed={state.isPaused}
-                    >
-                      {state.isPaused ? <IconPlay size={18} /> : <IconPause size={18} />}
-                    </button>
-
-                    <button
-                      type="button"
-                      className={styles.stopBtn}
-                      onClick={stopSharing}
-                      title="Encerrar transmissão e fechar sala"
-                      aria-label="Encerrar transmissão"
-                    >
-                      <IconStop size={16} />
-                      <span>Encerrar</span>
-                    </button>
-                  </div>
-
-                  <div className={viewerStyles.bottomBarRight}>
-                    <button
-                      type="button"
-                      className={`${viewerStyles.iconBtn} ${copiedLink ? viewerStyles.activeBtn : ''}`}
-                      onClick={() => void handleCopyLink()}
-                      title="Copiar link fixo da sala"
-                      aria-label="Copiar link da sala"
-                    >
-                      {copiedLink ? <IconCheck size={18} /> : <IconCopy size={18} />}
-                    </button>
-
-                    <button
-                      type="button"
-                      className={viewerStyles.iconBtn}
-                      onClick={togglePreview}
-                      title={previewAtivo ? 'Ocultar retorno de tela' : 'Exibir retorno de tela'}
-                      aria-label={previewAtivo ? 'Ocultar retorno de tela' : 'Exibir retorno de tela'}
-                      aria-pressed={!previewAtivo}
-                    >
-                      {previewAtivo ? <IconEyeOff size={18} /> : <IconEye size={18} />}
-                    </button>
-
-                    {!audioHook.isDesktop && (
-                      <button
-                        type="button"
-                        className={viewerStyles.iconBtn}
-                        onClick={() => { void handleWebChangeScreen(); }}
-                        title="Alternar para outra tela ou janela sem parar a transmissão"
-                        aria-label="Trocar tela ou janela"
-                      >
-                        <IconScreen size={18} />
-                      </button>
-                    )}
-
-                    {hasCopresenterVideo && (
-                      <button
-                        type="button"
-                        className={`${viewerStyles.iconBtn} ${miniVisible ? viewerStyles.activeBtn : ''}`}
-                        onClick={toggleMini}
-                        title={miniVisible ? 'Ocultar miniplayer da sua tela' : 'Exibir miniplayer da sua tela'}
-                        aria-label={miniVisible ? 'Ocultar miniplayer da sua tela' : 'Exibir miniplayer da sua tela'}
-                        aria-pressed={miniVisible}
-                      >
-                        <IconPictureInPicture size={18} />
-                      </button>
-                    )}
-
-                    {pipSupported && (
-                      <button
-                        type="button"
-                        className={`${viewerStyles.iconBtn} ${isNativePip ? viewerStyles.activeBtn : ''}`}
-                        onClick={() => void handleToggleNativePip()}
-                        title={isNativePip ? 'Sair de janela flutuante (PiP) (P)' : 'Assistir em janela flutuante (PiP) (P)'}
-                        aria-label={isNativePip ? 'Sair do Picture-in-Picture' : 'Assistir em janela flutuante Picture-in-Picture'}
-                        aria-keyshortcuts="P"
-                        aria-pressed={isNativePip}
-                      >
-                        <IconPictureInPicture size={18} />
-                      </button>
-                    )}
-
-                    {hasCopresenterVideo && (
-                      <button
-                        type="button"
-                        className={viewerStyles.iconBtn}
-                        onClick={() => setCopresenterMuted((m) => !m)}
-                        title={copresenterMuted ? 'Ouvir o co-apresentador' : 'Silenciar o co-apresentador'}
-                        aria-label={copresenterMuted ? 'Ouvir o co-apresentador' : 'Silenciar o co-apresentador'}
-                        aria-pressed={!copresenterMuted}
-                      >
-                        {copresenterMuted ? <IconVolumeMute size={18} /> : <IconVolumeHigh size={18} />}
-                      </button>
-                    )}
-
-                    {state.stats && (
-                      <button
-                        type="button"
-                        className={`${viewerStyles.iconBtn} ${showStats ? viewerStyles.activeBtn : ''}`}
-                        onClick={() => setShowStats((v) => !v)}
-                        title="Exibir telemetria e latência"
-                        aria-label="Telemetria da transmissão"
-                        aria-pressed={showStats}
-                      >
-                        <IconActivity size={18} />
-                      </button>
-                    )}
-
-                    {fullscreenSupported && (
-                      <button
-                        type="button"
-                        className={viewerStyles.iconBtn}
-                        onClick={() => void handleToggleFullscreen()}
-                        title={isFullscreen ? 'Sair de tela cheia (F)' : 'Tela cheia (F)'}
-                        aria-label={isFullscreen ? 'Sair de tela cheia' : 'Tela cheia'}
-                        aria-keyshortcuts="F"
-                      >
-                        {isFullscreen ? <IconExitFullscreen size={18} /> : <IconFullscreen size={18} />}
-                      </button>
-                    )}
-                  </div>
-                </footer>
+                <HostControlBar
+                  isPaused={state.isPaused}
+                  isRecording={recorder.isRecording}
+                  elapsed={recorder.elapsed}
+                  recorderError={recorder.error}
+                  copiedLink={copiedLink}
+                  previewAtivo={previewAtivo}
+                  isDesktop={audioHook.isDesktop}
+                  hasCopresenterVideo={hasCopresenterVideo}
+                  miniVisible={miniVisible}
+                  pipSupported={pipSupported}
+                  isNativePip={isNativePip}
+                  copresenterMuted={copresenterMuted}
+                  hasStats={Boolean(state.stats)}
+                  showStats={showStats}
+                  fullscreenSupported={fullscreenSupported}
+                  isFullscreen={isFullscreen}
+                  onTogglePause={togglePause}
+                  onToggleRecording={() => (recorder.isRecording ? void recorder.stop() : recorder.start())}
+                  onStop={stopSharing}
+                  onCopyLink={() => void handleCopyLink()}
+                  onTogglePreview={togglePreview}
+                  onChangeScreen={() => { void handleWebChangeScreen(); }}
+                  onToggleMini={toggleMini}
+                  onTogglePip={() => void handleToggleNativePip()}
+                  onToggleCopresenterMuted={() => setCopresenterMuted((m) => !m)}
+                  onToggleStats={() => setShowStats((v) => !v)}
+                  onToggleFullscreen={() => void handleToggleFullscreen()}
+                />
               </>
             ) : (
-              <div className={styles.placeholderState}>
-                <PixelShihTzu pose="idle" scale={6} speech="Tudo pronto para entrar ao vivo! 🐾" />
-                <h3>Pronto para transmitir</h3>
-                <p>
-                  Configure a qualidade no painel direito e clique em{' '}
-                  <strong>Iniciar Transmissão</strong>.
-                </p>
-                <div className={styles.placeholderSteps}>
-                  <div className={styles.step}>
-                    <span className={styles.stepNum}>1</span>
-                    <span>Escolha tela ou janela</span>
-                  </div>
-                  <div className={styles.step}>
-                    <span className={styles.stepNum}>2</span>
-                    <span>Defina a qualidade</span>
-                  </div>
-                  <div className={styles.step}>
-                    <span className={styles.stepNum}>3</span>
-                    <span>Compartilhe o link</span>
-                  </div>
-                </div>
-
-                {/* Com os painéis ocultos, o início da transmissão continua à mão */}
-                {!isSettingsVisible && (
-                  <>
-                    <button
-                      type="button"
-                      className={styles.placeholderStart}
-                      onClick={handleStart}
-                      disabled={!captureSupported || !passwordValid}
-                    >
-                      <IconBroadcast size={18} />
-                      <span>Iniciar Transmissão</span>
-                    </button>
-                    {state.error && (
-                      <div className={styles.errorBox} role="alert">
-                        <IconAlertTriangle size={16} className={styles.errorIcon} />
-                        <span>{state.error}</span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              <StagePlaceholder
+                isSettingsVisible={isSettingsVisible}
+                startDisabled={!captureSupported || !passwordValid}
+                error={state.error}
+                onStart={handleStart}
+              />
             )}
           </div>
         </main>

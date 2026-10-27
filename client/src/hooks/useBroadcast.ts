@@ -18,8 +18,18 @@ import { BroadcastAudio } from '../services/broadcastAudio';
 import type { AudioSelectionItem } from '../services/broadcastAudio';
 import { addJoinRequest, removeJoinRequest } from '../utils/joinRequests';
 import { isCancellation, toMediaError, getErrorMessage } from '../services/mediaError';
-import { getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
+import { getOrCreatePermanentRoomCode, savePermanentRoomCode } from '../utils/permanentRoom';
+import { deriveE2eeKeys } from '../utils/e2eeCrypto';
+import type { E2eeKeys } from '../utils/e2eeCrypto';
+import { E2eeSession, isE2eeSupported } from '../services/e2ee';
+import { addViewer, removeViewer, renameViewer } from '../utils/viewerList';
+import type { ViewerItem } from '../utils/viewerList';
 import type {
+  KickViewerPayload,
+  ResumeRoomPayload,
+  RoomResumedPayload,
+  ViewerJoinedPayload,
+  ViewerRenamedPayload,
   VideoConfig,
   StreamStats,
   ConnectionState,
@@ -59,9 +69,16 @@ export interface BroadcastState {
   pendingRequests: JoinRequestPayload[];
   /** Servidores ICE da sala; reutilizados para receber a tela do co-apresentador */
   iceServers: IceServerConfig[];
+  /** Espectadores conectados (id + apelido) */
+  viewers: ViewerItem[];
+  /** O código fixo pedido estava em uso e o servidor gerou outro */
+  codeChanged: boolean;
+  /** Sessão de criptografia de ponta a ponta (null = sala sem E2EE); reutilizada para receber o co-apresentador */
+  e2ee: E2eeSession | null;
 }
 
 const ROOM_TIMEOUT_MS = 8000;
+const RESUME_TIMEOUT_MS = 10000;
 const NO_ICE_SERVERS: IceServerConfig[] = [];
 
 const INITIAL_STATE: BroadcastState = {
@@ -73,6 +90,7 @@ const INITIAL_STATE: BroadcastState = {
   maxViewers: 0, hasPassword: false, requireApproval: false, privacyMode: false,
   pendingRequests: [],
   iceServers: NO_ICE_SERVERS,
+  viewers: [], codeChanged: false, e2ee: null,
 };
 
 type AppSocket = NonNullable<ReturnType<typeof useSocket>['socket']>;
@@ -97,6 +115,42 @@ function requestRoom(socket: AppSocket, options?: CreateRoomPayload): Promise<Ro
   });
 }
 
+/**
+ * Cria a sala. Em sala E2EE, a senha digitada NUNCA vai ao servidor: ela vira um token de entrada
+ * (campo `password`) e uma chave de mídia que fica só aqui. O sal da derivação inclui o código da
+ * sala; se o servidor atribuir outro código, a derivação é refeita com ele.
+ */
+async function createRoomWithKeys(
+  socket: AppSocket,
+  options: CreateRoomPayload | undefined,
+  initialCode: string,
+): Promise<{ room: RoomCreatedPayload; keys: E2eeKeys | null }> {
+  const wantsE2ee = Boolean(options?.e2ee);
+  if (!wantsE2ee) {
+    return { room: await requestRoom(socket, { ...options, preferredCode: initialCode }), keys: null };
+  }
+  if (!options?.password) throw new Error('A criptografia de ponta a ponta exige uma senha.');
+  if (!isE2eeSupported()) {
+    throw new Error('Este navegador não suporta criptografia de ponta a ponta. Use o Chrome, o Edge ou o app para Windows.');
+  }
+
+  let code = initialCode;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const keys = await deriveE2eeKeys(options.password, code);
+    const room = await requestRoom(socket, { ...options, password: keys.entryToken, preferredCode: code });
+    // Fail-closed: sem confirmação do servidor a sala não seria E2EE de fato
+    if (!room.e2ee) {
+      socket.emit('room:leave');
+      throw new Error('O servidor não confirmou a criptografia de ponta a ponta. A transmissão não foi iniciada.');
+    }
+    if (!room.codeChanged) return { room, keys };
+    socket.emit('room:leave');
+    code = room.code;
+    savePermanentRoomCode(code);
+  }
+  throw new Error('Não foi possível reservar o código da sala. Tente novamente.');
+}
+
 export function useBroadcast(
   videoConfig: VideoConfig,
   audioSelection: AudioSelectionItem[],
@@ -116,12 +170,18 @@ export function useBroadcast(
   selectionRef.current = audioSelection;
   const roomOptionsRef = useRef(roomOptions);
   roomOptionsRef.current = roomOptions;
+  /** Credenciais da sala ativa: só em memória (nunca localStorage, logs ou URL) */
+  const credentialsRef = useRef<ResumeRoomPayload | null>(null);
+  const e2eeRef = useRef<E2eeSession | null>(null);
 
   const [state, setState] = useState<BroadcastState>(INITIAL_STATE);
 
   const release = useCallback(() => {
+    credentialsRef.current = null;
     broadcasterRef.current?.destroy();
     broadcasterRef.current = null;
+    e2eeRef.current?.destroy();
+    e2eeRef.current = null;
 
     void audioRef.current?.destroy();
     audioRef.current = null;
@@ -159,15 +219,23 @@ export function useBroadcast(
 
   useEffect(() => {
     if (!socket) return;
-    const onJoined = (data: { viewerCount: number }) => {
-      setState((s) => ({ ...s, viewerCount: data.viewerCount }));
+    const onJoined = (data: ViewerJoinedPayload) => {
+      setState((s) => ({
+        ...s,
+        viewerCount: data.viewerCount,
+        viewers: addViewer(s.viewers, { id: data.viewerId, name: data.name }),
+      }));
     };
     const onLeft = (data: { viewerId?: string; viewerCount: number }) => {
       setState((s) => ({
         ...s,
         viewerCount: data.viewerCount,
+        viewers: removeViewer(s.viewers, data.viewerId),
         pendingRequests: removeJoinRequest(s.pendingRequests, data.viewerId),
       }));
+    };
+    const onRenamed = (data: ViewerRenamedPayload) => {
+      setState((s) => ({ ...s, viewers: renameViewer(s.viewers, data.viewerId, data.name) }));
     };
     const onJoinRequest = (req: JoinRequestPayload) => {
       setState((s) => ({ ...s, pendingRequests: addJoinRequest(s.pendingRequests, req) }));
@@ -180,11 +248,13 @@ export function useBroadcast(
     };
     socket.on('room:viewer-joined', onJoined);
     socket.on('room:viewer-left', onLeft);
+    socket.on('room:viewer-renamed', onRenamed);
     socket.on('room:join-request', onJoinRequest);
     socket.on('room:join-cancelled', onJoinCancelled);
     return () => {
       socket.off('room:viewer-joined', onJoined);
       socket.off('room:viewer-left', onLeft);
+      socket.off('room:viewer-renamed', onRenamed);
       socket.off('room:join-request', onJoinRequest);
       socket.off('room:join-cancelled', onJoinCancelled);
     };
@@ -195,6 +265,81 @@ export function useBroadcast(
     release();
     setState(INITIAL_STATE);
   }, [socket, release]);
+
+  // Reconexão do apresentador: ao voltar a conexão com a live ativa, retoma a sala com o hostToken
+  useEffect(() => {
+    if (!socket) return;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let resuming = false;
+
+    const clearResume = () => {
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = null;
+      resuming = false;
+    };
+    const failResume = (message: string) => {
+      clearResume();
+      release();
+      setState({ ...INITIAL_STATE, error: message });
+    };
+
+    const onDisconnect = () => {
+      if (!credentialsRef.current) return;
+      setState((s) => ({ ...s, connectionState: 'reconnecting' }));
+    };
+    const onConnect = () => {
+      const credentials = credentialsRef.current;
+      if (!credentials) return;
+      resuming = true;
+      socket.emit('room:resume', credentials);
+      resumeTimer = setTimeout(
+        () => failResume('Não foi possível retomar a transmissão após a queda de conexão. A live foi encerrada.'),
+        RESUME_TIMEOUT_MS,
+      );
+    };
+    const onResumed = (data: RoomResumedPayload) => {
+      if (!resuming || !credentialsRef.current) return;
+      clearResume();
+      setState((s) => ({
+        ...s,
+        connectionState: 'connected',
+        viewerCount: data.viewerCount,
+        iceServers: data.iceServers,
+        error: null,
+      }));
+      broadcasterRef.current?.onSignalingResumed();
+    };
+    const onRoomError = (e: RoomErrorPayload) => {
+      if (!resuming) return;
+      failResume(
+        e.code === 'not-found' || e.code === 'closed'
+          ? 'A sala expirou durante a queda de conexão. A live foi encerrada.'
+          : 'Não foi possível retomar a transmissão após a queda de conexão. A live foi encerrada.',
+      );
+    };
+
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect', onConnect);
+    socket.on('room:resumed', onResumed);
+    socket.on('room:error', onRoomError);
+    return () => {
+      clearResume();
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect', onConnect);
+      socket.off('room:resumed', onResumed);
+      socket.off('room:error', onRoomError);
+    };
+  }, [socket, release]);
+
+  /** Expulsa (ou bane, por IP) um espectador */
+  const kickViewer = useCallback(
+    (viewerId: string, ban = false) => {
+      const payload: KickViewerPayload = { viewerId, ban };
+      socket?.emit('room:kick-viewer', payload);
+      setState((s) => ({ ...s, viewers: removeViewer(s.viewers, viewerId) }));
+    },
+    [socket],
+  );
 
   // A faixa de vídeo terminou. Se foi a captura nativa que caiu (alt-tab, troca de modo de vídeo...), a live
   // continua: troca para o getDisplayMedia sem derrubar a sala. Se foi o usuário (ou o fallback também falhou), encerra.
@@ -267,10 +412,15 @@ export function useBroadcast(
       }));
 
       // Link fixo: sempre pede o mesmo código ao servidor
-      const room = await requestRoom(socket, {
-        ...roomOptionsRef.current,
-        preferredCode: getOrCreatePermanentRoomCode(),
-      });
+      const { room, keys } = await createRoomWithKeys(
+        socket,
+        roomOptionsRef.current,
+        getOrCreatePermanentRoomCode(),
+      );
+      credentialsRef.current = { roomId: room.roomId, hostToken: room.hostToken };
+      if (room.codeChanged) savePermanentRoomCode(room.code);
+      const e2ee = keys ? new E2eeSession(keys.mediaKey) : null;
+      e2eeRef.current = e2ee;
 
       setState((s) => ({
         ...s,
@@ -282,7 +432,10 @@ export function useBroadcast(
         requireApproval: room.requireApproval,
         privacyMode: room.privacyMode,
         pendingRequests: [],
+        viewers: [],
+        codeChanged: room.codeChanged === true,
         iceServers: room.iceServers,
+        e2ee,
         connectionState: 'connected',
         isSharing: true,
         isPaused: false,
@@ -292,6 +445,7 @@ export function useBroadcast(
         iceServers: room.iceServers,
         privacyMode: room.privacyMode,
         maxViewers: room.maxViewers,
+        e2ee: e2ee ?? undefined,
       });
       broadcaster.setLocalStream(combined);
       broadcaster.onStats((stats) => {
@@ -354,5 +508,16 @@ export function useBroadcast(
     await broadcasterRef.current?.updateVideoConfig(partial);
   }, []);
 
-  return { state, startSharing, stopSharing, togglePause, changeCaptureSource, updateVideoConfig, respondJoin };
+  return {
+    state,
+    startSharing,
+    stopSharing,
+    togglePause,
+    changeCaptureSource,
+    updateVideoConfig,
+    respondJoin,
+    kickViewer,
+    /** Stream combinado (vídeo + faixa do mixer), usado pela gravação local */
+    getCombinedStream: () => streamRef.current,
+  };
 }
