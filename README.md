@@ -4,7 +4,7 @@ Compartilhe sua tela e o som do computador com quem você quiser, direto do nave
 
 O site está no ar em https://kiara-a15m.onrender.com. Na hospedagem grátis ele hiberna quando fica sem uso, então a primeira visita pode demorar cerca de 1 minuto para abrir.
 
-O KIARA transmite a tela ligando você e os espectadores de forma direta (WebRTC). O alvo de projeto é 1080p a 60 FPS; o que foi medido até agora está em [docs/AUDITORIA-STREAMING.md](docs/AUDITORIA-STREAMING.md) (por exemplo, a captura de tela do Chromium entregou só 31 a 43 FPS reais com conteúdo animado, e 4K não foi testado). No app desktop dá para escolher de quais programas o som sai, por exemplo o vídeo sim e o jogo não.
+O KIARA transmite a tela ligando você e os espectadores de forma direta (WebRTC). As opções de qualidade são 1080p 60 FPS (FHD) e 1440p 60 FPS (2K), com bitrate de 1 a 20 Mbps (padrão 8 Mbps). O que foi medido até agora está em [docs/AUDITORIA-STREAMING.md](docs/AUDITORIA-STREAMING.md): a captura de tela do Chromium (navegador) entregou só 31 a 43 FPS reais com conteúdo animado, e por isso o app para Windows captura a tela com um módulo nativo (DXGI, sem cópia pela CPU), que chegou a 60 FPS em testes com o Electron avulso. Essas medições são de loopback, na mesma máquina; não valem como garantia para a sua rede. No app desktop dá para escolher de quais programas o som sai, por exemplo o vídeo sim e o jogo não.
 
 ---
 
@@ -24,7 +24,7 @@ O KIARA transmite a tela ligando você e os espectadores de forma direta (WebRTC
 1. Abra o link que a pessoa mandou.
 2. Clique em **Ativar Som da Transmissão** para ouvir o áudio (os navegadores bloqueiam o som até você clicar).
 3. Se a sala tiver senha, digite-a (e, se quiser, um apelido). Se exigir aprovação, aguarde o apresentador aceitar.
-4. Use as **reações** (👍 ❤️ 😂 😮 👏 🔥) na barra de baixo. Atalhos: **F** tela cheia, **M** mutar.
+4. Atalhos: **F** tela cheia, **M** mutar, **P** janela flutuante (PiP), **S** (ou **C**) ocultar/exibir o painel, **Z** preencher a tela ou manter a proporção. No player há também a **Qualidade** (Auto, 1080p, 720p, 480p, 360p), só para você.
 5. Para sair, clique em **Sair**.
 
 Se preferir, abra a página inicial no navegador, digite o código de 6 caracteres (ou cole o link) e clique em **Entrar**. No app instalado, cole o link completo.
@@ -36,8 +36,8 @@ Se preferir, abra a página inicial no navegador, digite o código de 6 caracter
 - Quem assiste pode clicar em **Também transmitir** e compartilhar a própria tela na mesma sala, na hora, sem pedir permissão a ninguém (só uma pessoa por vez, além de você).
 - Quem tiver o link e o código consegue assistir, a menos que você proteja a sala. Antes de iniciar, em **Acesso à sala**, dá para definir uma **senha** (4 a 64 caracteres) e marcar **Aprovar cada entrada**: cada pessoa aparece na tela como pedido e você clica em Aprovar ou Negar.
 - O **Modo privacidade** esconde seu IP dos espectadores, fazendo o vídeo passar por um servidor de retransmissão (TURN). Só funciona se o servidor tiver TURN configurado; depois de iniciar, a sala mostra se ele foi ativado de fato.
-- No celular dá para **assistir** (com tela cheia, tela sempre acesa e reações), mas **não transmitir**: os navegadores de Android e iPhone não permitem compartilhar a tela. Para transmitir, use um computador ou o app para Windows.
-- Cada espectador recebe uma cópia do vídeo, então seu upload precisa dar conta (bitrate × espectadores). O painel mostra a estimativa e avisa quando ela passa de 20 Mbps (atenção) ou 50 Mbps (perigo). O limite padrão é de 8 espectadores por sala.
+- No celular dá para **assistir** (com tela cheia e tela sempre acesa), mas **não transmitir**: os navegadores de Android e iPhone não permitem compartilhar a tela. Para transmitir, use um computador ou o app para Windows.
+- Cada espectador recebe uma cópia do vídeo, então seu upload precisa dar conta (bitrate × espectadores). Com o padrão de 8 Mbps, três espectadores já pedem cerca de 24 Mbps de upload; reserve uma folga de uns 50 % (veja [`PERFORMANCE.md`](PERFORMANCE.md)). O limite padrão é de 8 espectadores por sala.
 - O botão de baixar o app só aparece no site. Dentro do app instalado você usa o **Atualizar**.
 - No macOS, libere **Gravação de Tela e Áudio do Sistema** em Ajustes do Sistema, Privacidade e Segurança, e reabra o app.
 
@@ -111,7 +111,8 @@ Todas são opcionais. Veja também [`.env.example`](.env.example).
 | `PORT` / `HOST` | `3001` / `127.0.0.1` | Onde o servidor escuta. Em hospedagem, `HOST=0.0.0.0` |
 | `PUBLIC_URL` | vazio | Endereço público, usado nos links de convite e no CORS |
 | `TRUST_PROXY` | `0` | Saltos de proxy confiáveis para ler o IP real (Render/Nginx = `1`) |
-| `MAX_VIEWERS_PER_ROOM` | `8` | Espectadores por sala |
+| `MAX_VIEWERS_PER_ROOM` | `8` | Espectadores por sala (1 a 50) |
+| `MAX_PENDING_PER_ROOM` | `10` | Pedidos de entrada aguardando aprovação por sala |
 | `MAX_ROOMS` | `200` | Salas simultâneas |
 | `MAX_CONNECTIONS` / `MAX_CONNECTIONS_PER_IP` | `500` / `20` | Conexões simultâneas, no total e por IP |
 | `ROOM_MAX_HOURS` | `12` | Duração máxima de uma sala |
@@ -155,16 +156,16 @@ O botão **Baixar KIARA para Windows** do site funciona por um endereço do pró
 
 ### Docker
 
-Se não quiser instalar o Node.js:
+O [`docker-compose.yml`](docker-compose.yml) sobe o servidor de sinalização (porta 3001, verificação em `/health`) e um coturn próprio. O `TURN_SECRET` é obrigatório: defina-o no `.env`.
 
 ```bash
-cp .env.example .env
+cp .env.example .env            # e preencha TURN_SECRET com um segredo longo e aleatório
 cd shared/types && npm install && npm run build && cd ../..
 cd server && npm install && npm run build && cd ..
 docker compose up -d --build
 ```
 
-Acesse http://localhost:3000 (o Nginx do cliente escuta na 8080 dentro do contêiner e faz proxy de `/socket.io` e `/download` para o servidor). Para parar: `docker compose down`. Os arquivos Docker não puderam ser testados no ambiente de desenvolvimento do autor; se algo falhar, abra uma issue.
+Para parar: `docker compose down`. A imagem do site (`client/Dockerfile`, Nginx na porta 8080 com proxy de `/socket.io` e `/download`) não faz parte do compose e precisa ser construída e publicada à parte. Os arquivos Docker **não foram testados** no ambiente de desenvolvimento do autor, e há uma suspeita conhecida: o compose usa `context: .` com `server/Dockerfile`, que copia `package*.json` e `dist` como se o contexto fosse `server/`. Se o build falhar, ajuste o contexto e abra uma issue. As imagens-base vêm de `registry.redhat.io`, que exige login.
 
 ### App desktop (som por aplicativo)
 
@@ -187,7 +188,7 @@ No modo produção o app abre em `app://app`; adicione essa origem ao `CLIENT_OR
 
 ### O que ainda não foi validado
 
-Foi testado em Chrome real (`npm run e2e`) e por testes automatizados, mas **não** foi possível validar no ambiente de desenvolvimento: o instalador e o auto-update no Windows, a captura de áudio por aplicativo, as imagens Docker, a execução dos workflows no GitHub, o comportamento com leitor de tela e o PWA instalado, e um TURN real (coturn ou Cloudflare).
+Foi testado em Chrome real (`npm run e2e`) e por testes automatizados, mas **não** foi possível validar no ambiente de desenvolvimento: o instalador e o auto-update no Windows, a captura nativa de tela dentro do app já empacotado (só foi medida com o Electron avulso; jogos em tela cheia exclusiva, HDR e GPU híbrida também não foram testados), a captura de áudio por aplicativo, as imagens Docker, a execução dos workflows no GitHub, o comportamento com leitor de tela e o PWA instalado, e um TURN real (coturn ou Cloudflare).
 
 ### Ideias futuras (não implementadas)
 
@@ -200,7 +201,7 @@ Estado dos testes: no macOS o módulo compila e lista os aplicativos, mas a capt
 ```
 server/            Servidor de sinalização e do site (Node.js, TypeScript)
 client/            Interface de quem transmite e de quem assiste (React, Vite)
-native/            Módulo C++ de captura de áudio por aplicativo
+native/            Módulo C++ de captura de tela (DXGI) e de áudio por aplicativo
 desktop/           App Electron
 shared/types/      Tipos TypeScript usados pelo servidor e pelo cliente
 scripts/           Comando `npm run share` e túnel da Cloudflare
@@ -251,12 +252,13 @@ A faixa de áudio enviada pelo WebRTC é sempre a mesma: a saída de um mixer We
 |---|---|
 | `degradationPreference='maintain-framerate'` e `contentHint='motion'` | Com a rede apertada, o encoder reduz a resolução e não os quadros por segundo |
 | `maxBitrate` e `maxFramerate` aplicados de fato | O `VideoConfig` agora chega ao sender |
-| Codec "Automático" (padrão): H.265 se o apresentador codifica e o espectador decodifica por hardware, senão H.264. A escolha manual no painel de vídeo continua valendo (H.264, H.265, VP9, AV1) | Nos testes em loopback com RTX 3070, o H.265 teve menos latência e menos tempo de encode que o H.264; VP9 e AV1 codificam em software nessa placa e não seguram 1080p60 |
+| Codec automático (fixo, sem seletor na interface): H.265 se o apresentador codifica e o espectador decodifica por hardware, senão H.264, decidido por espectador | Nos testes em loopback com RTX 3070, o H.265 teve menos latência e menos tempo de encode que o H.264; VP9 e AV1 codificam em software nessa placa e não seguram 1080p60 |
+| Captura nativa no app para Windows: DXGI com textura compartilhada na GPU, entregue ao WebRTC como `VideoFrame`. Se falhar (monitor girado, HDR, janela em vez de tela inteira), cai no `getDisplayMedia`. Para desligar: `localStorage['kiara:nativeCapture']='0'` | O capturador do Chromium ficou em 31 a 50 FPS; o nativo entregou cerca de 60 FPS no Electron avulso (veja a auditoria) |
 | Controle individual de resolução para quem assiste | O espectador escolhe no player (Auto, 1080p, 720p, 480p, 360p) e o apresentador aplica `scaleResolutionDownBy` só para ele |
 | App desktop com aceleração direta de GPU (NVENC/WebRTC) | Flags no Electron para codificação e decodificação aceleradas por hardware sem engasgos |
 | `bundlePolicy: 'max-bundle'`, `rtcpMuxPolicy: 'require'`, `iceCandidatePoolSize: 2` | Uma única porta de transporte e ICE mais rápido |
 | ICE restart: `disconnected` por 3 s ou `failed` chama `restartIce()` com nova offer; depois de 3 tentativas o peer é recriado | Recupera de troca de rede ou de Wi-Fi sem derrubar a sala |
-| Controle AIMD de bitrate por espectador (perda acima de 5 % ou RTT acima de 300 ms por 2 amostras reduz para 75 %; 5 amostras saudáveis sobem 10 % do alvo) | Evita congestionamento sem mexer no FPS e nunca passa do alvo |
+| Controle AIMD de bitrate por espectador (perda acima de 8 % ou RTT acima de 400 ms por 3 amostras reduz 20 %; 3 amostras saudáveis sobem 15 % do alvo; piso de 1,5 Mbps, ou 0,8 Mbps com perda acima de 15 %) | Evita congestionamento sem mexer no FPS e nunca passa do alvo |
 
 O overlay de estatísticas (a cada 2 s, pior caso entre os espectadores) mostra FPS, bitrate de vídeo e áudio, RTT, perda, jitter e o motivo de limitação do encoder. Para conferir à mão no console, com `pc` sendo o `RTCPeerConnection` de quem transmite:
 
@@ -283,6 +285,7 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 | Vídeo | WebRTC do navegador (`RTCPeerConnection`, `getDisplayMedia`) |
 | App desktop | Electron (com Fuses e verificação de integridade do `cloudflared`) |
 | Instalável | PWA (manifesto e service worker; no navegador, "Instalar app") |
+| Vídeo no Windows (app) | C++17, DXGI Desktop Duplication, textura D3D11 compartilhada, Node Addon API |
 | Áudio no Windows | C++17, WASAPI Process Loopback, Node Addon API |
 | Áudio no macOS | Objective-C++, ScreenCaptureKit, Node Addon API |
 | Contêineres | Docker, Docker Compose, Nginx, Red Hat UBI 9 |
@@ -321,4 +324,6 @@ Também vale abrir `chrome://webrtc-internals` durante a transmissão.
 
 ## Licença
 
-MIT, livre para uso pessoal e comercial. Texto completo em [`LICENSE`](LICENSE).
+O código do KIARA é distribuído sob a licença MIT, livre para uso pessoal e comercial. Texto completo em [`LICENSE`](LICENSE).
+
+O instalador do Windows também leva programas de terceiros com licenças próprias, principalmente o Electron/Chromium e o `cloudflared` (Apache-2.0). A lista e os avisos estão em [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md). As dependências npm usam licenças permissivas (MIT, ISC, BSD, Apache-2.0 e similares), compatíveis com a MIT.

@@ -12,10 +12,27 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - **Miniplayer ajustável:** com um co-apresentador no ar, o host pode aumentar ou diminuir o miniplayer da própria tela (botões − e + sobre ele, de 160 a 480 px) e ocultá-lo para ver só a tela da outra pessoa. O botão de miniplayer na barra do palco traz de volta. Tamanho e visibilidade ficam salvos no navegador.
 - **Ocultar/Exibir Configurações no site do espectador:** o painel "Também transmitir" ganhou o mesmo botão do app, no topo do player, e desliza para fora com transição suave sem interromper a transmissão em andamento.
 - O host passa a receber a tela do co-apresentador (`CopresenterReceiver` / `useCopresenterStream`), reaproveitando o `WebRTCViewer`.
+- **Captura nativa de tela no app para Windows:** DXGI com textura compartilhada na GPU (sem cópia pela CPU), entregue ao WebRTC como `VideoFrame`, com cursor, seleção do monitor, recuperação de `ACCESS_LOST` e queda automática para `getDisplayMedia` em caso de falha (monitor girado, HDR, janela). Interruptor: `localStorage['kiara:nativeCapture']='0'`. Medida só com o Electron avulso; falta validar no app empacotado.
+- **Codec automático por espectador:** H.265 quando o apresentador codifica e o espectador decodifica por hardware, senão H.264.
+- Auditoria de streaming com benchmarks reproduzíveis (`docs/AUDITORIA-STREAMING.md`, `npm run bench` em `client/`), `PERFORMANCE.md` e overlay de telemetria estendido.
+- Avisos de licenças de terceiros (`THIRD-PARTY-NOTICES.md`).
 
 ### Removido
 
-- **Chat de texto:** a sala mantém apenas as reações com emoji, que continuam opcionais (o host liga/desliga em "Permitir reações"). Removidos o painel de chat, o evento `chat:message`, o campo `chatEnabled` e o limite de mensagens; o evento `chat:reaction` foi mantido. `ChatPanel` e `useChat` deram lugar a `ReactionBar` (`Reactions.tsx`) e `useReactions`.
+- **Chat de texto e reações com emoji:** a sala deixou de ter qualquer chat. Removidos o painel de chat, `ReactionBar`, `useReactions`, os eventos `chat:message`, `chat:reaction` e `room:update-features` e a opção "Permitir reações". Os campos `reactionsEnabled` e o tipo `ReactionEmoji` ainda existem em `shared/types`, `validators.ts` e `roomManager.ts`, sem uso pela interface.
+- **Painel de vídeo simplificado:** saíram os presets 720p e 4K, o seletor de FPS (fixo em 60), o seletor de modo do encoder (fixo em `game`), o seletor de codec (fixo em automático) e a estimativa de upload na interface. Ficam 1080p 60 FPS (FHD), 1440p 60 FPS (2K) e o bitrate (1 a 20 Mbps).
+
+### Segurança
+
+- `TURN_SECRET` passa a ser obrigatório via ambiente no `docker-compose.yml` (antes havia um segredo fixo no repositório).
+- `body-parser` atualizado para 1.20.9 (GHSA-27r3-jxmh-p828).
+
+### Corrigido
+
+- App desktop: depois de sair de uma sala aberta por link de outra pessoa (ou de um erro nessa página), a janela ficava no site remoto e todo IPC falhava com "Remetente IPC não autorizado", exigindo fechar e abrir o app. Agora a janela volta sozinha ao servidor local ao sair da rota `/view/CÓDIGO` e, se o endereço remoto não carregar, mostra um aviso e também volta à tela inicial.
+- Falha ao trocar de tela durante a transmissão.
+- Serrilhado no player de vídeo; permissão de tela cheia no app desktop.
+- App desktop: removido `disable-frame-rate-limit`, que deixava o `requestAnimationFrame` da interface sem vsync (~5000 quadros por segundo).
 
 ### Alterado
 

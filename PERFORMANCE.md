@@ -4,7 +4,7 @@
 
 ```
 [Apresentador]
-  captureDisplay()          ← getDisplayMedia (browser) ou DXGI (Electron/Windows)
+  captureDisplay()          ← getDisplayMedia (browser) ou DXGI zero-copy (app Windows, com fallback)
        │
   MediaStreamTrack (vídeo, 60 FPS)
        │
@@ -29,7 +29,7 @@
 | Bitrate padrão          | **8000 kbps** | `webrtcService.ts` `DEFAULT_VIDEO_CONFIG` |
 | `scalabilityMode` H264  | **L1T1**    | `webrtcService.ts` `applySenderParameters()` — sem B-frames |
 | `scalabilityMode` AV1/VP9 | L1T3      | `webrtcService.ts` `applySenderParameters()` — 3 camadas temporais |
-| FPS nativo (Electron)   | 60 (default)| `screen_capture.cpp` `StartCapture()`    |
+| FPS nativo (Electron)   | 60 (default)| `shared_capture.cpp` / `nativeCapture.ts` |
 | Bitrate mín. SDP        | 3000 kbps   | `sdpTuning.ts` `DEFAULT_OPTIONS`          |
 | Bitrate alvo SDP        | **8000 kbps** | `sdpTuning.ts` `DEFAULT_OPTIONS`        |
 | Bitrate máx. SDP        | **16000 kbps** | `sdpTuning.ts` `DEFAULT_OPTIONS`       |
@@ -38,14 +38,18 @@
 | `playoutDelayHint`      | 0           | `webrtcService.ts` `tuneReceivers()`      |
 | `degradationPreference` | maintain-framerate / balanced (macOS) | `webrtcService.ts` |
 | Piso AIMD normal        | **1500 kbps** | `bitrateController.ts` `MIN_BITRATE_BPS` |
-| Piso AIMD severo (>10% perda) | **800 kbps** | `bitrateController.ts` `SEVERE_MIN_BITRATE_BPS` |
+| Piso AIMD severo (>15% perda) | **800 kbps** | `bitrateController.ts` `SEVERE_MIN_BITRATE_BPS` |
 | Intervalo de stats      | 2 s         | `webrtcService.ts` `onStats()`            |
 | Fila TSFN (nativo)      | 4 entradas  | `screen_capture.cpp` `StartCapture()`    |
 | Pendentes máx. (nativo) | 2 frames    | `screen_capture.cpp` `DxgiCaptureLoop()` |
 
+> A interface de vídeo foi simplificada: só há 1080p 60 FPS (FHD) e 1440p 60 FPS (2K), FPS fixo em 60, modo `game` e codec automático. Bitrate vai de 1 a 20 Mbps. Os demais valores desta página continuam existindo no código, mas não são mais escolhas do usuário.
+
 ## Alterações Realizadas
 
-### 1. `native/src/screen_capture.cpp`
+### 1. `native/src/screen_capture.cpp` (caminho antigo, com cópia pela CPU)
+
+> Este arquivo ficou como alternativa. O app para Windows usa `native/src/shared_capture.cpp` (textura D3D11 compartilhada, sem cópia pela CPU). Detalhes e medições em `docs/AUDITORIA-STREAMING.md`.
 
 **Problemas corrigidos:**
 - FPS padrão era **30** — alterado para **60**
@@ -172,7 +176,7 @@ Abra o painel **Telemetria KIARA** (ícone de gráfico na barra de controles) pa
 
 3. **WebRTC GCC (Google Congestion Control)**: O controle de congestionamento do WebRTC pode reduzir o bitrate em movimentos de tela rápidos, que são interpretados como aumento de carga de rede. Os parâmetros `x-google-min-bitrate` e `x-google-start-bitrate` mitigam isso.
 
-4. **Modo Electron (nativo)**: O pipeline DXGI → ThreadSafeFunction → JS adiciona latência inerente. O frame passa por CPU (CopyResource, Map, memcpy) antes de chegar ao JS. Isso é necessário para funcionar como fonte de `getDisplayMedia`.
+4. **Modo Electron (nativo)**: a captura zero-copy (`shared_capture.cpp`) evita a cópia pela CPU, mas só vale para tela inteira no Windows. Janelas, monitor girado, HDR e falhas de inicialização caem no `getDisplayMedia`, que tem o teto de FPS descrito no item 1. Não foi medida no app empacotado.
 
 5. **Resolução 4K**: A 3840×2160 @ 60 FPS, o custo de captura e codificação é alto. Recomenda-se reduzir para 1080p ou 1440p em hardware médio.
 
@@ -217,7 +221,7 @@ O upload se multiplica pelo número de espectadores. Com 3 espectadores a 8 Mbps
 - Upload usado: **24 Mbps**
 - Upload recomendado disponível: **36 Mbps**
 
-A interface exibe a estimativa de upload em tempo real no painel de configurações de vídeo.
+A interface não mostra mais essa estimativa; use a tabela acima como referência.
 
 > **Nota sobre servidores de mídia:** Esta estimativa vale para o modo P2P (WebRTC direto). Se no futuro o servidor atuar como SFU/MCU distribuindo o fluxo, o apresentador envia apenas **um fluxo ao servidor** e o consumo de upload se torna fixo, independente do número de espectadores.
 
@@ -241,7 +245,7 @@ Windows: Visual Studio Build Tools + Windows SDK
 ```
 
 O módulo usa:
-- **Windows**: DXGI Desktop Duplication API (d3d11, dxgi1_2)
+- **Windows**: DXGI Desktop Duplication API (d3d11, dxgi1_2) para vídeo e WASAPI Process Loopback para áudio por aplicativo
 - **Linux**: Stub — usar `getDisplayMedia` no navegador
-- **macOS**: Não suportado pelo módulo nativo (usar `getDisplayMedia`)
+- **macOS**: vídeo não suportado pelo módulo nativo (usar `getDisplayMedia`); áudio por aplicativo via ScreenCaptureKit, ainda sem validação da captura ao vivo
 

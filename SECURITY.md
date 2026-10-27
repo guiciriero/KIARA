@@ -51,6 +51,8 @@ Se você suspeitar que algum segredo (token de API, senha, chave privada) foi ex
 2. **O histórico git é público e permanente.** Remover o arquivo em um commit posterior *não apaga* o segredo do histórico; qualquer pessoa que já clonou o repositório ou que acesse a URL do commit ainda consegue vê-lo. Use `git filter-repo` (ou entre em contato com o suporte do GitHub) para reescrever o histórico, e considere o segredo comprometido até a revogação ser confirmada.
 3. **Reporte via Private Vulnerability Reporting** (ver seção acima) se o vazamento envolver credenciais de infraestrutura do projeto.
 
-### Open Relay (openrelayproject)
+### TURN e credenciais
 
-As credenciais de TURN `openrelayproject` / `openrelayproject` são **credenciais públicas de teste** fornecidas pelo projeto Open Relay e **não são segredos** — qualquer pessoa pode usá-las. Elas existem exclusivamente como fallback de conectividade em desenvolvimento/demo e não dão acesso a nenhum recurso privado do KIARA. Em produção, configure servidores TURN próprios com credenciais efêmeras geradas pelo servidor (ver `TURN_SECRET` no `.env.example`).
+O código atual **não** embute nenhum servidor TURN público: só STUN público (Google e Cloudflare). Sem TURN configurado, redes restritas podem não conectar e o Modo privacidade é ignorado. Em produção, configure um TURN próprio (`TURN_URLS` + `TURN_SECRET`) ou o Cloudflare Realtime TURN; as credenciais são efêmeras e geradas pelo servidor. O `docker-compose.yml` exige `TURN_SECRET` no ambiente e não traz nenhum segredo fixo.
+
+Versões antigas do projeto citavam as credenciais públicas de teste `openrelayproject` (Open Relay); elas nunca foram segredos, mas não são mais usadas.
