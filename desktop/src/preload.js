@@ -11,7 +11,8 @@
 
 const { contextBridge, ipcRenderer, sharedTexture } = require('electron');
 
-const PLATFORMS = { win32: 'windows', darwin: 'macos' };
+// Mesmo mapa de platformConfig.js (o preload em sandbox não pode dar require de arquivos locais).
+const PLATFORMS = { win32: 'windows', darwin: 'macos', linux: 'linux' };
 const platform = PLATFORMS[process.platform];
 
 async function invoke(channel, ...args) {

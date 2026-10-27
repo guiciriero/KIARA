@@ -46,9 +46,10 @@ function feedUrl() {
  * conferir antes do spawn (ver src/runtime/integrity.js). Sem o arquivo: campo omitido.
  */
 function cloudflaredSha() {
-  const file = path.join(DESKTOP, 'resources', 'bin', 'cloudflared.exe');
+  const name = process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared';
+  const file = path.join(DESKTOP, 'resources', 'bin', name);
   if (!fs.existsSync(file)) {
-    console.warn('[build-info] cloudflared.exe ausente: cloudflaredSha256 não gravado.');
+    console.warn(`[build-info] ${name} ausente: cloudflaredSha256 não gravado.`);
     return undefined;
   }
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');

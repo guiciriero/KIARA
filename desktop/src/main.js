@@ -34,26 +34,17 @@ const {
   utilityProcess,
 } = require('electron');
 
+const { buildCommandLineSwitches } = require('./platformConfig');
+
 // ─── Aceleração por Hardware e Otimizações de Vídeo (KIARA 60/120 FPS / Baixa Latência) ───
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('enable-accelerated-video-decode');
-app.commandLine.appendSwitch('enable-accelerated-mjpeg-decode');
-app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
-app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
-// NÃO usar 'disable-frame-rate-limit' (nem 'disable-gpu-vsync'): o compositor/rAF da UI passa a rodar
-// sem vsync (~5000 quadros/s medidos), saturando GPU + renderer (~29% da CPU total em 12 threads)
-// sem ganho algum: a captura nativa (DXGI) e o encode WebRTC não dependem do rAF da interface.
-app.commandLine.appendSwitch('disable-background-timer-throttling');
-app.commandLine.appendSwitch('disable-renderer-backgrounding');
-app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// Lista de switches montada em platformConfig.js (testada): inclui flags de PipeWire/Wayland no Linux.
+// NÃO usar 'disable-frame-rate-limit' (nem 'disable-gpu-vsync'): saturam GPU/renderer sem ganho.
 // Evitar flags experimentais de composição/GPU (RawDraw, DirectCompositionSharedImages,
 // *-gpu-memory-buffers): em alguns drivers deixam a janela inteira branca.
-app.commandLine.appendSwitch(
-  'enable-features',
-  'VaapiVideoDecoder,VaapiVideoEncoder,CanvasOopRasterization,WebRtcHideLocalIpsWithMdns,PlatformHEVCDecoderSupport,WebRtcUseMinMaxVEADimensions'
-);
+for (const [name, value] of buildCommandLineSwitches({ platform: process.platform, env: process.env })) {
+  if (value === undefined) app.commandLine.appendSwitch(name);
+  else app.commandLine.appendSwitch(name, value);
+}
 
 // Eleva a prioridade do processo do KIARA no Windows para garantir fluidez mesmo durante jogos pesados a 100% de CPU/GPU
 try {
@@ -108,31 +99,21 @@ const NATIVE_PATH = app.isPackaged
   : path.resolve(__dirname, '..', '..', 'native', 'build', 'Release', 'screen_capture.node');
 
 const NATIVE_MISSING_MSG = 'Módulo nativo não compilado. Rode npm run build:native';
-const MAX_PIDS = 16;
-const MAX_ID_LENGTH = 256;
-const DEV_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-// CSP para produção — aplicada via onHeadersReceived nas respostas da origem confiável.
-// O servidor embutido serve o client na mesma origem, então connect-src pode ser restrito
-// à própria origem (http + ws).
-// ATENÇÃO: a CSP é construída dinamicamente em setTrustedOrigin() porque inclui a origem.
-function buildProdCsp(origin) {
-  // origin = "http://127.0.0.1:PORT"
-  const wsOrigin = origin.replace(/^http/, 'ws'); // ws://127.0.0.1:PORT
-  return [
-    "default-src 'self'",
-    "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "media-src 'self' blob: mediastream:",
-    "font-src 'self' data:",
-    `connect-src 'self' ${origin} ${wsOrigin} https: wss: ws:`,
-    "worker-src 'self' blob:",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "frame-ancestors 'none'",
-  ].join('; ');
-}
+// Lógica pura (testada): política de URLs/CSP e validação de argumentos do IPC.
+const {
+  resolveDevUrl,
+  originOf,
+  isTrustedUrl: isTrustedUrlFor,
+  validateViewerUrl,
+  isViewerUrl,
+  safeExternalHref,
+  shouldLeaveForeignPage,
+  isInternalUrl,
+  localHomeUrl: localHomeUrlFor,
+  buildProdCsp,
+} = require('./urlPolicy');
+const { validatePids, validateSourceId } = require('./ipcValidation');
 
 // O esquema app:// ainda precisa ser registrado antes do ready (mesmo que em PROD
 // não seja mais usado para servir o client, mantemos para compatibilidade futura
@@ -152,25 +133,7 @@ protocol.registerSchemesAsPrivileged([
 
 // ─── Modo (dev/prod) ─────────────────────────────────────────────────────────
 
-function resolveDevUrl() {
-  const raw = process.env.ELECTRON_START_URL;
-  if (!raw) return { url: null, origin: null, error: null };
-  try {
-    const u = new URL(raw);
-    if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !DEV_HOSTS.has(u.hostname)) {
-      return {
-        url: null,
-        origin: null,
-        error: `ELECTRON_START_URL inválida: apenas localhost/127.0.0.1 são aceitos (recebido: ${u.origin}).`,
-      };
-    }
-    return { url: u.href, origin: u.origin, error: null };
-  } catch {
-    return { url: null, origin: null, error: 'ELECTRON_START_URL não é uma URL válida.' };
-  }
-}
-
-const dev = resolveDevUrl();
+const dev = resolveDevUrl(process.env.ELECTRON_START_URL);
 const IS_DEV = Boolean(process.env.ELECTRON_START_URL);
 
 /**
@@ -184,17 +147,8 @@ function setTrustedOrigin(origin) {
   TRUSTED_ORIGIN = origin;
 }
 
-function originOf(urlString) {
-  try {
-    const u = new URL(urlString);
-    return `${u.protocol}//${u.host}`;
-  } catch {
-    return null;
-  }
-}
-
 function isTrustedUrl(urlString) {
-  return Boolean(TRUSTED_ORIGIN) && originOf(urlString) === TRUSTED_ORIGIN;
+  return isTrustedUrlFor(TRUSTED_ORIGIN, urlString);
 }
 
 // ─── Addon nativo ────────────────────────────────────────────────────────────
@@ -286,25 +240,6 @@ function isCaptureOrigin(origin) {
   return isViewerUrl(current) && originOf(origin) === originOf(current);
 }
 
-function validatePids(pids) {
-  if (!Array.isArray(pids) || pids.length < 1 || pids.length > MAX_PIDS) {
-    throw new Error(`Lista de PIDs inválida (1 a ${MAX_PIDS} itens).`);
-  }
-  for (const pid of pids) {
-    if (!Number.isInteger(pid) || pid < 1 || pid > 4294967295) {
-      throw new Error('PID inválido.');
-    }
-  }
-  return pids.slice();
-}
-
-function validateSourceId(id) {
-  if (typeof id !== 'string' || id.length < 1 || id.length > MAX_ID_LENGTH || !/^[\w:.\-]+$/.test(id)) {
-    throw new Error('ID de fonte inválido.');
-  }
-  return id;
-}
-
 function handle(channel, fn, { allowViewer = false } = {}) {
   ipcMain.handle(channel, async (event, ...args) => {
     try {
@@ -330,40 +265,7 @@ function assertScreenAccess() {
   }
 }
 
-// ─── Validação de URL para openViewerLink ────────────────────────────────────
-
-const VIEW_CODE_RE = /^\/view\/[A-HJ-NP-Z2-9]{6}\/?$/i;
-
-function validateViewerUrl(urlString) {
-  let u;
-  try {
-    u = new URL(urlString);
-  } catch {
-    throw new Error('O link fornecido não é uma URL válida.');
-  }
-  const isDevHost = DEV_HOSTS.has(u.hostname);
-  if (u.protocol !== 'https:' && !(isDevHost && u.protocol === 'http:')) {
-    throw new Error('O link deve usar HTTPS.');
-  }
-  if (u.username || u.password) {
-    throw new Error('O link não deve conter credenciais.');
-  }
-  if (!VIEW_CODE_RE.test(u.pathname)) {
-    throw new Error(
-      'O caminho do link é inválido. Esperado: /view/XXXXXX (6 caracteres).'
-    );
-  }
-  return u.href;
-}
-
-function isViewerUrl(urlString) {
-  try {
-    validateViewerUrl(urlString);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// (validateViewerUrl / isViewerUrl vêm de urlPolicy.js)
 
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 
@@ -371,7 +273,12 @@ function registerIpc() {
   // Os canais de captura também aceitam a página de espectador (co-apresentador).
   const VIEWER_OK = { allowViewer: true };
 
-  handle('audio:list', () => requireNative().listAudioSources(), VIEWER_OK);
+  // Linux não tem captura de áudio por aplicativo (stub): lista vazia, sem erro; o cliente
+  // então usa o áudio do sistema via getDisplayMedia.
+  handle('audio:list', () => {
+    if (process.platform === 'linux') return native ? native.listAudioSources() : [];
+    return requireNative().listAudioSources();
+  }, VIEWER_OK);
 
   handle('audio:start', (pids) => {
     const n = requireNative();
@@ -546,10 +453,8 @@ function updateSplashStatus(win, text) {
 }
 
 function openExternalSafe(urlString) {
-  try {
-    const u = new URL(urlString);
-    if (u.protocol === 'https:') shell.openExternal(u.href);
-  } catch { /* URL inválida: ignora */ }
+  const href = safeExternalHref(urlString);
+  if (href) shell.openExternal(href);
 }
 
 // ─── Protocolo app:// (mantido para dev e compatibilidade) ───────────────────
@@ -567,8 +472,7 @@ function textResponse(status, body) {
 
 /** Endereço do app local (Vite em dev, servidor embutido em produção); null se ainda não está pronto. */
 function localHomeUrl() {
-  if (IS_DEV) return dev.url;
-  return embeddedPort ? `http://127.0.0.1:${embeddedPort}` : null;
+  return localHomeUrlFor({ isDev: IS_DEV, devUrl: dev.url, embeddedPort });
 }
 
 function goHome(wc) {
@@ -608,6 +512,15 @@ function createWindow() {
   win.once('ready-to-show', () => win.show());
 
   wc.setWindowOpenHandler(({ url }) => {
+    // Document Picture-in-Picture abre uma janela about:blank a partir da página confiável:
+    // permitida só nesse caso, sempre no topo e sem menu. Qualquer outra URL vai ao navegador.
+    const opener = wc.getURL();
+    if (url === 'about:blank' && (isTrustedUrl(opener) || isViewerUrl(opener))) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: { alwaysOnTop: true, autoHideMenuBar: true, backgroundColor: '#000000' },
+      };
+    }
     openExternalSafe(url);
     return { action: 'deny' };
   });
@@ -634,9 +547,7 @@ function createWindow() {
   // numa origem não confiável: todo IPC falharia com "Remetente IPC não autorizado" e só reiniciando
   // o app voltaria a funcionar. Aqui a janela volta sozinha para o servidor local.
   const leaveForeignPage = (url) => {
-    if (!url || /^(data|about|chrome-error|devtools):/i.test(url)) return;
-    if (isTrustedUrl(url) || isViewerUrl(url)) return;
-    goHome(wc);
+    if (shouldLeaveForeignPage(TRUSTED_ORIGIN, url)) goHome(wc);
   };
   wc.on('did-navigate', (_event, url) => leaveForeignPage(url));
   wc.on('did-navigate-in-page', (_event, url, isMainFrame) => {
@@ -647,7 +558,7 @@ function createWindow() {
   // caminho de volta. Avisa e retorna ao servidor local.
   wc.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame || errorCode === -3) return; // -3 = ERR_ABORTED (navegação substituída)
-    if (!validatedURL || /^(data|about|chrome-error|devtools):/i.test(validatedURL)) return;
+    if (isInternalUrl(validatedURL)) return;
     if (isTrustedUrl(validatedURL)) return;
     goHome(wc);
     if (!win.isDestroyed()) {

@@ -1,6 +1,9 @@
 /**
  * Prepara os recursos externos do instalador:
- *   desktop/resources/bin/cloudflared.exe  (baixado da release oficial do GitHub)
+ *   desktop/resources/bin/cloudflared(.exe)  (baixado da release oficial do GitHub)
+ *   Windows: cloudflared-windows-amd64.exe | Linux: cloudflared-linux-<amd64|arm64>
+ *   macOS: cloudflared-darwin-<amd64|arm64>.tgz (extraído com `tar`). Linux/macOS: EXPERIMENTAL, não executado.
+ *   Arquitetura-alvo = process.arch (ou CLOUDFLARED_ARCH=amd64|arm64).
  *
  * Antes disso, confere se os artefatos dos passos anteriores existem.
  *
@@ -14,6 +17,7 @@
  */
 
 import https from 'node:https';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,9 +29,25 @@ const DESKTOP = path.resolve(__dirname, '..');
 const ROOT = path.resolve(DESKTOP, '..');
 
 const REPO = 'cloudflare/cloudflared';
-const ASSET = 'cloudflared-windows-amd64.exe';
+const ARCH = process.env.CLOUDFLARED_ARCH?.trim() || (process.arch === 'arm64' ? 'arm64' : 'amd64');
+if (!['amd64', 'arm64'].includes(ARCH)) {
+  console.error(`[prepare-resources] CLOUDFLARED_ARCH inválida: ${ARCH}`);
+  process.exit(1);
+}
+// kind: formato esperado do arquivo baixado (valida os magic bytes).
+const TARGETS = {
+  win32: { asset: 'cloudflared-windows-amd64.exe', outName: 'cloudflared.exe', kind: 'pe' },
+  linux: { asset: `cloudflared-linux-${ARCH}`, outName: 'cloudflared', kind: 'elf' },
+  darwin: { asset: `cloudflared-darwin-${ARCH}.tgz`, outName: 'cloudflared', kind: 'tgz' },
+};
+const TARGET = TARGETS[process.platform];
+if (!TARGET) {
+  console.error(`[prepare-resources] Plataforma não suportada: ${process.platform}`);
+  process.exit(1);
+}
+const ASSET = TARGET.asset;
 const OUT_DIR = path.join(DESKTOP, 'resources', 'bin');
-const OUT_FILE = path.join(OUT_DIR, 'cloudflared.exe');
+const OUT_FILE = path.join(OUT_DIR, TARGET.outName);
 
 const MAX_REDIRECTS = 5;
 const TIMEOUT_MS = 60_000;
@@ -48,11 +68,17 @@ function checkPrereqs() {
       file: path.join(ROOT, 'client', 'dist', 'index.html'),
       step: 'Rode "npm install && npm run build" em client/ para gerar o site.',
     },
-    {
-      file: path.join(ROOT, 'native', 'build', 'Release', 'screen_capture.node'),
-      step: 'Rode "npm install && npm run build" em native/ (no Windows) para compilar o módulo nativo.',
-    },
   ];
+  // No Linux o addon é opcional (sem áudio por app; o app roda sem ele). Windows/macOS exigem.
+  const addon = path.join(ROOT, 'native', 'build', 'Release', 'screen_capture.node');
+  if (process.platform !== 'linux') {
+    required.push({
+      file: addon,
+      step: 'Rode "npm run build:native" (em desktop/) para compilar o módulo nativo.',
+    });
+  } else if (!fs.existsSync(addon)) {
+    console.warn('[prepare-resources] Aviso: screen_capture.node ausente (opcional no Linux); o app usará só getDisplayMedia.');
+  }
   const missing = required.filter((r) => !fs.existsSync(r.file));
   if (missing.length) {
     fail(
@@ -60,7 +86,7 @@ function checkPrereqs() {
         missing.map((m) => `  - ${m.file}\n    → ${m.step}`).join('\n'),
     );
   }
-  console.log('[prepare-resources] Pré-requisitos OK (server.cjs, client/dist, screen_capture.node).');
+  console.log('[prepare-resources] Pré-requisitos OK.');
 }
 
 // ── HTTPS com redirecionamentos (máx. 5, somente https, com timeout) ───────
@@ -141,14 +167,19 @@ async function downloadDirect(url, destFile, expectedSha) {
     throw new Error(`Arquivo baixado é muito pequeno (${stats.size} bytes), possível página de erro.`);
   }
 
-  // Verifica magic bytes de executável Windows (MZ)
+  // Verifica magic bytes conforme o formato esperado: PE (MZ), ELF (\x7fELF) ou gzip (1f 8b).
   const fd = fs.openSync(tmp, 'r');
-  const buffer = Buffer.alloc(2);
-  fs.readSync(fd, buffer, 0, 2, 0);
+  const buffer = Buffer.alloc(4);
+  fs.readSync(fd, buffer, 0, 4, 0);
   fs.closeSync(fd);
-  if (buffer.toString('ascii') !== 'MZ') {
+  const magicOk = {
+    pe: buffer.subarray(0, 2).toString('ascii') === 'MZ',
+    elf: buffer.equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])),
+    tgz: buffer[0] === 0x1f && buffer[1] === 0x8b,
+  }[TARGET.kind];
+  if (!magicOk) {
     fs.rmSync(tmp, { force: true });
-    throw new Error('O arquivo baixado não é um executável Windows válido.');
+    throw new Error(`O arquivo baixado não tem o formato esperado (${TARGET.kind}).`);
   }
 
   const got = hash.digest('hex');
@@ -157,7 +188,14 @@ async function downloadDirect(url, destFile, expectedSha) {
     throw new Error(`SHA-256 NÃO confere para ${ASSET}.\n  esperado: ${expectedSha}\n  obtido:   ${got}`);
   }
 
-  fs.renameSync(tmp, destFile);
+  if (TARGET.kind === 'tgz') {
+    // macOS: a release traz um .tgz com o binário "cloudflared" (o digest da API é do .tgz).
+    execFileSync('tar', ['-xzf', tmp, '-C', path.dirname(destFile), 'cloudflared']);
+    fs.rmSync(tmp, { force: true });
+  } else {
+    fs.renameSync(tmp, destFile);
+  }
+  if (process.platform !== 'win32') fs.chmodSync(destFile, 0o755);
   console.log(`[prepare-resources] cloudflared pronto em: ${destFile} (${(stats.size / 1024 / 1024).toFixed(1)} MB)`);
 }
 
@@ -166,7 +204,7 @@ async function prepareCloudflared() {
   if (fs.existsSync(OUT_FILE)) {
     const stats = fs.statSync(OUT_FILE);
     if (stats.size > 5 * 1024 * 1024) {
-      console.log(`[prepare-resources] cloudflared.exe já existe e é válido (${(stats.size / 1024 / 1024).toFixed(1)} MB). Pulando download.`);
+      console.log(`[prepare-resources] ${TARGET.outName} já existe e é válido (${(stats.size / 1024 / 1024).toFixed(1)} MB). Pulando download.`);
       return;
     }
   }

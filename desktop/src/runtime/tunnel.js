@@ -28,9 +28,9 @@ const TUNNEL_TIMEOUT_MS = 40_000;
  * @returns {string|null}
  */
 function findCloudflared(resourcesPath) {
-  // Empacotado Windows: <resourcesPath>/bin/cloudflared.exe
+  // Empacotado: <resourcesPath>/bin/cloudflared.exe (Windows) ou <resourcesPath>/bin/cloudflared (Linux/macOS)
   if (resourcesPath) {
-    const exe = path.join(resourcesPath, 'bin', 'cloudflared.exe');
+    const exe = path.join(resourcesPath, 'bin', process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared');
     try {
       require('fs').accessSync(exe, require('fs').constants.X_OK);
       return exe;
