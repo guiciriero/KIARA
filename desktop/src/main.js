@@ -313,12 +313,15 @@ function registerIpc() {
     const sources = await desktopCapturer.getSources({
       types: ['screen', 'window'],
       thumbnailSize: { width: 320, height: 180 },
+      fetchWindowIcons: true,
     });
     return sources.map((s) => ({
       id: s.id,
       name: s.name,
       type: s.id.startsWith('screen:') ? 'screen' : 'window',
       thumbnailDataUrl: s.thumbnail.isEmpty() ? '' : s.thumbnail.toDataURL(),
+      // Ícone do aplicativo dono da janela (vazio em telas ou quando indisponível)
+      appIconDataUrl: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : '',
     }));
   }, VIEWER_OK);
 

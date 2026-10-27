@@ -76,6 +76,8 @@ export interface CaptureSourceInfo {
   name: string;
   type: 'screen' | 'window';
   thumbnailDataUrl: string;
+  /** Ícone do aplicativo (janelas); vazio/ausente quando indisponível */
+  appIconDataUrl?: string;
 }
 
 /** Estado da atualização do app desktop (união discriminada por `status`). */
