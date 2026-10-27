@@ -1,9 +1,10 @@
 # Atualizações automáticas de dependências (semanais), com minor/patch agrupados.
 #
-# Versões MAIORES (major) das dependências npm ficam de fora de propósito: elas costumam trocar
-# peer dependencies (ex.: typescript 7 x typescript-eslint, @types/react 19 x @types/react-dom 18)
-# e quebram o `npm ci` com ERESOLVE. Migre majors à mão, em um PR próprio, validando com
-# `npm run verify`. Correções de segurança continuam chegando pelos alertas do GitHub.
+# Majors ignorados de propósito (o resto das majors chega normalmente, em PR próprio):
+#  - typescript: o typescript-eslint ainda exige typescript < 6.1, então o 7 quebra o `npm ci`
+#    com ERESOLVE. Reavaliar quando o typescript-eslint suportar o TypeScript 7.
+#  - @types/node: deve acompanhar a versão do Node usada em runtime/CI (22), não a mais nova.
+#  - electron: majors exigem validação manual do addon N-API (NAPI_VERSION=8).
 version: 2
 updates:
   - package-ecosystem: npm
@@ -15,7 +16,9 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      - dependency-name: "*"
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
@@ -27,7 +30,9 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      - dependency-name: "*"
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
@@ -39,10 +44,11 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      - dependency-name: "*"
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
-  # Electron: majors exigem validação manual do addon N-API (NAPI_VERSION=8).
   - package-ecosystem: npm
     directory: /desktop
     schedule:
@@ -52,7 +58,9 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      - dependency-name: "*"
+      - dependency-name: "electron"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
@@ -64,7 +72,7 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      - dependency-name: "*"
+      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
