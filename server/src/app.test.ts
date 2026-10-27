@@ -4,7 +4,7 @@ import path from 'path';
 import type { AddressInfo } from 'net';
 import { io as ioClient, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp, type AppInstance, type AppOptions } from './app';
+import { createApp, MAX_SOCKET_MESSAGE_BYTES, type AppInstance, type AppOptions } from './app';
 
 // Evita rede real: /download/windows cai no redirecionamento de fallback
 vi.mock('./utils/latestRelease', () => ({
@@ -70,6 +70,8 @@ describe('createApp', () => {
     const csp = res.headers.get('content-security-policy') ?? '';
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain('fonts.googleapis.com');
+    expect(csp).not.toContain('fonts.gstatic.com');
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("base-uri 'none'");
@@ -148,12 +150,18 @@ describe('createApp', () => {
     expect((await once<Error>(b, 'connect_error')).message).toBe('server-busy');
   });
 
-  it('mensagem maior que 64 KB derruba a conexão', async () => {
+  it('mensagem maior que MAX_SOCKET_MESSAGE_BYTES derruba a conexão; abaixo do limite não', async () => {
     const { base } = await start();
     const s = connect(base);
     await once(s, 'connect');
-    const closed = once<string>(s, 'disconnect');
+
+    // Abaixo do limite (70 KB < 128 KB): a conexão segue de pé
     s.emit('teste:grande', 'x'.repeat(70 * 1024));
+    await new Promise((r) => setTimeout(r, 200));
+    expect(s.connected).toBe(true);
+
+    const closed = once<string>(s, 'disconnect');
+    s.emit('teste:grande', 'x'.repeat(MAX_SOCKET_MESSAGE_BYTES + 1024));
     expect(await closed).toBe('transport close');
   });
 
@@ -178,5 +186,67 @@ describe('createApp', () => {
     expect(inst.httpServer.listening).toBe(false);
     await expect(inst.close()).resolves.toBeUndefined();
     await expect(fetch(`${base}/health`)).rejects.toBeTruthy();
+  });
+
+  describe('/metrics', () => {
+    it('retorna 404 quando METRICS_TOKEN não está definido', async () => {
+      const oldToken = process.env.METRICS_TOKEN;
+      delete process.env.METRICS_TOKEN;
+      try {
+        const { base } = await start();
+        const res = await fetch(`${base}/metrics`);
+        expect(res.status).toBe(404);
+      } finally {
+        if (oldToken !== undefined) process.env.METRICS_TOKEN = oldToken;
+      }
+    });
+
+    it('retorna 401 quando o token é ausente ou incorreto', async () => {
+      const oldToken = process.env.METRICS_TOKEN;
+      process.env.METRICS_TOKEN = 'segredo-123';
+      try {
+        const { base } = await start();
+        const semHeader = await fetch(`${base}/metrics`);
+        expect(semHeader.status).toBe(401);
+
+        const errado = await fetch(`${base}/metrics`, {
+          headers: { Authorization: 'Bearer token-errado' },
+        });
+        expect(errado.status).toBe(401);
+      } finally {
+        if (oldToken !== undefined) process.env.METRICS_TOKEN = oldToken;
+        else delete process.env.METRICS_TOKEN;
+      }
+    });
+
+    it('retorna 200 com métricas Prometheus em texto simples quando autenticado', async () => {
+      const oldToken = process.env.METRICS_TOKEN;
+      process.env.METRICS_TOKEN = 'segredo-123';
+      try {
+        const { inst, base } = await start();
+        const { room } = await inst.roomManager.createRoom('host-1', { privacyMode: true });
+
+        const res = await fetch(`${base}/metrics`, {
+          headers: { Authorization: 'Bearer segredo-123' },
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/plain');
+        const text = await res.text();
+        expect(text).toContain('kiara_active_rooms 1');
+        expect(text).toContain('kiara_privacy_rooms 1');
+        expect(text).toContain('kiara_viewers_total 0');
+        expect(text).toContain('kiara_copresenters_total 0');
+        expect(text).toContain('kiara_socket_connections');
+        expect(text).toContain('kiara_uptime_seconds');
+        // Não expõe IDs de salas nem IPs
+        expect(text).not.toContain('host-1');
+        expect(text).not.toContain(room.code);
+        expect(text).not.toContain(room.id);
+        expect(text).not.toContain('127.0.0.1');
+      } finally {
+        if (oldToken !== undefined) process.env.METRICS_TOKEN = oldToken;
+        else delete process.env.METRICS_TOKEN;
+      }
+    });
   });
 });

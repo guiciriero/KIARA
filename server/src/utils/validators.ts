@@ -8,6 +8,8 @@ import type {
   JoinRoomPayload,
   RespondJoinPayload,
   UpdateNamePayload,
+  ResumeRoomPayload,
+  KickViewerPayload,
   RTCOfferPayload,
   RTCAnswerPayload,
   RTCIceCandidatePayload,
@@ -66,11 +68,16 @@ export function sanitizeNickname(name: unknown, isHost: boolean = false): string
   return Array.from(cleaned).slice(0, 24).join('').trim() || 'Convidado';
 }
 
+/** Token de entrada de sala E2EE: 32 bytes em base64url sem padding (43 caracteres) */
+const E2EE_ENTRY_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
 /** Valida CreateRoomPayload */
 export function validateCreateRoomPayload(data: unknown): {
   valid: boolean;
   payload?: CreateRoomPayload;
   invalidPassword?: boolean;
+  /** Sala E2EE sem o token de entrada derivado no cliente */
+  invalidE2ee?: boolean;
 } {
   if (data === null || data === undefined) {
     return { valid: true, payload: {} };
@@ -102,6 +109,18 @@ export function validateCreateRoomPayload(data: unknown): {
   if ('reactionsEnabled' in obj && obj.reactionsEnabled !== undefined) {
     if (typeof obj.reactionsEnabled !== 'boolean') return { valid: false };
     result.reactionsEnabled = obj.reactionsEnabled;
+  }
+
+  if ('e2ee' in obj && obj.e2ee !== undefined) {
+    if (typeof obj.e2ee !== 'boolean') return { valid: false };
+    if (obj.e2ee) {
+      // Sala E2EE exige o token derivado no cliente (43 caracteres base64url): uma senha comum
+      // chegaria em claro ao servidor, que poderia derivar a chave de mídia dela.
+      if (!result.password || !E2EE_ENTRY_TOKEN.test(result.password)) {
+        return { valid: false, invalidE2ee: true };
+      }
+      result.e2ee = true;
+    }
   }
 
   if ('preferredCode' in obj && obj.preferredCode !== undefined && obj.preferredCode !== null) {
@@ -161,6 +180,30 @@ export function validateJoinRoomPayload(data: unknown): JoinRoomPayload | null {
   if (hwDecode) result.hwDecode = hwDecode;
 
   return result;
+}
+
+/** Valida ResumeRoomPayload (roomId e hostToken como strings curtas) */
+export function validateResumeRoomPayload(data: unknown): ResumeRoomPayload | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const obj = data as Record<string, unknown>;
+
+  if (typeof obj.roomId !== 'string' || obj.roomId.length === 0 || obj.roomId.length > 64) return null;
+  if (typeof obj.hostToken !== 'string' || obj.hostToken.length === 0 || obj.hostToken.length > 128) {
+    return null;
+  }
+  return { roomId: obj.roomId, hostToken: obj.hostToken };
+}
+
+/** Valida KickViewerPayload */
+export function validateKickViewerPayload(data: unknown): KickViewerPayload | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const obj = data as Record<string, unknown>;
+
+  if (typeof obj.viewerId !== 'string' || obj.viewerId.trim().length === 0 || obj.viewerId.length > 64) {
+    return null;
+  }
+  if (obj.ban !== undefined && typeof obj.ban !== 'boolean') return null;
+  return { viewerId: obj.viewerId, ban: obj.ban === true };
 }
 
 /** Valida RespondJoinPayload */

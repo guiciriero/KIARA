@@ -109,7 +109,7 @@ export interface NativeCaptureOptions {
 }
 
 export interface ScreenShareHostApi {
-  platform: 'windows' | 'macos';
+  platform: 'windows' | 'macos' | 'linux';
   audio: {
     /** Lista aplicativos cujo áudio pode ser capturado */
     listSources(): Promise<AudioSource[]>;
@@ -178,6 +178,18 @@ export type SignalingEvent =
   | 'room:viewer-left'
   | 'room:join-cancelled'
   | 'room:host-disconnected'
+  /** C→S host retoma a sala após queda de conexão (mesmo hostToken) */
+  | 'room:resume'
+  /** S→host sala retomada com sucesso (novo socket id passa a ser o hostId) */
+  | 'room:resumed'
+  /** S→sala o host caiu; a sala aguarda `graceMs` antes de ser encerrada */
+  | 'room:host-reconnecting'
+  /** S→sala o host voltou; `hostId` é o novo socket id do apresentador */
+  | 'room:host-resumed'
+  /** C(host)→S expulsa (ou bane, por IP) um espectador */
+  | 'room:kick-viewer'
+  /** S→host um espectador mudou de apelido */
+  | 'room:viewer-renamed'
   | 'room:update-features'
   | 'room:features-update'
   | 'room:set-name'
@@ -227,6 +239,10 @@ export type RoomErrorCode =
   | 'password-required'
   | 'wrong-password'
   | 'denied'
+  /** Espectador expulso pelo apresentador (pode entrar de novo) */
+  | 'kicked'
+  /** Espectador banido da sala pelo apresentador (por IP, até a sala fechar) */
+  | 'banned'
   | 'rate-limited'
   | 'server-busy'
   | 'internal';
@@ -234,6 +250,8 @@ export type RoomErrorCode =
 export interface RoomErrorPayload {
   message: string;
   code: RoomErrorCode;
+  /** Em `password-required` e `wrong-password`: true quando a sala é E2EE (o cliente deriva o token de entrada e reenvia) */
+  e2ee?: boolean;
 }
 
 /** C→S `room:create` (o payload inteiro é opcional) */
@@ -248,6 +266,11 @@ export interface CreateRoomPayload {
   reactionsEnabled?: boolean;
   /** Código preferencial para a sala (ex.: sala permanente) */
   preferredCode?: string;
+  /**
+   * Cifra de ponta a ponta da mídia (Insertable Streams). Exige `password`, que nesse caso é um
+   * "token de entrada" derivado no cliente; a chave de mídia nunca sai do navegador.
+   */
+  e2ee?: boolean;
 }
 
 /** Configurações de funcionalidades da sala (reações) */
@@ -259,6 +282,13 @@ export interface RoomFeaturesPayload {
 export interface RoomCreatedPayload {
   roomId: string;
   code: string;
+  /**
+   * Segredo do apresentador, gerado pelo servidor e válido só para esta sala. Guardar apenas em memória
+   * e enviar em `room:resume` para retomar a sala depois de uma queda. Nunca vai para logs nem URLs.
+   */
+  hostToken: string;
+  /** true quando o `preferredCode` pedido não pôde ser usado e o servidor gerou outro código */
+  codeChanged?: boolean;
   inviteUrl: string;
   iceServers: IceServerConfig[];
   /** Limite de espectadores simultâneos desta sala */
@@ -268,6 +298,7 @@ export interface RoomCreatedPayload {
   /** true somente se o pedido foi atendido (exige TURN configurado no servidor) */
   privacyMode: boolean;
   reactionsEnabled: boolean;
+  e2ee: boolean;
 }
 
 /** C→S `room:join` */
@@ -280,10 +311,58 @@ export interface JoinRoomPayload {
   hwDecode?: VideoCodec[];
 }
 
+/** C(host)→S `room:resume` */
+export interface ResumeRoomPayload {
+  roomId: string;
+  hostToken: string;
+}
+
+/** S→host `room:resumed` (mesmos campos de `room:created`, sem hostToken, mais a contagem atual) */
+export interface RoomResumedPayload {
+  roomId: string;
+  code: string;
+  inviteUrl: string;
+  iceServers: IceServerConfig[];
+  maxViewers: number;
+  hasPassword: boolean;
+  requireApproval: boolean;
+  privacyMode: boolean;
+  reactionsEnabled: boolean;
+  e2ee: boolean;
+  viewerCount: number;
+}
+
+/** S→sala `room:host-reconnecting` */
+export interface HostReconnectingPayload {
+  /** Tempo, em ms, que o servidor espera o apresentador voltar antes de encerrar a sala */
+  graceMs: number;
+}
+
+/** S→sala `room:host-resumed` */
+export interface HostResumedPayload {
+  /** Novo socket id do apresentador (destino dos pedidos de ICE restart e dos offers) */
+  hostId: string;
+}
+
+/** C(host)→S `room:kick-viewer` */
+export interface KickViewerPayload {
+  viewerId: string;
+  /** true = além de expulsar, bloqueia o IP do espectador nesta sala até ela fechar */
+  ban?: boolean;
+}
+
+/** S→host `room:viewer-renamed` */
+export interface ViewerRenamedPayload {
+  viewerId: string;
+  name: string;
+}
+
 /** S→host `room:viewer-joined` */
 export interface ViewerJoinedPayload {
   viewerId: string;
   viewerCount: number;
+  /** Apelido do espectador (já sanitizado pelo servidor) */
+  name?: string;
   /** Codecs decodificados por hardware pelo espectador (ausente = desconhecido) */
   hwDecode?: VideoCodec[];
 }
@@ -322,6 +401,7 @@ export interface RoomJoinedPayload {
   viewerCount: number;
   iceServers: IceServerConfig[];
   reactionsEnabled: boolean;
+  e2ee: boolean;
 }
 
 /** S→host `room:join-request` (sala com aprovação) */

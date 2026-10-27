@@ -3,12 +3,52 @@
  * Responsável por criar, buscar, atualizar e remover salas em memória.
  */
 
-import { randomInt, randomBytes, randomUUID, scrypt as nodeScrypt, timingSafeEqual } from 'crypto';
+import {
+  createHash,
+  randomInt,
+  randomBytes,
+  randomUUID,
+  scrypt as nodeScrypt,
+  timingSafeEqual,
+} from 'crypto';
 import { promisify } from 'util';
 import type { Room } from '@screen-share/shared';
 import { logger } from '../utils/logger';
 
-const scryptAsync = promisify(nodeScrypt);
+const scryptRaw = promisify(nodeScrypt);
+
+/** Máximo de hashes scrypt simultâneos (cada um usa ~16 MB e CPU; evita DoS por inundação de senhas) */
+export const SCRYPT_MAX_CONCURRENCY = 4;
+
+/** Limitador de concorrência com fila simples (FIFO) */
+export function createLimiter(max: number): <T>(task: () => Promise<T>) => Promise<T> {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    if (active >= max) {
+      // O slot é repassado diretamente ao próximo da fila (active não cai), sem janela para furar o limite
+      await new Promise<void>((resolve) => queue.push(resolve));
+    } else {
+      active += 1;
+    }
+    try {
+      return await task();
+    } finally {
+      const next = queue.shift();
+      if (next) next();
+      else active -= 1;
+    }
+  };
+}
+
+const scryptLimit = createLimiter(SCRYPT_MAX_CONCURRENCY);
+const scryptAsync = (password: string, salt: Buffer, keylen: number): Promise<Buffer> =>
+  scryptLimit(() => scryptRaw(password, salt, keylen) as Promise<Buffer>);
+
+/** Hash sha256 do token do apresentador (só o hash é guardado na sala) */
+function hashToken(token: string): Buffer {
+  return createHash('sha256').update(token).digest();
+}
 
 export interface PendingViewer {
   viewerId: string;
@@ -22,12 +62,36 @@ export interface ManagedRoom extends Room {
   requireApproval: boolean;
   privacyMode: boolean;
   reactionsEnabled: boolean;
+  /** Mídia cifrada de ponta a ponta no cliente; o servidor só guarda o indicador (nunca vê a chave) */
+  e2ee: boolean;
   maxViewers: number;
   viewers: Set<string>;
   viewerNames: Map<string, string>;
   pendingViewers: Map<string, PendingViewer>;
   /** Set de socket IDs de co-apresentadores ativos */
   copresenters: Set<string>;
+  /** sha256 do token do apresentador (para room:resume) */
+  hostTokenHash: Buffer;
+  /** IPs banidos pelo apresentador (até a sala fechar) */
+  bannedIps: Set<string>;
+  /** true enquanto o apresentador caiu e a sala aguarda a volta dele */
+  hostInGrace: boolean;
+  hostGraceTimer?: NodeJS.Timeout;
+}
+
+/** Resultado de createRoom: o token em claro só existe aqui (vai uma vez ao apresentador) */
+export interface CreatedRoom {
+  room: ManagedRoom;
+  hostToken: string;
+  /** true quando o código preferido foi pedido mas não pôde ser usado */
+  codeChanged: boolean;
+}
+
+/** Tempo (ms) que a sala espera o apresentador voltar após uma queda; 0 = encerra na hora */
+export function getHostGraceMs(): number {
+  const envVal = process.env.HOST_GRACE_MS?.trim();
+  if (!envVal || !/^\d+$/.test(envVal)) return 20_000;
+  return Number.parseInt(envVal, 10);
 }
 
 export function getMaxViewersPerRoom(): number {
@@ -81,7 +145,7 @@ export class RoomManager {
    */
   private generateCode(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
+    let code: string;
     let attempts = 0;
     const maxAttempts = 100;
 
@@ -103,9 +167,10 @@ export class RoomManager {
       requireApproval?: boolean;
       privacyMode?: boolean;
       reactionsEnabled?: boolean;
+      e2ee?: boolean;
       preferredCode?: string;
     },
-  ): Promise<ManagedRoom> {
+  ): Promise<CreatedRoom> {
     if (this.rooms.size >= getMaxRooms()) {
       const err = new Error('Limite máximo de salas atingido.');
       (err as unknown as { code: string }).code = 'SERVER_BUSY';
@@ -119,6 +184,7 @@ export class RoomManager {
         ? options.preferredCode.toUpperCase().trim()
         : undefined;
 
+    let codeChanged = false;
     if (
       candidateCode &&
       /^[A-HJ-NP-Z2-9]{6}$/.test(candidateCode) &&
@@ -127,7 +193,10 @@ export class RoomManager {
       code = candidateCode;
     } else {
       code = this.generateCode();
+      codeChanged = Boolean(candidateCode);
     }
+
+    const hostToken = randomBytes(32).toString('base64url');
 
     const maxViewers = getMaxViewersPerRoom();
 
@@ -154,6 +223,7 @@ export class RoomManager {
       requireApproval: Boolean(options?.requireApproval),
       privacyMode: Boolean(options?.privacyMode),
       reactionsEnabled: options?.reactionsEnabled !== false,
+      e2ee: Boolean(options?.e2ee) && Boolean(passwordHash),
       maxViewers,
       passwordSalt,
       passwordHash,
@@ -161,6 +231,9 @@ export class RoomManager {
       viewerNames: new Map<string, string>(),
       pendingViewers: new Map<string, PendingViewer>(),
       copresenters: new Set<string>(),
+      hostTokenHash: hashToken(hostToken),
+      bannedIps: new Set<string>(),
+      hostInGrace: false,
     };
 
     this.rooms.set(id, room);
@@ -169,7 +242,37 @@ export class RoomManager {
     const logHost = hostId.slice(0, 8);
     // SEGURANÇA: o código da sala é o segredo de convite — nunca vai para os logs.
     logger.info(`Sala criada: ${id} por ${logHost}`);
-    return room;
+    return { room, hostToken, codeChanged };
+  }
+
+  /** Confere o token do apresentador (comparação em tempo constante sobre o hash) */
+  verifyHostToken(room: ManagedRoom, token: string): boolean {
+    return timingSafeEqual(hashToken(token), room.hostTokenHash);
+  }
+
+  /** Inicia o período de graça do apresentador; ao expirar chama `onExpire` (a sala continua aberta até lá) */
+  startHostGrace(roomId: string, ms: number, onExpire: (room: ManagedRoom) => void): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.isActive) return false;
+    this.cancelHostGrace(roomId);
+    room.hostInGrace = true;
+    const timer = setTimeout(() => {
+      room.hostGraceTimer = undefined;
+      room.hostInGrace = false;
+      onExpire(room);
+    }, ms);
+    if (typeof timer.unref === 'function') timer.unref();
+    room.hostGraceTimer = timer;
+    return true;
+  }
+
+  /** Cancela o período de graça (host voltou ou sala fechada) */
+  cancelHostGrace(roomId: string): void {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+    if (room.hostGraceTimer) clearTimeout(room.hostGraceTimer);
+    room.hostGraceTimer = undefined;
+    room.hostInGrace = false;
   }
 
   /** Busca sala por ID */
@@ -316,6 +419,9 @@ export class RoomManager {
     const room = this.rooms.get(roomId);
     if (room) {
       room.isActive = false;
+      if (room.hostGraceTimer) clearTimeout(room.hostGraceTimer);
+      room.hostGraceTimer = undefined;
+      room.hostInGrace = false;
       for (const pending of room.pendingViewers.values()) {
         clearTimeout(pending.timeout);
       }

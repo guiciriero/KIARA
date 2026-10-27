@@ -7,6 +7,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import { createHash, timingSafeEqual } from 'crypto';
 import type { AddressInfo } from 'net';
 import { createServer, type Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -54,7 +55,7 @@ export interface AppInstance {
   clientDist: string | undefined;
 }
 
-export const MAX_SOCKET_MESSAGE_BYTES = 64 * 1024;
+export const MAX_SOCKET_MESSAGE_BYTES = 128 * 1024;
 
 /** Lê inteiro positivo de uma variável de ambiente; inválido → padrão */
 function envPositiveInt(name: string, fallback: number): number {
@@ -124,9 +125,8 @@ export function createApp(opts: AppOptions = {}): AppInstance {
         directives: {
           'default-src': ["'self'"],
           'script-src': ["'self'"],
-          // O index.html carrega a folha de fontes do Google Fonts
-          'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-          'font-src': ["'self'", 'https://fonts.gstatic.com'],
+          'style-src': ["'self'", "'unsafe-inline'"],
+          'font-src': ["'self'"],
           'img-src': ["'self'", 'data:', 'blob:'],
           'connect-src': ["'self'", 'ws:', 'wss:'],
           'media-src': ["'self'", 'blob:'],
@@ -192,14 +192,83 @@ export function createApp(opts: AppOptions = {}): AppInstance {
     },
   );
 
+  // ─── Gerenciador de Salas + sinalização WebRTC ─────────────────────────────
+  const roomManager = new RoomManager();
+
+  // Endpoint de métricas Prometheus (texto simples) protegido por METRICS_TOKEN
+  app.get('/metrics', (req, res) => {
+    const configuredToken = process.env.METRICS_TOKEN?.trim();
+    if (!configuredToken) {
+      res.status(404).send('Not Found');
+      return;
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).send('Unauthorized');
+      return;
+    }
+
+    const providedToken = authHeader.slice(7).trim();
+    const configuredHash = createHash('sha256').update(configuredToken).digest();
+    const providedHash = createHash('sha256').update(providedToken).digest();
+
+    if (!timingSafeEqual(configuredHash, providedHash)) {
+      res.status(401).send('Unauthorized');
+      return;
+    }
+
+    const rooms = roomManager.listRooms().filter((r) => r.isActive);
+    const activeRooms = rooms.length;
+    const viewersTotal = rooms.reduce((acc, r) => acc + r.viewers.size, 0);
+    const copresentersTotal = rooms.reduce((acc, r) => acc + r.copresenters.size, 0);
+    const privacyRooms = rooms.reduce((acc, r) => acc + (r.privacyMode ? 1 : 0), 0);
+    const uptimeSeconds = Math.floor(process.uptime());
+
+    const lines = [
+      '# HELP kiara_active_rooms Total de salas ativas',
+      '# TYPE kiara_active_rooms gauge',
+      `kiara_active_rooms ${activeRooms}`,
+      '',
+      '# HELP kiara_viewers_total Total de espectadores conectados em salas',
+      '# TYPE kiara_viewers_total gauge',
+      `kiara_viewers_total ${viewersTotal}`,
+      '',
+      '# HELP kiara_copresenters_total Total de co-apresentadores ativos',
+      '# TYPE kiara_copresenters_total gauge',
+      `kiara_copresenters_total ${copresentersTotal}`,
+      '',
+      '# HELP kiara_socket_connections Total de conexoes Socket.IO ativas',
+      '# TYPE kiara_socket_connections gauge',
+      `kiara_socket_connections ${totalConnections}`,
+      '',
+      '# HELP kiara_privacy_rooms Total de salas com modo privacidade ativo',
+      '# TYPE kiara_privacy_rooms gauge',
+      `kiara_privacy_rooms ${privacyRooms}`,
+      '',
+      '# HELP kiara_uptime_seconds Tempo de atividade do servidor em segundos',
+      '# TYPE kiara_uptime_seconds counter',
+      `kiara_uptime_seconds ${uptimeSeconds}`,
+      '',
+    ];
+
+    res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
+    res.send(lines.join('\n'));
+  });
+
   if (clientDist) {
     const clientIndex = path.join(clientDist, 'index.html');
     app.use(express.static(clientDist, { index: 'index.html', dotfiles: 'ignore', redirect: false }));
 
-    // Fallback SPA: qualquer GET fora de /socket.io, /health e /download devolve o index.html
+    // Fallback SPA: qualquer GET fora de /socket.io, /health, /download e /metrics devolve o index.html
     // (Express 5: o curinga precisa de nome; '/{*splat}' também casa com '/')
     app.get('/{*splat}', (req, res, next) => {
-      if (req.path.startsWith('/socket.io') || req.path.startsWith('/health') || req.path.startsWith('/download/')) {
+      if (
+        req.path.startsWith('/socket.io') ||
+        req.path.startsWith('/health') ||
+        req.path.startsWith('/download/') ||
+        req.path.startsWith('/metrics')
+      ) {
         next();
         return;
       }
@@ -285,8 +354,12 @@ export function createApp(opts: AppOptions = {}): AppInstance {
     next();
   });
 
-  // ─── Gerenciador de Salas + sinalização WebRTC ─────────────────────────────
-  const roomManager = new RoomManager();
+  io.engine.on('connection_error', (err: unknown) => {
+    const code = (err as { code?: number })?.code;
+    const message = (err as { message?: string })?.message ?? 'desconhecido';
+    logger.warn(`Conexão Socket.IO com erro na engine (código ${code ?? 'desconhecido'}): ${message}`);
+  });
+
   const disposeSignaling = setupSignaling(io, roomManager);
 
   let closing: Promise<void> | null = null;

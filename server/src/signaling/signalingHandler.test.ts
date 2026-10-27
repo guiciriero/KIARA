@@ -3,8 +3,6 @@ import type { Socket } from 'socket.io-client';
 import { createTestServer, sleep, waitForEvent, type TestServer } from '../test/helpers';
 import { resetIceServersCache } from '../utils/iceServers';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 let server: TestServer;
 
 beforeEach(async () => {
@@ -131,6 +129,39 @@ describe('senha', () => {
 
     const joined = await joinRoom(viewer, { code: created.code, password: 'segredo123' });
     expect(joined.roomId).toBe(created.roomId);
+  });
+  it('sala E2EE: exige token de entrada, anuncia e2ee no password-required e no room:joined', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const token = 'A'.repeat(43);
+
+    // Sem senha ou com senha comum (que chegaria em claro ao servidor) a criação é recusada
+    const semSenha = await expectError(host, () => host.emit('room:create', { e2ee: true }));
+    expect(semSenha.code).toBe('invalid-request');
+    const comum = await expectError(host, () =>
+      host.emit('room:create', { e2ee: true, password: 'segredo123' }),
+    );
+    expect(comum.code).toBe('invalid-request');
+
+    const created = await createRoom(host, { e2ee: true, password: token });
+    expect(created.e2ee).toBe(true);
+    expect(created.hasPassword).toBe(true);
+
+    const noPass = await expectError(viewer, () => viewer.emit('room:join', { code: created.code }));
+    expect(noPass.code).toBe('password-required');
+    expect(noPass.e2ee).toBe(true);
+
+    const joined = await joinRoom(viewer, { code: created.code, password: token });
+    expect(joined.e2ee).toBe(true);
+  });
+
+  it('sala comum não anuncia e2ee', async () => {
+    const host = await server.createClient();
+    const viewer = await server.createClient();
+    const created = await createRoom(host, { password: 'segredo123' });
+    expect(created.e2ee).toBe(false);
+    const noPass = await expectError(viewer, () => viewer.emit('room:join', { code: created.code }));
+    expect(noPass.e2ee).toBeUndefined();
   });
 
   it('não vaza a senha ou o hash em nenhum payload', async () => {
