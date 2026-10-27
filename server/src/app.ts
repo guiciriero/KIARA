@@ -197,7 +197,8 @@ export function createApp(opts: AppOptions = {}): AppInstance {
     app.use(express.static(clientDist, { index: 'index.html', dotfiles: 'ignore', redirect: false }));
 
     // Fallback SPA: qualquer GET fora de /socket.io, /health e /download devolve o index.html
-    app.get('*', (req, res, next) => {
+    // (Express 5: o curinga precisa de nome; '/{*splat}' também casa com '/')
+    app.get('/{*splat}', (req, res, next) => {
       if (req.path.startsWith('/socket.io') || req.path.startsWith('/health') || req.path.startsWith('/download/')) {
         next();
         return;

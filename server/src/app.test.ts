@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import type { AddressInfo } from 'net';
 import { io as ioClient, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -39,6 +42,23 @@ describe('createApp', () => {
     const inst = createApp({ clientDistDir: null });
     expect(inst.httpServer.listening).toBe(false);
     await inst.close();
+  });
+
+  it('fallback SPA devolve o index.html em /, /view/CODIGO e rotas desconhecidas, sem engolir /health', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiara-dist-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>kiara-spa</title>');
+      const { base } = await start({ clientDistDir: dir });
+      for (const rota of ['/', '/view/ABCDEF', '/qualquer/coisa']) {
+        const res = await fetch(`${base}${rota}`);
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain('kiara-spa');
+      }
+      const health = await fetch(`${base}/health`);
+      expect(((await health.json()) as { status: string }).status).toBe('ok');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('/health responde 200 com cabeçalhos do helmet', async () => {
