@@ -120,6 +120,9 @@ export function useViewer(roomCode: string | undefined) {
         iceServers: data.iceServers,
       });
 
+      // Notifica o apresentador da preferência padrão (1080p)
+      socket.emit('stream:quality-request', { ...qualityLimits('1080p'), preference: '1080p' });
+
       // Nunca dois WebRTCViewer ao mesmo tempo
       destroyViewer();
       const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers);

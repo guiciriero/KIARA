@@ -47,7 +47,7 @@ export const INITIAL_VIEWER_STATE: ViewerState = {
   pendingApproval: false,
   roomClosed: false,
   hostDisconnected: false,
-  selectedQuality: 'auto',
+  selectedQuality: '1080p',
   hostId: null,
   iceServers: [],
 };
