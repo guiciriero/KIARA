@@ -25,6 +25,7 @@
 }
 
 .studioLayout {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;              /* ocupa o espaço restante após a TitleBar */
@@ -32,6 +33,11 @@
   height: 100%;
   background: var(--kiara-bg);
   overflow: hidden;
+}
+
+/* HUD de feedback: fica abaixo da barra superior (e da TitleBar), não por baixo dela */
+.studioLayout .hudBelowTopBar {
+  top: 80px;
 }
 
 /* ── Top Bar ─────────────────────────────────────────────────────── */

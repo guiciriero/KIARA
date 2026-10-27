@@ -334,7 +334,7 @@ const BroadcastPage: React.FC = () => {
     <div className={styles.studioLayout}>
       {/* ── HUD Flutuante de Feedback ─────────────────────────────────── */}
       {hudMessage && (
-        <div className={viewerStyles.hudNotification} role="status" aria-live="polite">
+        <div className={`${viewerStyles.hudNotification} ${styles.hudBelowTopBar}`} role="status" aria-live="polite">
           <span>{hudMessage}</span>
         </div>
       )}
