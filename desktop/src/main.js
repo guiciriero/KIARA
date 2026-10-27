@@ -444,6 +444,8 @@ function registerIpc() {
   handle('updater:check', () => updater.check());
   handle('updater:download', () => updater.download());
   handle('updater:install', () => updater.install());
+  // Procura (e baixa) a atualização sozinho ao abrir o app e a cada poucas horas.
+  updater.startAutoCheck();
 }
 
 // ─── getDisplayMedia ─────────────────────────────────────────────────────────

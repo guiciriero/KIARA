@@ -139,7 +139,7 @@ npm run build       # typecheck e build de produção
 npm run e2e         # WebRTC e áudio em um Chrome de verdade (veja client/e2e/README.md)
 ```
 
-O GitHub Actions roda tudo isso a cada push e pull request ([`ci.yml`](.github/workflows/ci.yml)), além de CodeQL e Dependabot. O instalador só é gerado depois que a CI passa.
+O GitHub Actions roda tudo isso a cada push e pull request ([`ci.yml`](.github/workflows/ci.yml)), além de CodeQL e Dependabot. O instalador é compilado em paralelo com a CI, mas a release só é publicada depois que a CI passa.
 
 ### Hospedagem fixa no Render (grátis, sem depender do seu PC)
 
@@ -213,7 +213,7 @@ render.yaml        Configuração da hospedagem fixa no Render
 
 ## Atualização do app
 
-O app para Windows tem o botão **Atualizar** na tela inicial. Ele procura a versão mais nova, baixa e instala por cima, sem precisar desinstalar. A pasta escolhida na primeira instalação é mantida.
+O app para Windows procura sozinho a versão mais nova: cerca de 10 segundos depois de abrir e a cada 4 horas. Se houver uma, ela é baixada em segundo plano e o botão da tela inicial vira **Reiniciar e atualizar**. Se você não clicar, ela é instalada quando fechar o app. O botão **Atualizar** continua disponível para verificar na hora. A instalação é por cima, sem precisar desinstalar, e a pasta escolhida na primeira instalação é mantida. Se o computador estiver sem internet, a verificação automática falha em silêncio.
 
 - Cada push na `main` gera a release `v1.0.<número do build>`. Tags `v*` usam a própria tag. A release traz o `.exe` e o `latest.yml` que o app consulta.
 - O app não guarda nenhum token, então o repositório de releases precisa ser público. Se ele voltar a ser privado, o app avisa que não achou versão; nesse caso, hospede `latest.yml`, o `.exe` e o `.blockmap` em um endereço https público e defina `KIARA_UPDATE_URL=https://.../` (em tempo de execução ou no build).

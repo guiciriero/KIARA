@@ -154,7 +154,7 @@ function clampPercent(p) {
 /**
  * Reducer: devolve o MESMO objeto (referência) quando a transição é inválida.
  * Eventos: check-start | found {version} | none | download-start | progress {percent}
- *          | downloaded | fail {message}
+ *          | downloaded | fail {message} | reset (erro → idle, usado em verificações automáticas)
  */
 function reduceUpdate(state, event) {
   const base = { currentVersion: state.currentVersion };
@@ -183,6 +183,8 @@ function reduceUpdate(state, event) {
       return state.status === 'downloading'
         ? { ...base, status: 'downloaded', latestVersion: state.latestVersion, progress: 100 }
         : state;
+    case 'reset':
+      return state.status === 'checking' ? { ...base, status: 'idle' } : state;
     case 'fail':
       return ['checking', 'downloading', 'downloaded'].includes(state.status)
         ? { ...base, status: 'error', latestVersion: state.latestVersion, message: event.message }

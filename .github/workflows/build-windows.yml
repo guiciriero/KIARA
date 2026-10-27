@@ -1,6 +1,7 @@
 # Build do instalador Windows (NSIS) do app desktop KIARA.
 # Gatilhos: manual, push na main (publica a release "v1.0.<run_number>") e tags "v*".
-# O instalador e a release só são gerados depois que o job "verify" (ci.yml) passar.
+# O instalador é compilado em paralelo com a verificação (ci.yml), para a atualização sair mais rápido;
+# a release só é publicada depois que os jobs "verify" e "build" passarem.
 name: Build Windows
 
 on:
@@ -32,7 +33,7 @@ env:
 
 jobs:
   # Verificação (lint, tipos, testes, build, audit e e2e): reutiliza o ci.yml.
-  # O instalador e a release só saem se ela passar.
+  # A release só sai se ela passar (o job "release" depende dela).
   # Segredos repassados explicitamente — "secrets: inherit" enviaria SIGNPATH_API_TOKEN
   # e outros segredos desnecessários ao ci.yml; repasse mínimo é mais seguro.
   verify:
@@ -42,9 +43,10 @@ jobs:
       REDHAT_REGISTRY_USER: ${{ secrets.REDHAT_REGISTRY_USER }}
       REDHAT_REGISTRY_TOKEN: ${{ secrets.REDHAT_REGISTRY_TOKEN }}
 
+  # Roda ao mesmo tempo que "verify" (sem "needs"): só gera artifacts, nada é publicado aqui.
+  # Se a verificação falhar, o job "release" não executa e o instalador é descartado.
   build:
     name: Compilar instalador
-    needs: verify
     runs-on: windows-latest
     timeout-minutes: 60
     env:
@@ -95,8 +97,19 @@ jobs:
           npm ci
           npm run build
 
+      # Cache do addon já compilado (a compilação leva ~80 s e o código de native/ quase nunca muda).
+      # A chave inclui o código-fonte, o binding.gyp e o lockfile (versão do node-addon-api); qualquer
+      # mudança neles gera uma chave nova e recompila. Para forçar recompilação (ex.: troca de
+      # toolchain do runner), aumente o "v1" da chave. O cache só é salvo se o job inteiro passar.
+      - name: native - restaurar addon do cache
+        id: native-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: native/build/Release/screen_capture.node
+          key: native-addon-v1-${{ runner.os }}-node22-${{ hashFiles('native/src/**', 'native/binding.gyp', 'native/package-lock.json') }}
+
       # Módulo nativo C++ (WASAPI/DXGI): só compila no Windows. Python e Visual Studio já vêm
-      # no windows-latest.
+      # no windows-latest. Pulado quando o cache acima acertou.
       # IMPORTANTE: o addon usa node-addon-api com NAPI_VERSION=8 (N-API é ABI-estável).
       # Por isso pode ser compilado com o node-gyp padrão contra o Node 22 do runner e carregado
       # pelo Electron SEM rebuild específico para Electron (o Electron implementa N-API >= 8).
@@ -105,18 +118,20 @@ jobs:
       # --ignore-scripts, para o npm não disparar o `node-gyp rebuild` automático com a versão
       # antiga (o binding.gyp faz o npm rodar esse passo sozinho no install).
       - name: native - instalar e compilar addon
+        if: steps.native-cache.outputs.cache-hit != 'true'
         working-directory: native
         run: |
           npm ci --ignore-scripts
           npx node-gyp --version
           npx node-gyp rebuild
-          ls -la build/Release/screen_capture.node
 
-      # Smoke test: falha cedo se o addon compilado não carregar (ABI, DLL ausente etc.).
+      # Smoke test: falha cedo se o addon (compilado ou vindo do cache) não carregar (ABI, DLL ausente etc.).
       - name: native - smoke test (carregar o .node)
         working-directory: native
         shell: bash
-        run: node -e "require('./build/Release/screen_capture.node')"
+        run: |
+          ls -la build/Release/screen_capture.node
+          node -e "require('./build/Release/screen_capture.node')"
 
       # Dependências do app desktop (electron, electron-builder, esbuild).
       - name: desktop - instalar dependências

@@ -123,9 +123,10 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
   # Teste ponta a ponta no Chrome estável do runner (client/e2e).
+  # Roda em paralelo com "verify" (não depende dele): instala e compila por conta própria,
+  # o que encurta o tempo total da CI e, por consequência, o da publicação do instalador.
   e2e:
     name: E2E (Chrome)
-    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -183,9 +184,9 @@ jobs:
   # Build das imagens de contêiner (sem push). As imagens-base vêm de registry.redhat.io, que
   # exige login: o job só roda quando os segredos abaixo existem (não existem em PRs de forks).
   #   Segredos: REDHAT_REGISTRY_USER e REDHAT_REGISTRY_TOKEN (conta/service account do Red Hat Registry)
+  # Também em paralelo com "verify": compila shared/types, servidor e cliente por conta própria.
   docker-build:
     name: Docker build (sem push)
-    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

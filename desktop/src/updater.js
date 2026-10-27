@@ -54,6 +54,8 @@ function createUpdater({
   const info = readBuildInfo(app);
   let au = null;
   let state;
+  // Verificação automática em andamento: falha de rede não vira mensagem de erro na tela.
+  let silent = false;
 
   if (isDev || !app.isPackaged) {
     state = disabledState(info.version, MSG_DEV);
@@ -72,6 +74,10 @@ function createUpdater({
   }
 
   function fail(err, stage) {
+    if (silent && stage === 'check') {
+      dispatch({ type: 'reset' });
+      return;
+    }
     dispatch({ type: 'fail', message: classifyError(err, stage).message });
   }
 
@@ -102,13 +108,22 @@ function createUpdater({
     return au;
   }
 
-  async function check() {
+  /**
+   * Procura atualização e, se houver, já baixa em segundo plano (menos cliques e a versão nova
+   * chega mais cedo). O usuário só precisa clicar em "Reiniciar e atualizar" (ou fechar o app,
+   * que instala sozinho por causa do autoInstallOnAppQuit).
+   */
+  async function check({ automatic = false } = {}) {
     if (!dispatch({ type: 'check-start' })) return state;
+    silent = automatic;
     try {
       await ensure().checkForUpdates();
     } catch (err) {
       fail(err, 'check');
+    } finally {
+      silent = false;
     }
+    if (state.status === 'available') return download();
     return state;
   }
 
@@ -134,7 +149,22 @@ function createUpdater({
     return state;
   }
 
-  return { getState: () => state, check, download, install };
+  /**
+   * Verifica ao abrir o app (após `initialDelayMs`, para não competir com a inicialização) e
+   * depois a cada `intervalMs`. Não faz nada quando as atualizações estão desativadas.
+   * @returns {() => void} cancela os temporizadores
+   */
+  function startAutoCheck({ initialDelayMs = 10_000, intervalMs = 4 * 60 * 60 * 1000 } = {}) {
+    if (state.status === 'disabled') return () => {};
+    const run = () => { void check({ automatic: true }); };
+    const first = setTimeout(run, initialDelayMs);
+    const timer = setInterval(run, intervalMs);
+    first.unref();
+    timer.unref();
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }
+
+  return { getState: () => state, check, download, install, startAutoCheck };
 }
 
 module.exports = { createUpdater, readBuildInfo };
