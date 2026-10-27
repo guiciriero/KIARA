@@ -51,7 +51,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      {/* ── Top Bar / Header ────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className={styles.header}>
         <div className={styles.logoWrap}>
           <KiaraLogo size={22} withText />
@@ -63,7 +63,7 @@ const HomePage: React.FC = () => {
               className={styles.btnDownload}
               title="Baixa o instalador da versão mais recente do KIARA para Windows"
             >
-              Baixar KIARA para Windows
+              Baixar para Windows
             </a>
           )}
           <UpdateButton />
@@ -71,9 +71,18 @@ const HomePage: React.FC = () => {
         </div>
       </header>
 
-      {/* ── Conteúdo Central Minimalista ─────────────────────────────────── */}
+      {/* ── Conteúdo Central ─────────────────────────────────────────────── */}
       <main className={styles.main}>
-        <div className={styles.heroText}>
+        {/* Hero: shitzu é o personagem do app */}
+        <div className={styles.hero}>
+          <div className={styles.shihtzuWrap}>
+            {/* Mascote inline: pose idle, escala 5x — display prop, não bloqueia cliques */}
+            <PixelShihTzu
+              pose="idle"
+              scale={5}
+              speech={connected ? undefined : 'Conectando…'}
+            />
+          </div>
           <h1 className={styles.title}>
             Compartilhamento de tela direto, sem atrito.
           </h1>
@@ -81,19 +90,22 @@ const HomePage: React.FC = () => {
 
         {serverWake.waking && <ServerWakeNotice seconds={serverWake.seconds} />}
 
-        {/* ── Grid Minimalista ────────────────────────────────────────────── */}
+        {/* ── Cards de ação ─────────────────────────────────────────────── */}
         <div className={styles.cardsGrid}>
-          {/* Card: Host */}
-          <div className={styles.card}>
+
+          {/* Card: Transmitir */}
+          <div className={`${styles.card} ${styles.cardBroadcast}`}>
             <div className={styles.cardTop}>
               <div className={styles.cardTitleRow}>
-                <IconBroadcast size={16} />
-                <h2>Apresentar</h2>
+                <div className={styles.cardIcon}>
+                  <IconBroadcast size={16} />
+                </div>
+                <h2>Transmitir</h2>
               </div>
             </div>
-            
+
             <p className={styles.cardDesc}>
-              Compartilhe sua tela inteira ou janelas com áudio cristalino e link instantâneo.
+              Compartilhe sua tela ou janela com áudio e link fixo instantâneo.
             </p>
 
             <button
@@ -102,22 +114,24 @@ const HomePage: React.FC = () => {
               onClick={() => navigate('/broadcast')}
               disabled={!connected}
             >
-              <span>{connected ? 'Iniciar Transmissão' : 'Conectando…'}</span>
+              <span>{connected ? 'Iniciar' : 'Conectando…'}</span>
               <IconArrowRight size={15} />
             </button>
           </div>
 
-          {/* Card: Viewer */}
+          {/* Card: Assistir */}
           <div className={styles.card}>
             <div className={styles.cardTop}>
               <div className={styles.cardTitleRow}>
-                <IconEye size={16} />
+                <div className={styles.cardIcon}>
+                  <IconEye size={16} />
+                </div>
                 <h2>Assistir</h2>
               </div>
             </div>
 
             <p className={styles.cardDesc}>
-              Insira o código de 6 caracteres ou o link da sala para assistir.
+              Cole o código de 6 caracteres ou o link da sala.
             </p>
 
             <div className={styles.inputContainer}>
@@ -128,7 +142,7 @@ const HomePage: React.FC = () => {
                   aria-invalid={codeError !== ''}
                   aria-describedby={codeError ? 'kiara-join-error' : undefined}
                   aria-label="Código ou link da transmissão"
-                  placeholder="Código ou link da sala"
+                  placeholder="Código ou link"
                   maxLength={MAX_INPUT_LENGTH}
                   value={code}
                   autoComplete="off"
@@ -152,7 +166,7 @@ const HomePage: React.FC = () => {
                   onClick={() => void handleJoin()}
                   disabled={!connected}
                 >
-                  <span>Entrar</span>
+                  Entrar
                 </button>
               </div>
 
@@ -160,10 +174,11 @@ const HomePage: React.FC = () => {
               {codeInfo && <p className={styles.info} role="status">{codeInfo}</p>}
             </div>
           </div>
+
         </div>
       </main>
 
-      {/* Mini Shih Tzu em pixel art: passeia pela tela seguindo o cursor (não bloqueia cliques) */}
+      {/* Shitzu seguindo o cursor — elemento de charme, pointer-events: none */}
       <PixelShihTzu followCursor />
     </div>
   );
