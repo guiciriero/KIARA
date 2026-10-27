@@ -27,8 +27,9 @@
 .studioLayout {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  flex: 1;              /* ocupa o espaço restante após a TitleBar */
+  min-height: 0;
+  height: 100%;
   background: var(--kiara-bg);
   overflow: hidden;
 }
@@ -1034,7 +1035,8 @@
 @media (max-width: 900px) {
   .studioLayout {
     height: auto;
-    min-height: 100dvh;
+    min-height: 0;
+    flex: 1;
   }
   .bodyLayout {
     grid-template-columns: 1fr;

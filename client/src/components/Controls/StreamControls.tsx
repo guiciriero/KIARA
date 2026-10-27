@@ -28,7 +28,7 @@ const StreamControls: React.FC<Props> = ({
       {!isSharing ? (
         <button type="button" className={styles.btnStart} onClick={onStart} disabled={startDisabled}>
           <IconBroadcast size={20} />
-          <span>Iniciar Transmissão</span>
+          <span>Transmitir</span>
         </button>
       ) : (
         <>
@@ -37,7 +37,7 @@ const StreamControls: React.FC<Props> = ({
               type="button"
               className={isPaused ? styles.btnResume : styles.btnPause}
               onClick={onTogglePause}
-              title={isPaused ? 'Retomar transmissão de tela' : 'Pausar transmissão momentaneamente'}
+              title={isPaused ? 'Retomar a transmissão' : 'Pausar momentaneamente'}
             >
               {isPaused ? <IconPlay size={17} /> : <IconPause size={17} />}
               <span>{isPaused ? 'Retomar' : 'Pausar'}</span>
@@ -47,7 +47,7 @@ const StreamControls: React.FC<Props> = ({
               type="button"
               className={styles.btnStop}
               onClick={onStop}
-              title="Encerrar transmissão e fechar sala"
+              title="Encerrar e fechar a sala"
             >
               <IconStop size={17} />
               <span>Encerrar</span>
@@ -58,10 +58,10 @@ const StreamControls: React.FC<Props> = ({
             type="button"
             className={previewAtivo ? styles.btnOcultarPreview : styles.btnExibirPreview}
             onClick={onTogglePreview}
-            title={previewAtivo ? 'Desabilitar retorno de tela para economizar recursos' : 'Exibir retorno de tela'}
+            title={previewAtivo ? 'Ocultar retorno de tela' : 'Mostrar retorno de tela'}
           >
             {previewAtivo ? <IconEyeOff size={15} /> : <IconEye size={15} />}
-            <span>{previewAtivo ? 'Ocultar Retorno de Tela' : 'Exibir Retorno de Tela'}</span>
+            <span>{previewAtivo ? 'Ocultar retorno' : 'Ver retorno'}</span>
           </button>
         </>
       )}

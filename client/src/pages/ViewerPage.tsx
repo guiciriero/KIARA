@@ -733,10 +733,10 @@ const ViewerPage: React.FC = () => {
               onClick={toggleSettingsPanel}
               aria-expanded={showCoPresenterPanel}
               aria-controls="viewer-settings-panel"
-              title={showCoPresenterPanel ? 'Ocultar abas laterais (S)' : 'Exibir abas laterais (S)'}
+              title={showCoPresenterPanel ? 'Ocultar painel (S)' : 'Configurações (S)'}
             >
               <IconSettings size={15} />
-              <span>{showCoPresenterPanel ? 'Ocultar Painel' : 'Exibir Painel'}</span>
+              <span>{showCoPresenterPanel ? 'Ocultar' : 'Config'}</span>
             </button>
           )}
           <button
@@ -769,14 +769,13 @@ const ViewerPage: React.FC = () => {
             <PixelShihTzu
               pose="walk"
               scale={5}
-              speech={state.connectionState === 'reconnecting' ? 'Buscando sinal da live... 🐾' : 'Aguardando o vídeo começar... ✨'}
+              speech={state.connectionState === 'reconnecting' ? 'Reconectando… 🐾' : 'Aguardando o host… 🐾'}
             />
             <h3>
               {state.connectionState === 'reconnecting'
-                ? 'Tentando restabelecer conexão…'
-                : 'Aguardando o vídeo do apresentador…'}
+                ? 'Reconectando…'
+                : 'Aguardando o apresentador'}
             </h3>
-            <p>Conexão direta em andamento</p>
             {serverWake.waking && <ServerWakeNotice seconds={serverWake.seconds} />}
           </div>
         )}
@@ -810,15 +809,15 @@ const ViewerPage: React.FC = () => {
               type="button"
               className={styles.unmuteButton}
               onClick={handleEnableAudio}
-              aria-label="Clique para ativar o áudio da transmissão"
-            >
-              <div className={styles.unmuteIconBox}>
-                <IconVolumeHigh size={24} />
-              </div>
-              <div className={styles.unmuteText}>
-                <strong>Ativar Som da Transmissão</strong>
-                <span>Clique para ouvir em tempo real</span>
-              </div>
+              aria-label="Ativar áudio"
+              >
+                <div className={styles.unmuteIconBox}>
+                  <IconVolumeHigh size={24} />
+                </div>
+                <div className={styles.unmuteText}>
+                  <strong>Ativar áudio</strong>
+                  <span>Clique para ouvir a transmissão</span>
+                </div>
             </button>
           </div>
         )}

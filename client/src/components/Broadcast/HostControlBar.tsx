@@ -85,7 +85,7 @@ const HostControlBar: React.FC<Props> = ({
     <div className={viewerStyles.bottomBarLeft}>
       <div className={viewerStyles.liveIndicator}>
         <span className={viewerStyles.liveDot} />
-        <span>AO VIVO</span>
+        <span>Ao vivo</span>
       </div>
 
       <button

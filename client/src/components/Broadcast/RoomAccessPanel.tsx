@@ -76,8 +76,7 @@ const RoomAccessPanel: React.FC<Props> = ({
         <div className={styles.errorBox} role="alert">
           <IconAlertTriangle size={16} className={styles.errorIcon} />
           <span>
-            Este aparelho não consegue compartilhar a tela pelo navegador. Para transmitir, use
-            um computador (Chrome, Edge ou Firefox) ou o app para Windows.
+            Este dispositivo não suporta compartilhamento de tela pelo navegador. Use Chrome, Edge ou o app para Windows.
           </span>
         </div>
       )}
@@ -85,7 +84,7 @@ const RoomAccessPanel: React.FC<Props> = ({
       {!passwordValid && !state.isSharing && (
         <div className={styles.errorBox} role="alert">
           <IconAlertTriangle size={16} className={styles.errorIcon} />
-          <span>Corrija a senha da sala antes de iniciar.</span>
+          <span>Corrija a senha antes de continuar.</span>
         </div>
       )}
 
