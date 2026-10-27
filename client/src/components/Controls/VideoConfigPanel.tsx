@@ -11,8 +11,8 @@ interface Props {
 }
 
 const RESOLUTIONS = [
-  { id: '1080p', label: '1080p', sub: 'FHD', width: 1920, height: 1080 },
-  { id: '1440p', label: '2K',    sub: '2K',  width: 2560, height: 1440 },
+  { id: '1080p', label: '1080p 60 FPS', sub: 'FHD', width: 1920, height: 1080 },
+  { id: '1440p', label: '1440p 60 FPS', sub: '2K',  width: 2560, height: 1440 },
 ];
 
 const VideoConfigPanel: React.FC<Props> = ({ config, onChange, disabled = false }) => {
