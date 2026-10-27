@@ -27,6 +27,11 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    # TypeScript 7 quebra o `npm ci` (ERESOLVE): typescript-eslint só aceita typescript <6.1.0.
+    # Reavalie quando o typescript-eslint declarar suporte ao TypeScript 7.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   # Electron: majors exigem validação manual do addon N-API (NAPI_VERSION=8); ficam fora do grupo.
   - package-ecosystem: npm
