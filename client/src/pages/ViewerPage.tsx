@@ -20,6 +20,8 @@ import {
   togglePictureInPicture,
 } from '../utils/pip';
 import { useWakeLock } from '../hooks/useWakeLock';
+import { useHudNotification } from '../hooks/useHudNotification';
+import { DEFAULT_VIDEO_CONFIG } from '../services/rtcConfig';
 import type { ViewerQualityPreference, VideoConfig } from '@shared/index';
 import {
   KiaraLogo,
@@ -62,35 +64,15 @@ const ViewerPage: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
   const [isCoverMode, setIsCoverMode] = useState(false);
-  const [hudMessage, setHudMessage] = useState<string | null>(null);
-  const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { hudMessage, showHud } = useHudNotification();
   const [showControls, setShowControls] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showHud = useCallback((message: string) => {
-    setHudMessage(message);
-    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
-    hudTimerRef.current = setTimeout(() => {
-      setHudMessage(null);
-    }, 1800);
-  }, []);
-
-  useEffect(() => () => {
-    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
-  }, []);
-
   // ── Co-apresentação ───────────────────────────────────────────────────
   const coPreviewRef = useRef<HTMLVideoElement>(null);
   const [showCoPresenterPanel, setShowCoPresenterPanel] = useState(false);
-  const [videoConfig, setVideoConfig] = useState<VideoConfig>({
-    width: 1920,
-    height: 1080,
-    frameRate: 60,
-    codec: 'auto',
-    bitrate: 8000,
-    quality: 'game',
-  });
+  const [videoConfig, setVideoConfig] = useState<VideoConfig>(DEFAULT_VIDEO_CONFIG);
   const [captureSourceId, setCaptureSourceId] = useState<string | null>(null);
   const audioHook = useAudioSources();
   const { setPaused: setAudioPollingPaused } = audioHook;

@@ -8,7 +8,17 @@
  * configuração é montada em tempo de execução por `buildRtcConfig`.
  */
 
-import type { IceServerConfig } from '@shared/index';
+import type { IceServerConfig, VideoConfig } from '@shared/index';
+
+/** Configuração de vídeo padrão usada no apresentador e no co-apresentador */
+export const DEFAULT_VIDEO_CONFIG: VideoConfig = {
+  width: 1920,
+  height: 1080,
+  frameRate: 60,
+  codec: 'auto',
+  bitrate: 8000,
+  quality: 'game',
+};
 
 /**
  * STUN público usado apenas como fallback quando o servidor não entrega nenhum ICE server.

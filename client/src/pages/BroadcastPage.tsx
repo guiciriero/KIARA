@@ -5,6 +5,9 @@ import { useCopresenterStream } from '../hooks/useCopresenterStream';
 import { useAudioSources } from '../hooks/useAudioSources';
 import { useSocket } from '../services/SocketContext';
 import { isDisplayCaptureSupported } from '../services/captureService';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+import { useHudNotification } from '../hooks/useHudNotification';
+import { DEFAULT_VIDEO_CONFIG } from '../services/rtcConfig';
 import {
   deviceSupportsFullscreen,
   getFullscreenElement,
@@ -76,31 +79,11 @@ const BroadcastPage: React.FC = () => {
   const [showStats, setShowStats] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isNativePip, setIsNativePip] = useState(false);
-  const [hudMessage, setHudMessage] = useState<string | null>(null);
-  const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { hudMessage, showHud } = useHudNotification();
   /** O som do co-apresentador começa mudo para evitar eco com o áudio que ele recebe */
   const [copresenterMuted, setCopresenterMuted] = useState(true);
 
-  const showHud = useCallback((message: string) => {
-    setHudMessage(message);
-    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
-    hudTimerRef.current = setTimeout(() => {
-      setHudMessage(null);
-    }, 1800);
-  }, []);
-
-  useEffect(() => () => {
-    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
-  }, []);
-
-  const [videoConfig, setVideoConfig] = useState<VideoConfigType>({
-    width: 1920,
-    height: 1080,
-    frameRate: 60,
-    codec: 'auto',
-    bitrate: 8000,
-    quality: 'game',
-  });
+  const [videoConfig, setVideoConfig] = useState<VideoConfigType>(DEFAULT_VIDEO_CONFIG);
 
   const [roomOptions, setRoomOptions] = useState<RoomOptionsValue>({
     password: '',
@@ -130,12 +113,7 @@ const BroadcastPage: React.FC = () => {
   const [roomCode] = useState<string>(() => getOrCreatePermanentRoomCode());
   /** Origem pública do link: no app desktop vem do túnel; no navegador, do próprio site */
   const [linkOrigin, setLinkOrigin] = useState<string>(() => window.location.origin);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-  }, []);
+  const { copied: copiedLink, copy: copyLink } = useCopyToClipboard();
 
   // Preferência de retorno de tela: lida do localStorage na montagem
   const [previewAtivo, setPreviewAtivo] = useState<boolean>(() => {
@@ -372,20 +350,8 @@ const BroadcastPage: React.FC = () => {
   const displayUrl = state.inviteUrl ?? buildPermanentLink(linkOrigin, displayCode);
 
   const handleCopyLink = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(displayUrl);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = displayUrl;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-    }
-    setCopiedLink(true);
-    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-    copiedTimerRef.current = setTimeout(() => setCopiedLink(false), 2200);
-  }, [displayUrl]);
+    await copyLink(displayUrl);
+  }, [copyLink, displayUrl]);
 
   return (
     <div className={styles.studioLayout}>

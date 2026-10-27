@@ -1,8 +1,4 @@
 /* ── Keyframes locais (só transform/opacity) ──────────────────── */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 @keyframes enterRise {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -240,10 +236,10 @@
   top: max(20px, calc(env(safe-area-inset-top) + 16px));
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(14, 14, 18, 0.88);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--kiara-glass);
+  backdrop-filter: var(--kiara-glass-blur);
+  -webkit-backdrop-filter: var(--kiara-glass-blur);
+  border: 1px solid var(--kiara-border-subtle);
   border-radius: var(--radius-full);
   padding: 6px 16px;
   display: flex;
@@ -252,10 +248,10 @@
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--kiara-text-strong);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  box-shadow: var(--shadow-floating);
   z-index: 40;
   pointer-events: none;
-  animation: enterRise 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: enterRise 240ms var(--ease-spring) both;
 }
 
 .kbdTag {
