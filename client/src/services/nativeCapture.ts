@@ -11,9 +11,13 @@ export const NATIVE_CAPTURE_STORAGE_KEY = 'kiara:nativeCapture';
 /** Sem frame novo por este tempo (tela parada), repete o último para o encoder/GCC não pararem. */
 export const IDLE_REPEAT_MS = 250;
 export const FIRST_FRAME_TIMEOUT_MS = 3000;
-const MAX_RESTARTS = 2;
+/** Reinícios CONSECUTIVOS tolerados; o contador zera quando a captura volta a ficar estável. */
+const MAX_RESTARTS = 5;
 const RESTART_DELAY_MS = 500;
-const RESTARTABLE_REASONS = new Set(['access-lost', 'resolution-changed']);
+/** Com frames chegando por este tempo após um reinício, a captura é considerada recuperada. */
+const STABLE_AFTER_MS = 5000;
+// `start-failed`: o Windows ainda não liberou o DXGI logo após alt-tab/troca de modo de vídeo; tenta de novo.
+const RESTARTABLE_REASONS = new Set(['access-lost', 'resolution-changed', 'acquire-failed', 'start-failed']);
 
 interface TrackGenerator extends MediaStreamTrack {
   writable: WritableStream<VideoFrame>;
@@ -87,6 +91,7 @@ export async function startNativeVideoTrack(
   let last: VideoFrame | null = null;
   let lastWriteAt = Date.now();
   let restarts = 0;
+  let stableSince: number | null = null;
   let gotFirst = false;
   let idleTimer: ReturnType<typeof setInterval> | null = null;
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -141,6 +146,13 @@ export async function startNativeVideoTrack(
     }
     texture.release();
     captureSizes.set(gen, { width: frame.displayWidth, height: frame.displayHeight });
+    if (restarts > 0) {
+      stableSince ??= Date.now();
+      if (Date.now() - stableSince >= STABLE_AFTER_MS) {
+        restarts = 0;
+        stableSince = null;
+      }
+    }
     if (!gotFirst) {
       gotFirst = true;
       resolveFirst?.();
@@ -165,9 +177,10 @@ export async function startNativeVideoTrack(
     }
     if (RESTARTABLE_REASONS.has(reason) && restarts < MAX_RESTARTS) {
       restarts += 1;
+      stableSince = null;
       restartTimer = setTimeout(() => {
         if (closed) return;
-        begin().catch(endTrack);
+        begin().catch(() => onEnded('start-failed'));
       }, RESTART_DELAY_MS);
       return;
     }

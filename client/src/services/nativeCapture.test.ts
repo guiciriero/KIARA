@@ -182,24 +182,57 @@ describe('startNativeVideoTrack', () => {
     expect(nativeCapture.stop).toHaveBeenCalledTimes(1);
   });
 
-  it('reinicia após access-lost e encerra a faixa após esgotar as tentativas', async () => {
+  it('reinicia após access-lost e encerra a faixa após esgotar as tentativas consecutivas', async () => {
     const { host, nativeCapture, push, end } = makeHost();
     const { gen, events } = makeGenerator();
     const p = startNativeVideoTrack(host, { fps: 60 }, { createGenerator: () => gen });
     await vi.advanceTimersByTimeAsync(0);
     push(makeTexture().tex);
     await p;
-    end('access-lost');
-    await vi.advanceTimersByTimeAsync(600);
-    expect(nativeCapture.start).toHaveBeenCalledTimes(2);
-    end('access-lost');
-    await vi.advanceTimersByTimeAsync(600);
-    expect(nativeCapture.start).toHaveBeenCalledTimes(3);
-    expect(events).not.toContain('ended');
+    for (let i = 2; i <= 6; i++) {
+      end('access-lost');
+      await vi.advanceTimersByTimeAsync(600);
+      expect(nativeCapture.start).toHaveBeenCalledTimes(i);
+      expect(events).not.toContain('ended');
+    }
     end('access-lost');
     await vi.advanceTimersByTimeAsync(600);
     expect(events).toContain('ended');
     expect(nativeCapture.stop).toHaveBeenCalled();
+  });
+
+  it('zera o contador de reinícios depois que a captura fica estável (alt-tab repetido)', async () => {
+    const { host, nativeCapture, push, end } = makeHost();
+    const { gen, events } = makeGenerator();
+    const p = startNativeVideoTrack(host, { fps: 60 }, { createGenerator: () => gen });
+    await vi.advanceTimersByTimeAsync(0);
+    push(makeTexture().tex);
+    await p;
+    for (let i = 0; i < 8; i++) {
+      end('access-lost');
+      await vi.advanceTimersByTimeAsync(600);
+      push(makeTexture().tex); // frame logo após o reinício
+      await vi.advanceTimersByTimeAsync(5100);
+      push(makeTexture().tex); // 5 s depois, ainda chegando: estável
+    }
+    expect(nativeCapture.start).toHaveBeenCalledTimes(9);
+    expect(events).not.toContain('ended');
+  });
+
+  it('falha ao reiniciar (DXGI ainda ocupado) tenta de novo em vez de encerrar a faixa', async () => {
+    const { host, nativeCapture, push, end } = makeHost();
+    const { gen, events } = makeGenerator();
+    const p = startNativeVideoTrack(host, { fps: 60 }, { createGenerator: () => gen });
+    await vi.advanceTimersByTimeAsync(0);
+    push(makeTexture().tex);
+    await p;
+    vi.mocked(nativeCapture.start).mockRejectedValueOnce(new Error('DXGI ocupado'));
+    end('access-lost');
+    await vi.advanceTimersByTimeAsync(600);
+    expect(events).not.toContain('ended');
+    await vi.advanceTimersByTimeAsync(600);
+    expect(nativeCapture.start).toHaveBeenCalledTimes(3);
+    expect(events).not.toContain('ended');
   });
 
   it('razão não recuperável encerra a faixa sem reiniciar', async () => {
