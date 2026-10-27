@@ -10,7 +10,7 @@ interface Props {
 const LABELS: Record<ConnectionState, string> = {
   disconnected: 'Desconectado',
   connecting:   'Conectando…',
-  connected:    'Ao Vivo',
+  connected:    'Conectado',
   reconnecting: 'Reconectando…',
   failed:       'Falha de Conexão',
 };

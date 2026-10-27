@@ -142,6 +142,7 @@
 
 html, body {
   height: 100%;
+  overflow: hidden;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -153,7 +154,6 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
 }
 
 /* #root ocupa toda a viewport e empilha TitleBar + conteúdo verticalmente */
