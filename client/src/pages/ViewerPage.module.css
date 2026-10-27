@@ -315,8 +315,8 @@
 
 .unmuteButton {
   position: relative;
-  background: var(--kiara-surface-deep);
-  border: 1px solid var(--kiara-border-strong);
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-accent-subtle);
   padding: 14px 22px 14px 16px;
   border-radius: var(--radius-xl);
   display: flex;
@@ -324,10 +324,10 @@
   gap: 14px;
   color: var(--kiara-text-strong);
   box-shadow:
-    0 0 0 1px var(--kiara-cool-glow),
+    0 0 0 1px var(--kiara-accent-glow),
     0 12px 40px rgba(0, 0, 0, 0.85),
-    0 0 36px var(--kiara-cool-subtle);
-  animation: enterRise 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    0 0 36px var(--kiara-accent-subtle);
+  animation: enterRise 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transition:
     transform var(--transition-base),
     border-color var(--transition-base),
@@ -336,13 +336,13 @@
 }
 
 .unmuteButton:hover {
-  background: var(--kiara-surface-elevated);
-  border-color: var(--kiara-cool);
+  background: var(--kiara-surface-raised);
+  border-color: var(--kiara-accent);
   transform: translateY(-1px);
   box-shadow:
-    0 0 0 1px var(--kiara-cool-glow),
+    0 0 0 1px var(--kiara-accent-glow),
     0 16px 48px rgba(0, 0, 0, 0.9),
-    0 0 44px var(--kiara-cool-glow);
+    0 0 44px var(--kiara-accent-glow);
 }
 
 .unmuteIconBox {
@@ -351,11 +351,11 @@
   height: 36px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--kiara-text-strong);
+  background: var(--kiara-accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--kiara-bg);
+  color: var(--kiara-on-accent);
 }
 
 .unmuteIconBox::after {
@@ -363,7 +363,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1px solid var(--kiara-cool);
+  border: 1px solid var(--kiara-accent);
   pointer-events: none;
   animation: unmuteRing 2s ease-out infinite;
 }
@@ -522,13 +522,13 @@
 .volumeSlider:hover::-webkit-slider-thumb,
 .volumeSlider:focus-visible::-webkit-slider-thumb {
   transform: scale(1.2);
-  box-shadow: 0 0 0 4px var(--kiara-cool-glow), 0 2px 6px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 4px var(--kiara-accent-subtle), 0 2px 6px rgba(0, 0, 0, 0.7);
 }
 
 .volumeSlider:hover::-moz-range-thumb,
 .volumeSlider:focus-visible::-moz-range-thumb {
   transform: scale(1.2);
-  box-shadow: 0 0 0 4px var(--kiara-cool-glow), 0 2px 6px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 0 4px var(--kiara-accent-subtle), 0 2px 6px rgba(0, 0, 0, 0.7);
 }
 
 .bottomBarRight {
@@ -662,13 +662,14 @@
 }
 
 .iconBtn.activeBtn {
-  background: var(--kiara-text-strong);
-  color: var(--kiara-bg);
-  box-shadow: 0 0 14px var(--kiara-cool-glow);
+  background: var(--kiara-accent);
+  color: var(--kiara-on-accent);
+  box-shadow: 0 0 12px var(--kiara-accent-glow);
 }
 
 .iconBtn.activeBtn:hover {
   background: var(--kiara-accent-hover);
+  box-shadow: 0 0 18px var(--kiara-accent-glow);
 }
 
 /* ── Co-apresentação ────────────────────────────────────────────── */
@@ -702,10 +703,10 @@
 }
 
 .coPresenterToggleBtn.activeBtn {
-  background: var(--kiara-text-strong);
-  border-color: var(--kiara-text-strong);
-  color: var(--kiara-bg);
-  box-shadow: 0 0 14px var(--kiara-cool-glow);
+  background: var(--kiara-accent);
+  border-color: var(--kiara-accent);
+  color: var(--kiara-on-accent);
+  box-shadow: 0 0 14px var(--kiara-accent-glow);
 }
 
 .dataSaverBtn {
@@ -892,10 +893,10 @@
 
 .btnPrimary {
   margin-top: 6px;
-  background: var(--kiara-text-strong);
-  color: var(--kiara-bg);
+  background: var(--kiara-accent);
+  color: var(--kiara-on-accent);
   padding: 9px 18px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   font-size: 0.84rem;
   font-weight: 600;
   width: 100%;
@@ -904,7 +905,7 @@
 
 .btnPrimary:hover:not(:disabled) {
   background: var(--kiara-accent-hover);
-  box-shadow: 0 0 20px var(--kiara-cool-glow);
+  box-shadow: 0 4px 16px var(--kiara-accent-glow);
 }
 
 /* ── Formulário de senha e botão secundário ─────────────────────── */

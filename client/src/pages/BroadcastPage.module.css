@@ -188,15 +188,15 @@
 
 /* Painéis ocultos: destaca o botão para lembrar como voltar */
 .settingsToggleOff {
-  background: var(--kiara-text-strong);
-  border-color: var(--kiara-text-strong);
-  color: var(--kiara-bg);
+  background: var(--kiara-accent);
+  border-color: var(--kiara-accent);
+  color: var(--kiara-on-accent);
 }
 
 .settingsToggleOff:hover {
   background: var(--kiara-accent-hover);
   border-color: var(--kiara-accent-hover);
-  color: var(--kiara-bg);
+  color: var(--kiara-on-accent);
 }
 
 /* ── Layout Corpo: 3 colunas (sala | preview | config) ───────────── */
@@ -459,20 +459,20 @@
   font-size: 0.7rem;
   padding: 4px 10px;
   min-height: 28px;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
   white-space: nowrap;
 }
 
 .copyLinkBtn:hover {
-  background: var(--kiara-surface-active);
-  color: var(--kiara-text);
-  border-color: var(--kiara-border-strong);
+  background: var(--kiara-accent-subtle);
+  color: var(--kiara-accent);
+  border-color: var(--kiara-accent-subtle);
 }
 
 .copyLinkBtn:focus-visible {
-  box-shadow: 0 0 0 5px var(--kiara-cool-glow);
+  box-shadow: 0 0 0 4px var(--kiara-accent-subtle);
 }
 
 /* Feedback de "copiado": verde discreto + pop curto */
@@ -543,10 +543,10 @@
   justify-content: center;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.02),
-    0 2px 6px rgba(0, 0, 0, 0.8),
-    0 18px 48px rgba(0, 0, 0, 0.95),
-    0 0 40px var(--kiara-cool-subtle);
-  animation: panelEnter 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    0 2px 6px rgba(0, 0, 0, 0.7),
+    0 18px 48px rgba(0, 0, 0, 0.9),
+    0 0 40px var(--kiara-accent-subtle);
+  animation: panelEnter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: border-radius var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
@@ -833,24 +833,25 @@
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  margin-top: 6px;
-  padding: 0 20px;
-  background: var(--kiara-text-strong);
-  border: 1px solid var(--kiara-text-strong);
-  border-radius: var(--radius-md);
-  color: var(--kiara-bg);
-  font-size: 0.82rem;
+  padding: 0 22px;
+  background: var(--kiara-accent);
+  border: 1px solid var(--kiara-accent);
+  border-radius: var(--radius-full);
+  color: var(--kiara-on-accent);
+  font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
   transition:
     background-color var(--transition-fast),
     transform var(--transition-fast),
     box-shadow var(--transition-base);
+  animation: kiaraReadyPulse 2.5s ease-in-out infinite;
 }
 
 .placeholderStart:hover:not(:disabled) {
   background: var(--kiara-accent-hover);
-  box-shadow: 0 0 20px var(--kiara-cool-glow);
+  box-shadow: 0 4px 16px var(--kiara-accent-glow);
+  animation: none;
 }
 
 .placeholderStart:active:not(:disabled) {
@@ -886,10 +887,20 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 12px;
-  max-width: 380px;
+  gap: 16px;
+  max-width: 360px;
   padding: 30px 20px;
-  animation: panelEnter 480ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+  animation: panelEnter 480ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+.placeholderHint {
+  font-size: 0.82rem;
+  color: var(--kiara-text-secondary);
+  line-height: 1.5;
+}
+
+.placeholderHint strong {
+  color: var(--kiara-text);
 }
 
 .placeholderIconBox {
