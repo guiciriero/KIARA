@@ -7,65 +7,65 @@
 }
 
 :root {
-  /* ── Paleta Preto Minimalista Puro (OLED / True Black) ────────── */
-  --kiara-bg:              #000000;
-  --kiara-surface:         #080808;
-  --kiara-surface-raised:  #0f0f0f;
-  --kiara-surface-hover:   #171717;
-  --kiara-surface-active:  #222222;
-  --kiara-surface-deep:    #0a0a0a;
-  --kiara-surface-elevated: #141414;
-  --kiara-surface-strong:  #1f1f1f;
+  /* ── Paleta Dark Moderna ──────────────────────────────────────── */
+  --kiara-bg:              #0B0D12;
+  --kiara-surface:         #141821;
+  --kiara-surface-raised:  #1C2230;
+  --kiara-surface-hover:   #222A3A;
+  --kiara-surface-active:  #2A3348;
+  --kiara-surface-deep:    #0E1018;
+  --kiara-surface-elevated: #1C2230;
+  --kiara-surface-strong:  #252E40;
 
-  /* ── Linhas Estruturais e Bordas Precisas (1px) ──────────────── */
-  --kiara-border:          #1a1a1a;
-  --kiara-border-subtle:   #111111;
-  --kiara-border-active:   #2d2d2d;
-  --kiara-border-strong:   #333333;
-  --kiara-border-focus:    #ffffff;
+  /* ── Bordas ──────────────────────────────────────────────────── */
+  --kiara-border:          rgba(255, 255, 255, 0.07);
+  --kiara-border-subtle:   rgba(255, 255, 255, 0.04);
+  --kiara-border-active:   rgba(255, 255, 255, 0.12);
+  --kiara-border-strong:   rgba(255, 255, 255, 0.18);
+  --kiara-border-focus:    #7C5CFF;
   /* Borda de campos de formulário: ≥3:1 contra o fundo (WCAG 1.4.11) */
-  --kiara-border-input:    #6b6b6b;
-  --kiara-border-input-hover: #8a8a8a;
+  --kiara-border-input:    rgba(255, 255, 255, 0.20);
+  --kiara-border-input-hover: rgba(255, 255, 255, 0.30);
 
-  /* ── Tipografia e Cores de Texto de Alto Contraste ───────────── */
-  --kiara-text:            #ededed;
-  --kiara-text-secondary:  #a3a3a3;
-  --kiara-text-muted:      #8a8a8a;
-  --kiara-text-disabled:   #6b6b6b;
+  /* ── Tipografia ──────────────────────────────────────────────── */
+  --kiara-text:            #E8ECF4;
+  --kiara-text-secondary:  #8B93A7;
+  --kiara-text-muted:      #636B80;
+  --kiara-text-disabled:   #4A5168;
 
-  /* ── Acentos Minimalistas Monocromáticos ──────────────────────── */
-  --kiara-accent:          #ffffff;
-  --kiara-accent-hover:    #e5e5e5;
-  --kiara-accent-active:   #cccccc;
-  --kiara-accent-subtle:   rgba(255, 255, 255, 0.06);
-  --kiara-accent-glow:     transparent;
+  /* ── Acento Roxo ─────────────────────────────────────────────── */
+  --kiara-accent:          #7C5CFF;
+  --kiara-accent-hover:    #9378FF;
+  --kiara-accent-active:   #6347E0;
+  --kiara-accent-subtle:   rgba(124, 92, 255, 0.12);
+  --kiara-accent-glow:     rgba(124, 92, 255, 0.25);
 
-  /* ── Cores Funcionais de Status (Sutis e Precisas) ───────────── */
-  --kiara-live:            #22c55e;
-  --kiara-live-glow:       rgba(34, 197, 94, 0.15);
-  --kiara-live-subtle:     rgba(34, 197, 94, 0.08);
-  
-  --kiara-warning:         #eab308;
-  --kiara-warning-subtle:  rgba(234, 179, 8, 0.08);
+  /* ── Status ──────────────────────────────────────────────────── */
+  --kiara-live:            #22C55E;
+  --kiara-live-glow:       rgba(34, 197, 94, 0.20);
+  --kiara-live-subtle:     rgba(34, 197, 94, 0.10);
 
-  --kiara-danger:          #ef4444;
-  --kiara-danger-hover:    #f87171;
-  --kiara-danger-subtle:   rgba(239, 68, 68, 0.1);
+  --kiara-warning:         #F59E0B;
+  --kiara-warning-subtle:  rgba(245, 158, 11, 0.10);
 
-  /* ── Acento frio pontual (brilho discreto, nunca em áreas grandes) ── */
-  --kiara-cool:            #9db4ff;
-  --kiara-cool-subtle:     rgba(157, 180, 255, 0.07);
-  --kiara-cool-glow:       rgba(157, 180, 255, 0.18);
+  --kiara-danger:          #EF4444;
+  --kiara-danger-hover:    #F87171;
+  --kiara-danger-subtle:   rgba(239, 68, 68, 0.12);
 
-  /* ── Vidro leve e hairlines ──────────────────────────────────── */
-  --kiara-glass:           rgba(10, 10, 10, 0.72);
+  /* ── Cool (alias para compatibilidade — usa acento roxo) ─────── */
+  --kiara-cool:            #9378FF;
+  --kiara-cool-subtle:     rgba(124, 92, 255, 0.08);
+  --kiara-cool-glow:       rgba(124, 92, 255, 0.22);
+
+  /* ── Vidro e hairlines ───────────────────────────────────────── */
+  --kiara-glass:           rgba(14, 18, 30, 0.78);
   --kiara-glass-border:    rgba(255, 255, 255, 0.08);
-  --kiara-glass-blur:      blur(14px) saturate(140%);
-  --kiara-hairline:        linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  --kiara-glass-blur:      blur(16px) saturate(160%);
+  --kiara-hairline:        linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
 
   /* ── Texto sobre acento / sobre mídia ────────────────────────── */
-  --kiara-on-accent:       #000000;
-  --kiara-text-strong:     #ffffff;
+  --kiara-on-accent:       #ffffff;
+  --kiara-text-strong:     #F0F4FF;
   --kiara-scrim:           rgba(0, 0, 0, 0.75);
 
   /* ── Escala de espaçamento (base 4px) ────────────────────────── */
@@ -84,39 +84,41 @@
   --text-base:             0.88rem;
   --text-md:               1rem;
   --text-lg:               1.25rem;
-  --text-xl:               clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem);
+  --text-xl:               clamp(1.5rem, 1.1rem + 1.6vw, 2rem);
   --tracking-tight:        -0.03em;
   --tracking-wide:         0.04em;
 
-  /* ── Tokens de Geometria Clean ───────────────────────────────── */
-  --radius-xs:             3px;
-  --radius-sm:             5px;
-  --radius-md:             8px;
-  --radius-lg:             12px;
-  --radius-xl:             16px;
+  /* ── Geometria ───────────────────────────────────────────────── */
+  --radius-xs:             4px;
+  --radius-sm:             8px;
+  --radius-md:             12px;
+  --radius-lg:             16px;
+  --radius-xl:             20px;
   --radius-full:           9999px;
 
-  /* ── Sombras Minimalistas ────────────────────────────────────── */
-  --shadow-sm:             none;
-  --shadow-md:             0 2px 8px rgba(0, 0, 0, 0.8);
-  --shadow-lg:             0 10px 30px rgba(0, 0, 0, 0.9);
-  --shadow-glow:           0 0 0 1px var(--kiara-cool-glow), 0 0 24px var(--kiara-cool-subtle);
-  --shadow-live:           none;
-  --shadow-elevated:        0 12px 36px rgba(0, 0, 0, 0.88), 0 1px 3px rgba(0, 0, 0, 0.9);
-  --shadow-card:            0 4px 24px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  /* ── Sombras ─────────────────────────────────────────────────── */
+  --shadow-sm:             0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md:             0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg:             0 12px 32px rgba(0, 0, 0, 0.7);
+  --shadow-glow:           0 0 0 1px var(--kiara-accent-glow), 0 0 24px var(--kiara-accent-subtle);
+  --shadow-live:           0 0 12px var(--kiara-live-glow);
+  --shadow-elevated:       0 12px 36px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-card:           0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-floating:       0 8px 28px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   --shadow-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --kiara-ring:             0 0 0 1px var(--kiara-border-focus), 0 0 0 4px var(--kiara-cool-glow);
+  --kiara-ring:            0 0 0 2px var(--kiara-accent-glow), 0 0 0 4px var(--kiara-accent-subtle);
 
-  /* ── Transições e Fontes ─────────────────────────────────────── */
-  --ease-spring:           cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-fast:       120ms cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-base:       180ms cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-slow:       260ms cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-spring:     240ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* ── Transições ──────────────────────────────────────────────── */
+  --ease-spring:           cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out:              cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast:       150ms cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-base:       250ms cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-slow:       350ms cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-spring:     250ms cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Inter e JetBrains Mono são auto-hospedadas (@fontsource, importadas em main.tsx); Geist só se instalada localmente */
-  --font-sans:             'Inter', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono:             'JetBrains Mono', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Inter e JetBrains Mono são auto-hospedadas (@fontsource, importadas em main.tsx) */
+  --font-sans:             'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono:             'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* ── Aliases de compatibilidade para código legado ───────────── */
   --color-bg:              var(--kiara-bg);
@@ -142,7 +144,7 @@ html, body, #root {
   font-family: var(--font-sans);
   background: var(--kiara-bg);
   color: var(--kiara-text);
-  line-height: 1.5;
+  line-height: 1.6;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -266,16 +268,26 @@ input::placeholder {
   }
   50% {
     opacity: 0.55;
-    transform: scale(0.94);
+    transform: scale(0.96);
   }
 }
 
 @keyframes kiaraGlow {
   0%, 100% {
-    box-shadow: 0 0 8px var(--kiara-live-glow);
+    opacity: 0.6;
   }
   50% {
-    box-shadow: 0 0 18px var(--kiara-live-glow);
+    opacity: 1;
+  }
+}
+
+/* Pulso suave de brilho para botão "pronto para iniciar" */
+@keyframes kiaraReadyPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--kiara-accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
   }
 }
 
