@@ -42,8 +42,7 @@ const BroadcastTopBar: React.FC<Props> = ({
         <span>Voltar</span>
       </button>
       <div className={styles.divider} />
-      <KiaraLogo size={24} withText />
-      <span className={styles.studioBadge}>Estúdio do Host</span>
+      <KiaraLogo size={22} withText />
     </div>
 
     {/* Durante a transmissão: Shih Tzu pedalando e alimentando o computador "LIVE ON" */}
@@ -56,21 +55,20 @@ const BroadcastTopBar: React.FC<Props> = ({
         onClick={onToggleSettings}
         aria-expanded={isSettingsVisible}
         aria-controls="studio-room-panel studio-config-panel"
-        title={isSettingsVisible ? 'Ocultar abas laterais (S)' : 'Exibir abas laterais (S)'}
+        title={isSettingsVisible ? 'Ocultar painéis laterais (S)' : 'Exibir painéis laterais (S)'}
       >
         <IconSettings size={15} />
-        <span>{isSettingsVisible ? 'Ocultar Painéis' : 'Exibir Painéis'}</span>
+        <span>{isSettingsVisible ? 'Ocultar' : 'Painéis'}</span>
       </button>
 
       <ConnectionBadge state={connectionState} />
 
-      {isSharing && (
+      {isSharing && viewerCount > 0 && (
         <div className={styles.viewersCountPill}>
-          <IconUsers size={15} />
+          <IconUsers size={14} />
           <span>
             <strong>{viewerCount}</strong>
-            {maxViewers > 0 ? ` de ${maxViewers}` : ''}{' '}
-            espectador{viewerCount !== 1 ? 'es' : ''}
+            {maxViewers > 0 ? `/${maxViewers}` : ''}
           </span>
         </div>
       )}

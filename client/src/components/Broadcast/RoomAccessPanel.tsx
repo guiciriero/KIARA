@@ -100,13 +100,10 @@ const RoomAccessPanel: React.FC<Props> = ({
     {/* Seção: Link Fixo da Sala (pré e pós-transmissão) */}
     <div className={styles.panelSection}>
       <div className={styles.sectionHeader}>
-        <span className={styles.sectionTitle}>Acesso à Sala</span>
-        {state.isSharing ? (
-          <span className={styles.statusLive}>
-            <span className={styles.liveDotSmall} />
-            Ao Vivo
-          </span>
-        ) : (
+        <span className={styles.sectionTitle}>Link da Sala</span>
+        {/* O indicador "Ao Vivo" aparece UMA vez: no LiveScene da barra superior.
+            Aqui mostramos só "aguardando" quando offline. */}
+        {!state.isSharing && (
           <span className={styles.statusOffline}>Aguardando</span>
         )}
       </div>

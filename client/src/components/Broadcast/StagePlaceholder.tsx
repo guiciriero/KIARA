@@ -14,28 +14,10 @@ interface Props {
 /** Estado do palco antes de transmitir */
 const StagePlaceholder: React.FC<Props> = ({ isSettingsVisible, startDisabled, error, onStart }) => (
   <div className={styles.placeholderState}>
-    <PixelShihTzu pose="idle" scale={6} speech="Tudo pronto para entrar ao vivo! 🐾" />
-    <h3>Pronto para transmitir</h3>
-    <p>
-      Configure a qualidade no painel direito e clique em{' '}
-      <strong>Iniciar Transmissão</strong>.
-    </p>
-    <div className={styles.placeholderSteps}>
-      <div className={styles.step}>
-        <span className={styles.stepNum}>1</span>
-        <span>Escolha tela ou janela</span>
-      </div>
-      <div className={styles.step}>
-        <span className={styles.stepNum}>2</span>
-        <span>Defina a qualidade</span>
-      </div>
-      <div className={styles.step}>
-        <span className={styles.stepNum}>3</span>
-        <span>Compartilhe o link</span>
-      </div>
-    </div>
+    {/* Shitzu é o hero da tela — speech dá o contexto, sem duplicar botões */}
+    <PixelShihTzu pose="idle" scale={6} speech="Tudo pronto! 🐾" />
 
-    {/* Com os painéis ocultos, o início da transmissão continua à mão */}
+    {/* Com os painéis ocultos, o botão de início fica aqui para o usuário não se perder */}
     {!isSettingsVisible && (
       <>
         <button
@@ -54,6 +36,13 @@ const StagePlaceholder: React.FC<Props> = ({ isSettingsVisible, startDisabled, e
           </div>
         )}
       </>
+    )}
+
+    {/* Com painéis visíveis, o contexto já é dado pelo painel esquerdo */}
+    {isSettingsVisible && (
+      <p className={styles.placeholderHint}>
+        Configure no painel esquerdo e clique em <strong>Iniciar Transmissão</strong>.
+      </p>
     )}
   </div>
 );
