@@ -85,7 +85,11 @@ export class WebRTCViewer {
     const report = await pc.getStats();
     let decoded = false;
     report.forEach((s: Record<string, unknown>) => {
-      if (s.type === 'inbound-rtp' && (s.kind === 'video' || s.mediaType === 'video') && Number(s.framesDecoded) > 0) {
+      if (
+        s.type === 'inbound-rtp' &&
+        (s.kind === 'video' || s.mediaType === 'video') &&
+        (Number(s.framesDecoded) > 0 || Number(s.framesReceived) > 0 || Number(s.bytesReceived) > 0)
+      ) {
         decoded = true;
       }
     });

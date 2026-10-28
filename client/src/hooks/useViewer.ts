@@ -173,20 +173,18 @@ export function useViewer(roomCode: string | undefined) {
 
       const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers, e2ee);
       viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
-      // Conexão "ok" mas nenhum frame decodificado = tela preta. Refaz a entrada sozinho (o que o usuário
-      // faria à mão: sair e entrar), no máximo MAX_STALL_RETRIES vezes.
       viewer.onVideoStatus((ok) => {
         if (cancelled || viewerRef.current !== viewer) return;
         if (ok) {
           stallRetriesRef.current = 0;
           return;
         }
-        if (!sessionRef.current || stallRetriesRef.current >= MAX_STALL_RETRIES) return;
-        stallRetriesRef.current += 1;
-        socket.emit('room:leave');
-        destroyViewer();
-        dispatch({ type: 'joining' });
-        sendJoin();
+        // Se após o timeout nenhum frame de vídeo foi recebido, reenvia a solicitação de qualidade
+        // para pedir novo keyframe ao apresentador sem destruir a conexão nem piscar a tela com loading
+        if (sessionRef.current) {
+          const pref = qualityRef.current;
+          socket.emit('stream:quality-request', { ...qualityLimits(pref), preference: pref });
+        }
       });
       viewerRef.current = viewer;
     };
