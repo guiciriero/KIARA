@@ -12,6 +12,14 @@ interface StateSample {
   bytesSentAudio: number;
   packetsSentVideo: number;
   packetsLostVideo: number;
+  framesSent: number;
+  framesEncoded: number;
+  fps: number;
+  videoBitrate: number;
+  audioBitrate: number;
+  latencyMs: number;
+  jitterMs: number;
+  lossPercent: number;
   timestamp: number;
 }
 
@@ -154,7 +162,9 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
     }
 
     if (stat.type === 'outbound-rtp' && stat.kind === 'video') {
-      fps = Math.round(stat.framesPerSecond ?? 0);
+      if (stat.framesPerSecond !== undefined && stat.framesPerSecond > 0) {
+        fps = Math.round(stat.framesPerSecond);
+      }
       bytesSentVideo = stat.bytesSent ?? 0;
       packetsSentVideo = stat.packetsSent ?? 0;
       const reason = stat.qualityLimitationReason;
@@ -166,6 +176,7 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
       // Campos estendidos do emissor
       if (stat.framesDropped !== undefined) framesDropped = stat.framesDropped;
       if (stat.framesSent !== undefined) framesSent = stat.framesSent;
+      if (stat.framesEncoded !== undefined) framesEncoded = stat.framesEncoded;
       if (stat.encodedFrameWidth !== undefined) encodedWidth = stat.encodedFrameWidth;
       if (stat.encodedFrameHeight !== undefined) encodedHeight = stat.encodedFrameHeight;
     }
@@ -217,7 +228,7 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
     rttSeconds = remoteRtt;
   }
 
-  const latencyMs = Math.round((rttSeconds ?? 0) * 1000);
+  let latencyMs = Math.round((rttSeconds ?? 0) * 1000);
   const now = Date.now();
   const prev = previousSamples.get(peerId);
 
@@ -227,8 +238,34 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
 
   if (prev && now > prev.timestamp) {
     const elapsedSec = (now - prev.timestamp) / 1000;
-    videoBitrate = Math.max(0, Math.round(((bytesSentVideo - prev.bytesSentVideo) * 8) / elapsedSec / 1000));
-    audioBitrate = Math.max(0, Math.round(((bytesSentAudio - prev.bytesSentAudio) * 8) / elapsedSec / 1000));
+    const deltaVideoBytes = bytesSentVideo - prev.bytesSentVideo;
+    const deltaAudioBytes = bytesSentAudio - prev.bytesSentAudio;
+
+    if (deltaVideoBytes > 0) {
+      videoBitrate = Math.max(0, Math.round((deltaVideoBytes * 8) / elapsedSec / 1000));
+    } else if (prev.videoBitrate > 0 && bytesSentVideo > 0) {
+      videoBitrate = prev.videoBitrate;
+    }
+
+    if (deltaAudioBytes > 0) {
+      audioBitrate = Math.max(0, Math.round((deltaAudioBytes * 8) / elapsedSec / 1000));
+    } else if (prev.audioBitrate > 0 && bytesSentAudio > 0) {
+      audioBitrate = prev.audioBitrate;
+    }
+
+    // Cálculo e persistência de FPS
+    if (fps === 0 && elapsedSec > 0) {
+      const currentFrames = framesSent ?? framesEncoded ?? 0;
+      const prevFrames = prev.framesSent ?? prev.framesEncoded ?? 0;
+      const deltaFrames = currentFrames - prevFrames;
+      if (deltaFrames > 0) {
+        fps = Math.round(deltaFrames / elapsedSec);
+      } else if (prev.fps > 0 && bytesSentVideo > prev.bytesSentVideo) {
+        fps = prev.fps;
+      }
+    } else if (fps === 0 && prev.fps > 0 && bytesSentVideo > 0) {
+      fps = prev.fps;
+    }
 
     const deltaSent = packetsSentVideo - prev.packetsSentVideo;
     const deltaLost = packetsLostVideo - prev.packetsLostVideo;
@@ -237,6 +274,18 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
       lossPercent = Math.max(0, Math.min(100, Math.round(((deltaLost / (deltaSent + deltaLost)) * 100) * 10) / 10));
     } else if (fractionLost !== undefined && fractionLost >= 0) {
       lossPercent = Math.max(0, Math.min(100, Math.round(fractionLost * 100 * 10) / 10));
+    } else if (prev.lossPercent !== undefined) {
+      lossPercent = prev.lossPercent;
+    }
+
+    if (latencyMs === 0 && prev.latencyMs > 0) {
+      latencyMs = prev.latencyMs;
+    }
+    if (jitterMs === 0 && prev.jitterMs > 0) {
+      jitterMs = prev.jitterMs;
+    }
+    if (packetsLostVideo === 0 && prev.packetsLostVideo > 0) {
+      packetsLostVideo = prev.packetsLostVideo;
     }
   } else if (fractionLost !== undefined && fractionLost >= 0) {
     lossPercent = Math.max(0, Math.min(100, Math.round(fractionLost * 100 * 10) / 10));
@@ -247,6 +296,14 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
     bytesSentAudio,
     packetsSentVideo,
     packetsLostVideo,
+    framesSent: framesSent ?? 0,
+    framesEncoded: framesEncoded ?? 0,
+    fps,
+    videoBitrate,
+    audioBitrate,
+    latencyMs,
+    jitterMs,
+    lossPercent,
     timestamp: now,
   });
 

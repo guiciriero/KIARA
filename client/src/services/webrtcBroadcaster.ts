@@ -58,6 +58,7 @@ export class WebRTCBroadcaster {
   private videoConfig: VideoConfig;
   private statsCallback?: (stats: StreamStats) => void;
   private statsInterval: ReturnType<typeof setInterval> | null = null;
+  private lastAggregatedStats: StreamStats | null = null;
   private options: BroadcasterOptions;
   private destroyed = false;
 
@@ -217,27 +218,28 @@ export class WebRTCBroadcaster {
     if (!this.statsInterval) {
       this.statsInterval = setInterval(() => {
         void this.collectAggregatedStats();
-      }, 2000);
+      }, 1000);
     }
   }
 
   private async collectAggregatedStats(): Promise<void> {
     if (this.peers.size === 0 || !this.statsCallback) return;
 
-    let firstFps = 0;
-    let firstVideoBitrate = 0;
-    let firstAudioBitrate = 0;
+    let bestFps = 0;
+    let bestVideoBitrate = 0;
+    let bestAudioBitrate = 0;
     let maxLatencyMs = 0;
     let maxPacketsLost = 0;
     let maxLossPercent = 0;
     let maxJitterMs = 0;
     let worstLimitation: StreamStats['qualityLimitation'] = 'none';
-    let hasValidData = false;
+    let peerCount = 0;
 
     for (const [viewerId, peerData] of this.peers) {
       try {
         const report = await peerData.pc.getStats();
         const stats = parseRTCStats(report, viewerId);
+        peerCount += 1;
 
         const newBitrate = peerData.bitrateController.onSample({
           lossPercent: stats.lossPercent,
@@ -261,16 +263,9 @@ export class WebRTCBroadcaster {
           }
         }
 
-        if (!hasValidData) {
-          firstFps = stats.fps;
-          firstVideoBitrate = stats.videoBitrate;
-          firstAudioBitrate = stats.audioBitrate;
-          hasValidData = true;
-        } else {
-          if (firstFps === 0 && stats.fps > 0) firstFps = stats.fps;
-          if (firstVideoBitrate === 0 && stats.videoBitrate > 0) firstVideoBitrate = stats.videoBitrate;
-          if (firstAudioBitrate === 0 && stats.audioBitrate > 0) firstAudioBitrate = stats.audioBitrate;
-        }
+        if (stats.fps > bestFps) bestFps = stats.fps;
+        if (stats.videoBitrate > bestVideoBitrate) bestVideoBitrate = stats.videoBitrate;
+        if (stats.audioBitrate > bestAudioBitrate) bestAudioBitrate = stats.audioBitrate;
 
         maxLatencyMs = Math.max(maxLatencyMs, stats.latencyMs);
         maxPacketsLost = Math.max(maxPacketsLost, stats.packetsLost);
@@ -291,20 +286,30 @@ export class WebRTCBroadcaster {
       }
     }
 
-    if (hasValidData) {
-      const quality = classifyQuality(maxLatencyMs, maxLossPercent);
-      this.statsCallback({
-        fps: firstFps,
-        videoBitrate: firstVideoBitrate,
-        audioBitrate: firstAudioBitrate,
-        latencyMs: maxLatencyMs,
+    if (peerCount > 0) {
+      const prev = this.lastAggregatedStats;
+      const finalFps = bestFps > 0 ? bestFps : (prev?.fps ?? 0);
+      const finalVideoBitrate = bestVideoBitrate > 0 ? bestVideoBitrate : (prev?.videoBitrate ?? 0);
+      const finalAudioBitrate = bestAudioBitrate > 0 ? bestAudioBitrate : (prev?.audioBitrate ?? 0);
+      const finalLatency = maxLatencyMs > 0 ? maxLatencyMs : (prev?.latencyMs ?? 0);
+      const finalJitter = maxJitterMs > 0 ? maxJitterMs : (prev?.jitterMs ?? 0);
+
+      const quality = classifyQuality(finalLatency, maxLossPercent);
+      const aggregated: StreamStats = {
+        fps: finalFps,
+        videoBitrate: finalVideoBitrate,
+        audioBitrate: finalAudioBitrate,
+        latencyMs: finalLatency,
         packetsLost: maxPacketsLost,
         lossPercent: maxLossPercent,
-        jitterMs: maxJitterMs,
+        jitterMs: finalJitter,
         qualityLimitation: worstLimitation,
         connectionQuality: quality,
         timestamp: Date.now(),
-      });
+      };
+
+      this.lastAggregatedStats = aggregated;
+      this.statsCallback(aggregated);
     }
   }
 
