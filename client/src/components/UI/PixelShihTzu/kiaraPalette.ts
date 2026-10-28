@@ -1,23 +1,22 @@
 /**
  * kiaraPalette.ts — Paleta do shitzu aplicada em tempo de renderização.
- * Os arquivos originais do sprite (spriteData.ts, liveSceneData.ts) ficam intactos:
- * aqui só trocamos as cores azuis/índigo (coleira, medalha, olho) por marrom/caramelo,
- * e aquecemos levemente o branco/cinza da pelagem para o creme da interface.
- * As mesmas chaves de PALETTE são mantidas, então nenhum frame precisa mudar.
+ * Os frames de spriteData.ts usam as mesmas chaves de PALETTE; aqui definimos as cores finais:
+ * corpo predominantemente marrom (a/f), com rosto e peito brancos/cremes (w/s), como o
+ * shitzu real. Coleira e medalha ficam em tons de marrom/dourado.
  */
 
 import { PALETTE } from './spriteData';
 
 export const KIARA_PALETTE: Readonly<Record<string, string>> = {
   ...PALETTE,
-  w: '#FBF7F1', // pelagem branca (creme de destaque)
-  s: '#D9CBB8', // sombra da pelagem (creme escuro)
-  a: '#C98A52', // caramelo (acento do app)
-  f: '#DDA06A', // caramelo claro
-  m: '#6E4326', // marrom escuro das orelhas
+  w: '#FBF7F1', // pelagem branca (rosto e peito)
+  s: '#D9CBB8', // sombra da pelagem branca (creme escuro)
+  a: '#B97A45', // marrom (corpo, rabo, patas e mancha do rosto)
+  f: '#8F5A2E', // marrom escuro (sombra do corpo)
+  m: '#4F3B30', // marrom bem escuro das orelhas
   n: '#1A120C', // nariz/boca (espresso)
-  e: '#1A120C', // olho (era índigo)
-  c: '#8A5A34', // coleira (era índigo) → caramelo profundo
-  t: '#DDA06A', // medalha (era azul) → caramelo claro
+  e: '#1A120C', // olho
+  c: '#5B3A22', // coleira
+  t: '#E2B04F', // medalha dourada
   l: '#D9695A', // língua (quente)
 };
