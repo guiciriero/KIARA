@@ -47,7 +47,7 @@ const AudioSourceList: React.FC<Props> = ({
         <div className={styles.webNotice}>
           <p>
             No navegador web, o áudio capturado é o do sistema inteiro. Para selecionar áudio de
-            aplicativos individuais (jogos, navegadores, reprodutores), use o app desktop da KIARA.
+            aplicativos individuais (jogos, navegadores, reprodutores), use o app para Windows.
           </p>
         </div>
       )}

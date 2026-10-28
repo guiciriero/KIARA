@@ -65,12 +65,12 @@ const Sparkline: React.FC<Props> = ({
             vectorEffect="non-scaling-stroke"
           />
         )}
-        {geo.area && <path d={geo.area} fill={color} className={styles.area} />}
+        {geo.area && <path d={geo.area} style={{ fill: color }} className={styles.area} />}
         {geo.line && (
           <path
             d={geo.line}
             fill="none"
-            stroke={color}
+            style={{ stroke: color }}
             strokeWidth="1.5"
             strokeLinejoin="round"
             strokeLinecap="round"

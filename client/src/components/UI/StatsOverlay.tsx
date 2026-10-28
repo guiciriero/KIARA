@@ -13,14 +13,22 @@ interface Props {
   history?: readonly StatsSample[];
 }
 
+// Cores de status vêm dos tokens (os dois temas)
+const OK = 'var(--kiara-live)';
+const WARN = 'var(--kiara-warning)';
+const BAD = 'var(--kiara-danger)';
+const OK_BG = 'var(--kiara-live-subtle)';
+const WARN_BG = 'var(--kiara-warning-subtle)';
+const BAD_BG = 'var(--kiara-danger-subtle)';
+
 const QUALITY_CONFIG: Record<
   StreamStats['connectionQuality'],
   { label: string; color: string; bg: string }
 > = {
-  excellent: { label: 'Excelente', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },
-  good:      { label: 'Boa',       color: '#34d399', bg: 'rgba(52, 211, 153, 0.15)' },
-  fair:      { label: 'Oscilando', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
-  poor:      { label: 'Instável',  color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.15)' },
+  excellent: { label: 'Excelente', color: OK, bg: OK_BG },
+  good:      { label: 'Boa',       color: OK, bg: OK_BG },
+  fair:      { label: 'Oscilando', color: WARN, bg: WARN_BG },
+  poor:      { label: 'Instável',  color: BAD, bg: BAD_BG },
 };
 
 const LIMIT_LABELS: Record<StreamStats['qualityLimitation'], string | null> = {
@@ -31,9 +39,9 @@ const LIMIT_LABELS: Record<StreamStats['qualityLimitation'], string | null> = {
 };
 
 function fpsColor(fps: number, target: number): string {
-  if (fps >= target * 0.93) return '#10b981'; // ≥ 93% do alvo → verde
-  if (fps >= target * 0.75) return '#f59e0b'; // ≥ 75% → amarelo
-  return '#f43f5e';                            // < 75% → vermelho
+  if (fps >= target * 0.93) return OK; // ≥ 93% do alvo → verde
+  if (fps >= target * 0.75) return WARN; // ≥ 75% → amarelo
+  return BAD;                            // < 75% → vermelho
 }
 
 const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
@@ -53,8 +61,8 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
         <IconActivity size={14} />
         <span style={{ color: fpsColor(stats.fps, targetFps) }}>{stats.fps} FPS</span>
         <span>·</span>
-        <span style={{ color: stats.latencyMs < 100 ? '#10b981' : '#f59e0b' }}>{stats.latencyMs}ms</span>
-        {stats.lossPercent > 0 && <span style={{ color: '#f43f5e' }}>·{stats.lossPercent.toFixed(1)}%↓</span>}
+        <span style={{ color: stats.latencyMs < 100 ? OK : WARN }}>{stats.latencyMs}ms</span>
+        {stats.lossPercent > 0 && <span style={{ color: BAD }}>·{stats.lossPercent.toFixed(1)}%↓</span>}
       </button>
     );
   }
@@ -68,12 +76,12 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
       <div className={styles.header}>
         <div className={styles.titleGroup}>
           <IconActivity size={15} className={styles.titleIcon} />
-          <span className={styles.title}>Telemetria KIARA</span>
+          <span className={styles.title}>Telemetria</span>
         </div>
         <div className={styles.headerActions}>
           {limitation && (
-            <div className={styles.qualityPill} style={{ background: 'rgba(244,63,94,0.15)', color: '#f43f5e' }}>
-              <span className={styles.dot} style={{ background: '#f43f5e' }} />
+            <div className={styles.qualityPill} style={{ background: BAD_BG, color: BAD }}>
+              <span className={styles.dot} style={{ background: BAD }} />
               <span>Limitado: {limitation}</span>
             </div>
           )}
@@ -124,21 +132,21 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
 
         <div className={styles.metric}>
           <span className={styles.label}>Latência RTT</span>
-          <span className={styles.value} style={{ color: stats.latencyMs < 100 ? '#10b981' : '#f59e0b' }}>
+          <span className={styles.value} style={{ color: stats.latencyMs < 100 ? OK : WARN }}>
             {stats.latencyMs} <small>ms</small>
           </span>
         </div>
 
         <div className={styles.metric}>
           <span className={styles.label}>Perda de Pacotes</span>
-          <span className={styles.value} style={{ color: stats.lossPercent > 2 ? '#f43f5e' : '#10b981' }}>
+          <span className={styles.value} style={{ color: stats.lossPercent > 2 ? BAD : OK }}>
             {stats.lossPercent.toFixed(1)} <small>%</small>
           </span>
         </div>
 
         <div className={styles.metric}>
           <span className={styles.label}>Jitter</span>
-          <span className={styles.value} style={{ color: stats.jitterMs > 30 ? '#f59e0b' : undefined }}>
+          <span className={styles.value} style={{ color: stats.jitterMs > 30 ? WARN : undefined }}>
             {stats.jitterMs} <small>ms</small>
           </span>
         </div>
@@ -147,7 +155,7 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
         {stats.framesDropped !== undefined && (
           <div className={styles.metric}>
             <span className={styles.label}>Frames Descartados</span>
-            <span className={styles.value} style={{ color: stats.framesDropped > 0 ? '#f59e0b' : undefined }}>
+            <span className={styles.value} style={{ color: stats.framesDropped > 0 ? WARN : undefined }}>
               {stats.framesDropped}
             </span>
           </div>
@@ -157,7 +165,7 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
         {stats.framesLost !== undefined && (
           <div className={styles.metric}>
             <span className={styles.label}>Frames Perdidos (RX)</span>
-            <span className={styles.value} style={{ color: stats.framesLost > 0 ? '#f59e0b' : undefined }}>
+            <span className={styles.value} style={{ color: stats.framesLost > 0 ? WARN : undefined }}>
               {stats.framesLost}
             </span>
           </div>
@@ -186,7 +194,7 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
             scaleMax={100}
             reference={100}
             referenceLabel="limite recomendado"
-            color={stats.latencyMs < 100 ? '#10b981' : '#f59e0b'}
+            color={stats.latencyMs < 100 ? OK : WARN}
           />
           <Sparkline
             label="FPS real"
@@ -204,7 +212,7 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
             values={history.map((s) => s.videoBitrate / 1000)}
             times={history.map((s) => s.t)}
             scaleMax={1}
-            color="#60a5fa"
+            color="var(--kiara-accent)"
             decimals={1}
           />
           <Sparkline
@@ -215,7 +223,7 @@ const StatsOverlay: React.FC<Props> = ({ stats, targetFps = 60, history }) => {
             scaleMax={5}
             reference={2}
             referenceLabel="limite de alerta"
-            color={stats.lossPercent > 2 ? '#f43f5e' : '#10b981'}
+            color={stats.lossPercent > 2 ? BAD : OK}
             decimals={1}
           />
         </div>

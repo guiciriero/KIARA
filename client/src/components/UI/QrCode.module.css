@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--kiara-shade-50);
 }
 
 .dialog {
@@ -29,7 +29,7 @@
 
 .qr {
   width: 100%;
-  background: #ffffff;
+  background: var(--kiara-paper);
   border-radius: var(--radius-sm);
   line-height: 0;
 }

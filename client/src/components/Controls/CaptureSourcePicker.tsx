@@ -203,7 +203,7 @@ const CaptureSourcePicker: React.FC<Props> = ({
                     }}
                     disabled={disabled}
                     aria-pressed={isSelected}
-                    title={isLive ? `(no ar) ${src.name}` : src.name}
+                    title={isLive ? `(em uso) ${src.name}` : src.name}
                   >
                     <div className={styles.thumb}>
                       {isSafeDataUrl(src.thumbnailDataUrl) ? (
@@ -218,7 +218,7 @@ const CaptureSourcePicker: React.FC<Props> = ({
                           {src.type === 'screen' ? <IconScreen size={24} /> : <IconWindow size={24} />}
                         </div>
                       )}
-                      {isLive && <div className={styles.badgeLive}>NO AR</div>}
+                      {isLive && <div className={styles.badgeLive}>Em uso</div>}
                       {isSelected && <div className={styles.selOverlay} aria-hidden="true" />}
                     </div>
 

@@ -41,11 +41,11 @@
 }
 
 .ok .row svg {
-  color: var(--kiara-cool);
+  color: var(--kiara-accent-hover);
 }
 
 .warning {
-  border-color: rgba(234, 179, 8, 0.3);
+  border-color: color-mix(in srgb, var(--kiara-warning) 30%, transparent);
   background: var(--kiara-warning-subtle);
 }
 
@@ -54,7 +54,7 @@
 }
 
 .danger {
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: color-mix(in srgb, var(--kiara-danger) 30%, transparent);
   background: var(--kiara-danger-subtle);
 }
 

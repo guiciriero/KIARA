@@ -12,7 +12,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 0 var(--kiara-wash-1);
   transition: border-color var(--transition-base);
 }
 
@@ -145,7 +145,7 @@
 .item.selected {
   border-color: var(--kiara-text-strong);
   background: var(--kiara-surface-elevated);
-  box-shadow: 0 0 0 3px var(--kiara-cool-subtle);
+  box-shadow: 0 0 0 3px var(--kiara-accent-subtle);
 }
 
 .rowMain {
@@ -242,7 +242,7 @@
 
 .switch input:checked + .sliderRound {
   background-color: var(--kiara-text-strong);
-  box-shadow: 0 0 0 3px var(--kiara-cool-subtle);
+  box-shadow: 0 0 0 3px var(--kiara-accent-subtle);
 }
 
 .switch input:checked + .sliderRound:before {
@@ -254,7 +254,7 @@
 .switch input:focus-visible + .sliderRound {
   outline: 2px solid var(--kiara-border-focus);
   outline-offset: 2px;
-  box-shadow: 0 0 0 5px var(--kiara-cool-glow);
+  box-shadow: 0 0 0 5px var(--kiara-accent-glow);
 }
 
 /* ── Volume Slider ────────────────────────────────────────────── */
@@ -263,7 +263,7 @@
   align-items: center;
   gap: 8px;
   padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--kiara-wash-1);
 }
 
 .muteBtn {
@@ -284,7 +284,7 @@
 
 .muteBtn.muted {
   color: var(--kiara-danger);
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: color-mix(in srgb, var(--kiara-danger) 30%, transparent);
   background: var(--kiara-danger-subtle);
 }
 
@@ -318,7 +318,7 @@
   background: var(--kiara-text-strong);
   border: none;
   cursor: pointer;
-  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 1px 3px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 1px 3px var(--kiara-shade-85);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
@@ -329,20 +329,20 @@
   background: var(--kiara-text-strong);
   border: none;
   cursor: pointer;
-  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 1px 3px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 1px 3px var(--kiara-shade-85);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .volSlider:hover:not(:disabled)::-webkit-slider-thumb,
 .volSlider:focus-visible::-webkit-slider-thumb {
   transform: scale(1.2);
-  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 0 0 4px var(--kiara-cool-glow);
+  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 0 0 4px var(--kiara-accent-glow);
 }
 
 .volSlider:hover:not(:disabled)::-moz-range-thumb,
 .volSlider:focus-visible::-moz-range-thumb {
   transform: scale(1.2);
-  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 0 0 4px var(--kiara-cool-glow);
+  box-shadow: 0 0 0 2px var(--kiara-surface-elevated), 0 0 0 4px var(--kiara-accent-glow);
 }
 
 .volPercent {

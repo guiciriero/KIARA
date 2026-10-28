@@ -44,7 +44,7 @@ const RoomOptionsPanel: React.FC<Props> = ({ value, onChange, disabled = false }
       <div className={styles.header}>
         <IconLock size={16} className={styles.icon} />
         <h2 id={`${baseId}-title`} className={styles.title}>Acesso à sala</h2>
-        {disabled && <span className={styles.lockedBadge}>Travado no ar</span>}
+        {disabled && <span className={styles.lockedBadge}>Travado durante a transmissão</span>}
       </div>
 
       <div className={styles.field}>

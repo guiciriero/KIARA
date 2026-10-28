@@ -35,10 +35,10 @@ export function useDocumentPip(): UseDocumentPipResult {
     copyStyleSheets(document, win.document);
     Object.assign(win.document.body.style, {
       margin: '0',
-      background: '#000',
+      background: 'var(--kiara-media-bg)', // herda os tokens copiados para a janela
       overflow: 'hidden',
     });
-    win.document.title = 'KIARA — Transmissão';
+    win.document.title = 'Kiara';
 
     win.addEventListener(
       'pagehide',

@@ -3,7 +3,7 @@
   top: 12px;
   right: 12px;
   z-index: 25;
-  background: rgba(8, 8, 8, 0.88);
+  background: var(--kiara-media-overlay);
   backdrop-filter: var(--kiara-glass-blur);
   -webkit-backdrop-filter: var(--kiara-glass-blur);
   border: 1px solid var(--kiara-border-active);
@@ -12,7 +12,7 @@
   min-width: 260px;
   max-width: calc(100% - 24px);
   user-select: none;
-  box-shadow: var(--shadow-elevated), 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-elevated), 0 0 1px var(--kiara-wash-2);
   animation: kiaraSlideUp var(--transition-fast) both;
 }
 
@@ -34,7 +34,7 @@
 }
 
 .titleIcon {
-  color: var(--kiara-cool);
+  color: var(--kiara-accent-hover);
   flex-shrink: 0;
 }
 
@@ -147,7 +147,7 @@
   top: 12px;
   right: 12px;
   z-index: 25;
-  background: rgba(8, 8, 8, 0.88);
+  background: var(--kiara-media-overlay);
   backdrop-filter: var(--kiara-glass-blur);
   -webkit-backdrop-filter: var(--kiara-glass-blur);
   border: 1px solid var(--kiara-border-active);
@@ -164,7 +164,7 @@
 
 .minimizedBtn:hover {
   background: var(--kiara-surface-elevated);
-  border-color: var(--kiara-cool);
+  border-color: var(--kiara-accent-hover);
   color: var(--kiara-text-strong);
   transform: translateY(-1px);
 }

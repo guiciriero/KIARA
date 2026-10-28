@@ -87,12 +87,12 @@
 }
 
 .progress::-webkit-progress-value {
-  background: var(--kiara-cool);
+  background: var(--kiara-accent-hover);
   border-radius: var(--radius-full);
   transition: width var(--transition-fast);
 }
 
 .progress::-moz-progress-bar {
-  background: var(--kiara-cool);
+  background: var(--kiara-accent-hover);
   border-radius: var(--radius-full);
 }

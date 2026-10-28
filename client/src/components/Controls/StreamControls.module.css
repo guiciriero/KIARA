@@ -42,7 +42,7 @@
   bottom: 0;
   left: 0;
   width: 40%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  background: linear-gradient(90deg, transparent, var(--kiara-wash-3), transparent);
   transform: translateX(-120%) skewX(-18deg);
   pointer-events: none;
   z-index: -1;
@@ -112,7 +112,7 @@
 
 .btnStop {
   background: var(--kiara-danger-subtle);
-  border: 1px solid rgba(239, 68, 68, 0.28);
+  border: 1px solid color-mix(in srgb, var(--kiara-danger) 28%, transparent);
   color: var(--kiara-danger-hover);
   padding: 9px 12px;
   font-size: 0.82rem;
@@ -121,13 +121,13 @@
 }
 
 .btnStop:hover {
-  background: rgba(239, 68, 68, 0.18);
+  background: color-mix(in srgb, var(--kiara-danger) 18%, transparent);
   border-color: var(--kiara-danger);
   color: var(--kiara-text-strong);
 }
 
 .btnStop:focus-visible {
-  box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.25);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--kiara-danger) 25%, transparent);
 }
 
 /* Botão de retorno de tela: estado "preview ativo" → clique oculta */

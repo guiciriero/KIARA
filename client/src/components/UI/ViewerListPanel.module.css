@@ -65,8 +65,8 @@
 }
 
 .btnDanger {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.45);
+  color: var(--kiara-danger-hover);
+  border-color: color-mix(in srgb, var(--kiara-danger-hover) 45%, transparent);
 }
 
 .btn:hover {
@@ -75,7 +75,7 @@
 }
 
 .btnDanger:hover {
-  background: rgba(248, 113, 113, 0.12);
+  background: color-mix(in srgb, var(--kiara-danger-hover) 12%, transparent);
 }
 
 .btn:focus-visible,
