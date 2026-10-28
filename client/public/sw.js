@@ -5,9 +5,9 @@
  * - Nunca intercepta /socket.io, /download, /health, /metrics, não-GET ou outras origens.
  */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `kiara-shell-${CACHE_VERSION}`;
-const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg', '/icon.svg', '/icon-maskable.svg'];
+const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/kiara-mark.svg', '/kiara-icon.svg', '/kiara-icon-maskable.svg'];
 const BYPASS_PREFIXES = ['/socket.io', '/download', '/health', '/metrics'];
 
 self.addEventListener('install', (event) => {
