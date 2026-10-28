@@ -67,7 +67,6 @@ const ViewerPage: React.FC = () => {
   const [showNameModal, setShowNameModal] = useState(false);
   const [modalNameValue, setModalNameValue] = useState(() => storedName || '');
   const [isMuted, setIsMuted] = useState(true);
-  const [hasDismissedAudioPrompt, setHasDismissedAudioPrompt] = useState(false);
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
@@ -275,28 +274,11 @@ const ViewerPage: React.FC = () => {
     };
   }, []);
 
-  const handleEnableAudio = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = docPip.isOpen;
-      videoRef.current.volume = localVolume;
-      if (videoRef.current.paused) {
-        videoRef.current.play().catch((err) => {
-          console.warn('[KIARA] Erro ao reproduzir com áudio:', err);
-        });
-      }
-    }
-    setIsMuted(false);
-    setHasDismissedAudioPrompt(true);
-    showHud('Áudio ativado');
-    resetHideTimer();
-  };
-
   const handleToggleMute = () => {
     if (!videoRef.current) return;
     const nextMuted = !isMuted;
     videoRef.current.muted = nextMuted || docPip.isOpen;
     setIsMuted(nextMuted);
-    setHasDismissedAudioPrompt(true);
     showHud(nextMuted ? 'Áudio silenciado' : 'Áudio ativado');
     resetHideTimer();
   };
@@ -309,7 +291,6 @@ const ViewerPage: React.FC = () => {
       if (val > 0 && isMuted) {
         videoRef.current.muted = docPip.isOpen;
         setIsMuted(false);
-        setHasDismissedAudioPrompt(true);
       }
     }
     resetHideTimer();
@@ -320,7 +301,6 @@ const ViewerPage: React.FC = () => {
     setLocalVolume(val);
     if (val > 0 && isMuted) {
       setIsMuted(false);
-      setHasDismissedAudioPrompt(true);
     }
   };
 
@@ -723,26 +703,6 @@ const ViewerPage: React.FC = () => {
             }
           }}
         />
-
-        {/* Botão Central de Desmutar (Unmute Overlay) — Apenas no primeiro carregamento com autoplay mudo */}
-        {state.connectionState === 'connected' && isMuted && !hasDismissedAudioPrompt && (
-          <div className={styles.unmuteOverlay}>
-            <button
-              type="button"
-              className={styles.unmuteButton}
-              onClick={handleEnableAudio}
-              aria-label="Ativar áudio"
-            >
-              <div className={styles.unmuteIconBox}>
-                <IconVolumeHigh size={24} />
-              </div>
-              <div className={styles.unmuteText}>
-                <strong>Ativar áudio</strong>
-                <span>Clique para ouvir a transmissão</span>
-              </div>
-            </button>
-          </div>
-        )}
 
         {/* Telemetria de Estatísticas */}
         {showStats && state.stats && <StatsOverlay stats={state.stats} targetFps={videoConfig.frameRate} history={statsHistory} />}
