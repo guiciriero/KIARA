@@ -67,6 +67,7 @@ const ViewerPage: React.FC = () => {
   const [showNameModal, setShowNameModal] = useState(false);
   const [modalNameValue, setModalNameValue] = useState(() => storedName || '');
   const [isMuted, setIsMuted] = useState(true);
+  const [hasDismissedAudioPrompt, setHasDismissedAudioPrompt] = useState(false);
   const [localVolume, setLocalVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
@@ -285,7 +286,8 @@ const ViewerPage: React.FC = () => {
       }
     }
     setIsMuted(false);
-    showHud('Áudio da transmissão ativado');
+    setHasDismissedAudioPrompt(true);
+    showHud('Áudio ativado');
     resetHideTimer();
   };
 
@@ -294,7 +296,8 @@ const ViewerPage: React.FC = () => {
     const nextMuted = !isMuted;
     videoRef.current.muted = nextMuted || docPip.isOpen;
     setIsMuted(nextMuted);
-    showHud(nextMuted ? 'Áudio silenciado (Mudo)' : 'Áudio ativado');
+    setHasDismissedAudioPrompt(true);
+    showHud(nextMuted ? 'Áudio silenciado' : 'Áudio ativado');
     resetHideTimer();
   };
 
@@ -306,6 +309,7 @@ const ViewerPage: React.FC = () => {
       if (val > 0 && isMuted) {
         videoRef.current.muted = docPip.isOpen;
         setIsMuted(false);
+        setHasDismissedAudioPrompt(true);
       }
     }
     resetHideTimer();
@@ -314,7 +318,10 @@ const ViewerPage: React.FC = () => {
   /** Volume vindo da janela flutuante: mesmo estado da página (o <video> principal segue mudo) */
   const handlePipVolumeChange = (val: number) => {
     setLocalVolume(val);
-    if (val > 0 && isMuted) setIsMuted(false);
+    if (val > 0 && isMuted) {
+      setIsMuted(false);
+      setHasDismissedAudioPrompt(true);
+    }
   };
 
   const handleToggleFullscreen = async () => {
@@ -717,22 +724,22 @@ const ViewerPage: React.FC = () => {
           }}
         />
 
-        {/* Botão Central de Desmutar (Unmute Overlay) */}
-        {state.connectionState === 'connected' && isMuted && (
+        {/* Botão Central de Desmutar (Unmute Overlay) — Apenas no primeiro carregamento com autoplay mudo */}
+        {state.connectionState === 'connected' && isMuted && !hasDismissedAudioPrompt && (
           <div className={styles.unmuteOverlay}>
             <button
               type="button"
               className={styles.unmuteButton}
               onClick={handleEnableAudio}
               aria-label="Ativar áudio"
-              >
-                <div className={styles.unmuteIconBox}>
-                  <IconVolumeHigh size={24} />
-                </div>
-                <div className={styles.unmuteText}>
-                  <strong>Ativar áudio</strong>
-                  <span>Clique para ouvir a transmissão</span>
-                </div>
+            >
+              <div className={styles.unmuteIconBox}>
+                <IconVolumeHigh size={24} />
+              </div>
+              <div className={styles.unmuteText}>
+                <strong>Ativar áudio</strong>
+                <span>Clique para ouvir a transmissão</span>
+              </div>
             </button>
           </div>
         )}
