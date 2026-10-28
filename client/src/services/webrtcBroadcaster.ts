@@ -219,6 +219,7 @@ export class WebRTCBroadcaster {
       this.statsInterval = setInterval(() => {
         void this.collectAggregatedStats();
       }, 1000);
+      void this.collectAggregatedStats();
     }
   }
 

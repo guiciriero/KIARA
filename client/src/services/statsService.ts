@@ -110,6 +110,7 @@ export function parseRTCStats(report: RTCStatsReport, peerId = 'default'): Strea
   let encodedHeight: number | undefined;
   let framesDropped: number | undefined;
   let framesSent: number | undefined;
+  let framesEncoded: number | undefined;
   let framesDecoded: number | undefined;
   let framesReceived: number | undefined;
   let framesLost: number | undefined;
