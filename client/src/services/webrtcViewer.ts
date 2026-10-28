@@ -14,7 +14,6 @@ import {
 } from './rtcConfig';
 import { MAX_ICE_CANDIDATE_BUFFER, VIDEO_STALL_TIMEOUT_MS, pushCapped } from './webrtcShared';
 import type { E2eeTransform } from './e2ee';
-import type { LowLatencyVideoSink } from './lowLatencyRenderer';
 
 const VIDEO_WATCHDOG_INTERVAL_MS = 1000;
 
@@ -39,33 +38,24 @@ export class WebRTCViewer {
 
   /** Sala E2EE: todo receiver decifra os quadros; quadro que não autentica é descartado no worker */
   private e2ee?: E2eeTransform;
-  /** Modo "baixa latência": o receiver de vídeo vai para o worker de WebCodecs em vez do <video> */
-  private lowLatency?: LowLatencyVideoSink;
 
   constructor(
     socket: Socket,
     hostId: string,
     iceServers: IceServerConfig[] = [],
     e2ee?: E2eeTransform,
-    lowLatency?: LowLatencyVideoSink,
   ) {
     this.socket = socket;
     this.hostId = hostId;
     this.iceServers = iceServers;
     this.e2ee = e2ee;
-    this.lowLatency = lowLatency;
     this.setupSocketListeners();
   }
 
   /**
-   * Liga o receiver ao destino certo. O vídeo do modo baixa latência é decifrado no próprio worker
-   * dele (que também decodifica); todo o resto passa pela E2EE, se a sala for cifrada.
+   * Protege o receiver com cifra de ponta a ponta (E2EE) caso configurada.
    */
   private protectReceiver(receiver: RTCRtpReceiver): void {
-    if (this.lowLatency && receiver.track?.kind === 'video') {
-      this.lowLatency.attachVideoReceiver(receiver);
-      return;
-    }
     this.e2ee?.protectReceiver(receiver);
   }
 
@@ -92,8 +82,6 @@ export class WebRTCViewer {
   }
 
   private async hasDecodedVideo(pc: RTCPeerConnection): Promise<boolean> {
-    // No modo baixa latência os quadros não voltam ao <video>: framesDecoded fica em 0 de propósito
-    if ((this.lowLatency?.framesRendered ?? 0) > 0) return true;
     const report = await pc.getStats();
     let decoded = false;
     report.forEach((s: Record<string, unknown>) => {
@@ -143,7 +131,6 @@ export class WebRTCViewer {
     this.remoteStream = new MediaStream();
 
     try {
-      // Criar os transceivers FORA do `?.`: com e2ee indefinido o argumento não seria avaliado
       const video = pc.addTransceiver('video', { direction: 'recvonly' });
       const audio = pc.addTransceiver('audio', { direction: 'recvonly' });
       this.protectReceiver(video.receiver);
@@ -154,7 +141,6 @@ export class WebRTCViewer {
 
     pc.ontrack = (event) => {
       if (this.destroyed || pc !== this.pc) return;
-      // Nunca entrega mídia sem decifrar numa sala E2EE (idempotente: já protegido acima)
       if (event.receiver) this.protectReceiver(event.receiver);
 
       const stream = event.streams[0] ?? this.remoteStream ?? new MediaStream();

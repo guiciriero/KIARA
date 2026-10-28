@@ -209,11 +209,17 @@ const BroadcastPage: React.FC = () => {
 
   // Conecta ou desconecta o srcObject do <video> conforme o estado do preview
   useEffect(() => {
-    if (!previewRef.current) return;
+    const video = previewRef.current;
+    if (!video) return;
     if (previewAtivo && state.stream) {
-      previewRef.current.srcObject = state.stream;
+      if (video.srcObject !== state.stream) {
+        video.srcObject = state.stream;
+      }
+      if (video.paused) {
+        video.play().catch(() => {});
+      }
     } else {
-      previewRef.current.srcObject = null;
+      video.srcObject = null;
     }
   }, [state.stream, previewAtivo]);
 

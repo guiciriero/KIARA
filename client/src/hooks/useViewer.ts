@@ -10,9 +10,6 @@ import { useSocket } from '../services/SocketContext';
 import { WebRTCViewer } from '../services/webrtcService';
 import { detectViewerHwDecode } from '../services/codecSelection';
 import { E2eeSession, isE2eeSupported } from '../services/e2ee';
-import { LowLatencyRenderer } from '../services/lowLatencyRenderer';
-import type { LowLatencyState } from '../services/lowLatencyRenderer';
-import { isLowLatencySupported, readStoredLowLatency, storeLowLatency } from '../utils/lowLatency';
 import { deriveE2eeKeys } from '../utils/e2eeCrypto';
 import type { E2eeKeys } from '../utils/e2eeCrypto';
 import { createReconnector } from '../utils/reconnector';
@@ -95,22 +92,11 @@ export function useViewer(roomCode: string | undefined) {
   /** Chave de mídia da sala E2EE (também usada pelo co-apresentador); null em sala comum */
   const [mediaKey, setMediaKey] = useState<CryptoKey | null>(null);
 
-  // ── Baixa latência (experimental): WebCodecs + canvas WebGL no lugar do <video> ──
-  const lowLatencySupported = isLowLatencySupported();
-  const [lowLatencyEnabled, setLowLatencyEnabled] = useState(() => lowLatencySupported && readStoredLowLatency());
-  const lowLatencyEnabledRef = useRef(lowLatencyEnabled);
-  const rendererRef = useRef<LowLatencyRenderer | null>(null);
-  /** Canvas montado pela página + estado medido pelo worker; null fora do modo */
-  const [lowLatencyView, setLowLatencyView] = useState<{ canvas: HTMLCanvasElement; state: LowLatencyState } | null>(null);
-
   const destroyViewer = useCallback(() => {
     viewerRef.current?.destroy();
     viewerRef.current = null;
     e2eeSessionRef.current?.destroy();
     e2eeSessionRef.current = null;
-    rendererRef.current?.destroy();
-    rendererRef.current = null;
-    setLowLatencyView(null);
   }, []);
 
   useEffect(() => {
@@ -185,26 +171,7 @@ export function useViewer(roomCode: string | undefined) {
       const preference = qualityRef.current;
       socket.emit('stream:quality-request', { ...qualityLimits(preference), preference });
 
-      // Modo experimental: se não der para criar o worker, segue com o <video> normal
-      let renderer: LowLatencyRenderer | undefined;
-      if (lowLatencyEnabledRef.current && isLowLatencySupported()) {
-        try {
-          const created: LowLatencyRenderer = new LowLatencyRenderer(
-            (next) => {
-              if (rendererRef.current === created) setLowLatencyView({ canvas: created.canvas, state: next });
-            },
-            // Sala E2EE: o worker de baixa latência decifra o vídeo antes de decodificar
-            data.e2ee ? keysRef.current?.mediaKey : undefined,
-          );
-          renderer = created;
-          rendererRef.current = created;
-          setLowLatencyView({ canvas: created.canvas, state: created.current });
-        } catch (err) {
-          console.warn('[KIARA:viewer] Baixa latência indisponível; usando o <video>:', err);
-        }
-      }
-
-      const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers, e2ee, renderer);
+      const viewer = new WebRTCViewer(socket, data.hostId, data.iceServers, e2ee);
       viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
       // Conexão "ok" mas nenhum frame decodificado = tela preta. Refaz a entrada sozinho (o que o usuário
       // faria à mão: sair e entrar), no máximo MAX_STALL_RETRIES vezes.
@@ -348,24 +315,6 @@ export function useViewer(roomCode: string | undefined) {
     sendJoinRef.current?.();
   }, [roomCode]);
 
-  /**
-   * Liga ou desliga a baixa latência. O RTCRtpScriptTransform é definido na criação da conexão,
-   * então, com a sessão aberta, a entrada é refeita (o que o usuário faria à mão).
-   */
-  const setLowLatencyMode = useCallback(
-    (enabled: boolean) => {
-      storeLowLatency(enabled);
-      lowLatencyEnabledRef.current = enabled;
-      setLowLatencyEnabled(enabled);
-      if (!sessionRef.current || !viewerRef.current) return;
-      socket?.emit('room:leave');
-      destroyViewer();
-      dispatch({ type: 'joining' });
-      sendJoinRef.current?.();
-    },
-    [socket, destroyViewer],
-  );
-
   /** Define a preferência de resolução individual do espectador */
   const setQuality = useCallback(
     (pref: ViewerQualityPreference) => {
@@ -398,12 +347,5 @@ export function useViewer(roomCode: string | undefined) {
     dispatch({ type: 'reset' });
   }, [socket, destroyViewer]);
 
-  const lowLatency = {
-    supported: lowLatencySupported,
-    enabled: lowLatencyEnabled,
-    canvas: lowLatencyView?.canvas ?? null,
-    state: lowLatencyView?.state ?? null,
-  };
-
-  return { state, leaveRoom, setQuality, join, updateName, mediaKey, lowLatency, setLowLatencyMode, storedName: readStoredName() };
+  return { state, leaveRoom, setQuality, join, updateName, mediaKey, storedName: readStoredName() };
 }

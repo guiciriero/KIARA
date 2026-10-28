@@ -710,9 +710,6 @@
   box-shadow: 0 0 14px var(--kiara-accent-glow);
 }
 
-.dataSaverBtn {
-  white-space: nowrap;
-}
 
 .coPresenterPanel {
   position: fixed;
@@ -1024,10 +1021,6 @@
   }
   .qualitySelect {
     max-width: 120px;
-  }
-  .dataSaverBtn {
-    padding: 0 8px;
-    font-size: 0.7rem;
   }
   .unmuteButton {
     width: calc(100% - 32px);
