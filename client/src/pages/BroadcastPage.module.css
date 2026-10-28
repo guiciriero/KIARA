@@ -155,7 +155,7 @@
   gap: 6px;
   min-height: 34px;
   padding: 0 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--kiara-wash-1);
   border: 1px solid var(--kiara-border-active);
   border-radius: var(--radius-full);
   color: var(--kiara-text);
@@ -293,7 +293,7 @@
 
 .panelSection:hover,
 .panelSection:focus-within {
-  background-color: rgba(255, 255, 255, 0.012);
+  background-color: var(--kiara-wash-1);
 }
 
 .sectionHeader {
@@ -362,7 +362,7 @@
   border: 1px solid var(--kiara-border-active);
   border-radius: var(--radius-md);
   padding: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow-md);
+  box-shadow: inset 0 1px 0 var(--kiara-wash-1), var(--shadow-md);
   transition: border-color var(--transition-base);
 }
 
@@ -393,9 +393,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--kiara-cool);
-  background: var(--kiara-cool-subtle);
-  border: 1px solid var(--kiara-cool-glow);
+  color: var(--kiara-accent-hover);
+  background: var(--kiara-accent-subtle);
+  border: 1px solid var(--kiara-accent-glow);
   border-radius: var(--radius-full);
   padding: 2px 8px;
 }
@@ -408,7 +408,7 @@
   background: var(--kiara-bg);
   border: 1px solid var(--kiara-border);
   border-radius: var(--radius-sm);
-  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.9);
+  box-shadow: inset 0 1px 6px var(--kiara-shade-85);
 }
 
 .codeDisplayText {
@@ -417,7 +417,7 @@
   font-weight: 700;
   letter-spacing: 0.22em;
   color: var(--kiara-text-strong);
-  text-shadow: 0 0 22px var(--kiara-cool-glow);
+  text-shadow: 0 0 22px var(--kiara-accent-glow);
   user-select: all;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -440,7 +440,7 @@
 }
 
 .urlCopyRow:focus-within {
-  border-color: var(--kiara-cool-glow);
+  border-color: var(--kiara-accent-glow);
 }
 
 .urlDisplayShort {
@@ -526,7 +526,7 @@
   gap: 12px;
   padding: 16px;
   overflow-y: auto;
-  background: #000000;
+  background: var(--kiara-media-bg);
   min-width: 0;
   transition: padding 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -539,7 +539,7 @@
   flex: 1;
   width: 100%;
   min-height: 400px;
-  background: #000000;
+  background: var(--kiara-media-bg);
   border: 1px solid var(--kiara-border-active);
   border-radius: var(--radius-lg);
   /* Os vídeos internos têm o próprio raio; visível para as reações flutuarem sem corte */
@@ -549,9 +549,9 @@
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.02),
-    0 2px 6px rgba(0, 0, 0, 0.7),
-    0 18px 48px rgba(0, 0, 0, 0.9),
+    0 0 0 1px var(--kiara-wash-1),
+    0 2px 6px var(--kiara-shade-70),
+    0 18px 48px var(--kiara-shade-85),
     0 0 40px var(--kiara-accent-subtle);
   animation: panelEnter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: border-radius var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
@@ -581,7 +581,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), inset 0 0 60px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px var(--kiara-wash-1), inset 0 0 60px var(--kiara-shade-30);
   z-index: 1;
   pointer-events: none;
 }
@@ -606,7 +606,7 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  background: #000000;
+  background: var(--kiara-media-bg);
   border-radius: inherit;
   animation: panelEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
   image-rendering: auto;
@@ -647,7 +647,7 @@
   height: calc(var(--mini-w) * 0.5625);
   border-color: var(--kiara-border-strong);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-elevated), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow: var(--shadow-elevated), 0 0 0 1px var(--kiara-wash-1);
 }
 
 .hostFeedMini:hover {
@@ -920,7 +920,7 @@
   align-items: center;
   justify-content: center;
   color: var(--kiara-text-secondary);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 28px var(--kiara-cool-subtle);
+  box-shadow: inset 0 1px 0 var(--kiara-wash-1), 0 0 28px var(--kiara-accent-subtle);
 }
 
 .placeholderState h3 {
@@ -972,7 +972,7 @@
   gap: 6px;
   padding: 6px 10px;
   background: var(--kiara-warning-subtle);
-  border: 1px solid rgba(234, 179, 8, 0.2);
+  border: 1px solid color-mix(in srgb, var(--kiara-warning) 20%, transparent);
   border-radius: var(--radius-sm);
   color: var(--kiara-warning);
   font-size: 0.72rem;
@@ -1197,4 +1197,81 @@
   }
 }
 
+
+
+/* ── Mouse parado durante a transmissão: cursor some junto com a barra ── */
+.cursorHidden {
+  cursor: none;
+}
+
+.hostStat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--kiara-on-media);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Gatilho do modal de seleção de tela/janela ─────────────────── */
+.sourceTrigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--kiara-surface);
+  border: 1px solid var(--kiara-border);
+  border-radius: var(--radius-md);
+  color: var(--kiara-text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--kiara-wash-1);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.sourceTrigger:hover {
+  border-color: var(--kiara-border-active);
+  background: var(--kiara-surface-hover);
+  transform: translateY(-1px);
+}
+
+.sourceTrigger:active {
+  transform: scale(0.98);
+}
+
+.sourceTriggerText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.sourceTriggerLabel {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kiara-text-muted);
+}
+
+.sourceTriggerName {
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sourceTrigger:hover { transform: none; }
+}
+.panelSection:empty {
+  display: none;
+}
 

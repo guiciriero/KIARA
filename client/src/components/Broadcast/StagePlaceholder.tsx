@@ -14,12 +14,12 @@ interface Props {
 /** Estado do palco antes de transmitir */
 const StagePlaceholder: React.FC<Props> = ({ isSettingsVisible, startDisabled, error, onStart }) => (
   <div className={styles.placeholderState}>
-    <PixelShihTzu pose="idle" scale={6} speech="Pronto! 🐾" />
+    <PixelShihTzu pose="idle" scale={6} />
 
     {/* Com painéis visíveis: apenas a dica discreta (botão fica no painel esquerdo) */}
     {isSettingsVisible && (
       <p className={styles.placeholderHint}>
-        Configure no painel esquerdo e clique em <strong>Transmitir</strong>.
+        Escolha a fonte e toque em <strong>Transmitir</strong>.
       </p>
     )}
 

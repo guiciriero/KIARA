@@ -1,19 +1,12 @@
 import React from 'react';
 import type { ConnectionState } from '@shared/index';
-import {
-  IconArrowLeft,
-  IconUsers,
-  IconSettings,
-} from '../UI/Icons';
+import { IconArrowLeft, IconSettings } from '../UI/Icons';
 import ConnectionBadge from '../UI/ConnectionBadge';
-import LiveScene from '../UI/PixelShihTzu/LiveScene';
 import styles from '../../pages/BroadcastPage.module.css';
 
 interface Props {
   isSharing: boolean;
   connectionState: ConnectionState;
-  viewerCount: number;
-  maxViewers: number;
   isSettingsVisible: boolean;
   onToggleSettings: () => void;
   onBack: () => void;
@@ -21,24 +14,25 @@ interface Props {
   hasTitleBar?: boolean;
 }
 
-/** Barra superior do estúdio: voltar, marca, alternância dos painéis, conexão e espectadores */
+/**
+ * Barra superior do estúdio: voltar, alternância dos painéis e conexão (só quando há problema).
+ * "Ao vivo", tempo e espectadores ficam apenas na barra flutuante do palco.
+ */
 const BroadcastTopBar: React.FC<Props> = ({
   isSharing,
   connectionState,
-  viewerCount,
-  maxViewers,
   isSettingsVisible,
   onToggleSettings,
   onBack,
   hasTitleBar = false,
 }) => (
-  <header className={`${styles.topBar} ${isSharing ? styles.topBarLive : ''}`}>
+  <header className={styles.topBar}>
     <div className={styles.topBarLeft}>
       <button
         type="button"
         className={styles.backBtn}
         onClick={onBack}
-        title="Voltar para a página inicial"
+        title={isSharing ? 'Voltar (a transmissão continua)' : 'Voltar'}
       >
         <IconArrowLeft size={16} />
         <span>Voltar</span>
@@ -46,33 +40,23 @@ const BroadcastTopBar: React.FC<Props> = ({
       {!hasTitleBar && <div className={styles.divider} />}
     </div>
 
-    {/* Durante a transmissão: Shih Tzu pedalando e alimentando o computador "LIVE ON" */}
-    {isSharing && <LiveScene scale={2} className={styles.liveScene} />}
-
     <div className={styles.topBarRight}>
+      {connectionState !== 'connected' && connectionState !== 'disconnected' && (
+        <ConnectionBadge state={connectionState} />
+      )}
+
       <button
         type="button"
         className={`${styles.settingsToggle} ${!isSettingsVisible ? styles.settingsToggleOff : ''}`}
         onClick={onToggleSettings}
         aria-expanded={isSettingsVisible}
         aria-controls="studio-room-panel studio-config-panel"
-        title={isSettingsVisible ? 'Ocultar painéis laterais (S)' : 'Exibir painéis laterais (S)'}
+        aria-keyshortcuts="S"
+        title={isSettingsVisible ? 'Ocultar painéis (S)' : 'Mostrar painéis (S)'}
       >
         <IconSettings size={15} />
         <span>{isSettingsVisible ? 'Ocultar' : 'Painéis'}</span>
       </button>
-
-      <ConnectionBadge state={connectionState} />
-
-      {isSharing && viewerCount > 0 && (
-        <div className={styles.viewersCountPill}>
-          <IconUsers size={14} />
-          <span>
-            <strong>{viewerCount}</strong>
-            {maxViewers > 0 ? `/${maxViewers}` : ''}
-          </span>
-        </div>
-      )}
     </div>
   </header>
 );

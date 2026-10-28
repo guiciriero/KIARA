@@ -31,6 +31,8 @@ import StatsOverlay from '../components/UI/StatsOverlay';
 import { useStatsHistory } from '../hooks/useStatsHistory';
 import QrCode from '../components/UI/QrCode';
 import { useRecorder } from '../hooks/useRecorder';
+import { useIdleVisible } from '../hooks/useIdleVisible';
+import { useStreamingMode } from '../theme/theme';
 import { buildPermanentLink, getOrCreatePermanentRoomCode } from '../utils/permanentRoom';
 import { clampMiniWidth, parseStoredMiniWidth } from '../utils/miniPlayer';
 import styles from './BroadcastPage.module.css';
@@ -152,6 +154,20 @@ const BroadcastPage: React.FC = () => {
   } = useBroadcast(videoConfig, audioSelection, captureSourceId, createRoomOptions);
   const statsHistory = useStatsHistory(state.stats);
   const [showQr, setShowQr] = useState(false);
+
+  // Durante a transmissão: efeitos pesados desligados e barra que some sem mouse
+  useStreamingMode(state.isSharing);
+  const barVisible = useIdleVisible(stageRef, state.isSharing);
+  const [streamElapsed, setStreamElapsed] = useState(0);
+  useEffect(() => {
+    if (!state.isSharing) {
+      setStreamElapsed(0);
+      return undefined;
+    }
+    const startedAt = Date.now();
+    const id = window.setInterval(() => setStreamElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => window.clearInterval(id);
+  }, [state.isSharing]);
   const recorder = useRecorder(getCombinedStream, state.isSharing);
 
   const { socket } = useSocket();
@@ -248,8 +264,8 @@ const BroadcastPage: React.FC = () => {
     if (!stageRef.current) return;
     try {
       const res = await toggleFullscreen(document as FullscreenDocument, stageRef.current as unknown as FullscreenTarget);
-      if (res === 'entered') showHud('Tela cheia ativada');
-      else if (res === 'exited') showHud('Tela cheia desativada');
+      if (res === 'entered') showHud('Tela cheia');
+      else if (res === 'exited') showHud('Saiu da tela cheia');
     } catch (err) {
       console.warn('[KIARA] Erro ao alternar tela cheia:', err);
     }
@@ -269,7 +285,7 @@ const BroadcastPage: React.FC = () => {
   const toggleSettings = useCallback(() => {
     setIsSettingsVisible((v) => {
       const next = !v;
-      showHud(next ? 'Painéis de configuração exibidos' : 'Painéis ocultados (Foco na tela)');
+      showHud(next ? 'Painéis visíveis' : 'Painéis ocultos');
       return next;
     });
   }, [showHud]);
@@ -349,8 +365,6 @@ const BroadcastPage: React.FC = () => {
       <BroadcastTopBar
         isSharing={state.isSharing}
         connectionState={state.connectionState}
-        viewerCount={state.viewerCount}
-        maxViewers={state.maxViewers}
         isSettingsVisible={isSettingsVisible}
         onToggleSettings={toggleSettings}
         onBack={() => navigate('/')}
@@ -396,7 +410,10 @@ const BroadcastPage: React.FC = () => {
 
         {/* ── Área Central: palco no padrão do player do espectador ─────── */}
         <main className={styles.mainArea}>
-          <div ref={stageRef} className={styles.previewContainer}>
+          <div
+            ref={stageRef}
+            className={`${styles.previewContainer} ${state.isSharing && !barVisible ? styles.cursorHidden : ''}`}
+          >
             {state.isSharing ? (
               <>
                 {/* Player principal: tela do co-apresentador (quando existe) */}
@@ -425,7 +442,7 @@ const BroadcastPage: React.FC = () => {
                 <div className={styles.previewOverlayTop}>
                   {state.isPaused && (
                     <div className={styles.pausedIndicator}>
-                      <span>EM PAUSA</span>
+                      <span>Em pausa</span>
                     </div>
                   )}
                   {copresenter.copresenter && (
@@ -450,6 +467,10 @@ const BroadcastPage: React.FC = () => {
 
                 {/* ── Barra flutuante: controles essenciais sempre acessíveis ── */}
                 <HostControlBar
+                  visible={barVisible}
+                  streamElapsed={streamElapsed}
+                  viewerCount={state.viewerCount}
+                  maxViewers={state.maxViewers}
                   isPaused={state.isPaused}
                   isRecording={recorder.isRecording}
                   elapsed={recorder.elapsed}

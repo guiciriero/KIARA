@@ -14,6 +14,7 @@ import {
   IconVolumeHigh,
   IconVolumeMute,
   IconPictureInPicture,
+  IconUsers,
 } from '../UI/Icons';
 import { formatElapsed } from '../../hooks/useRecorder';
 import styles from '../../pages/BroadcastPage.module.css';
@@ -21,6 +22,12 @@ import styles from '../../pages/BroadcastPage.module.css';
 import viewerStyles from '../../pages/ViewerPage.module.css';
 
 interface Props {
+  /** Barra visível (some após 3 s sem mexer o mouse) */
+  visible: boolean;
+  /** Tempo de transmissão em segundos */
+  streamElapsed: number;
+  viewerCount: number;
+  maxViewers: number;
   isPaused: boolean;
   isRecording: boolean;
   elapsed: number;
@@ -53,6 +60,10 @@ interface Props {
 
 /** Barra flutuante do palco: controles essenciais sempre acessíveis durante a transmissão */
 const HostControlBar: React.FC<Props> = ({
+  visible,
+  streamElapsed,
+  viewerCount,
+  maxViewers,
   isPaused,
   isRecording,
   elapsed,
@@ -81,18 +92,28 @@ const HostControlBar: React.FC<Props> = ({
   onToggleStats,
   onToggleFullscreen,
 }) => (
-  <footer className={`${viewerStyles.bottomBar} ${styles.hostBar}`}>
+  <footer
+    className={`${viewerStyles.bottomBar} ${styles.hostBar} ${visible ? '' : viewerStyles.hidden}`}
+    data-idle-keep
+  >
     <div className={viewerStyles.bottomBarLeft}>
-      <div className={viewerStyles.liveIndicator}>
-        <span className={viewerStyles.liveDot} />
+      {/* Único indicador "ao vivo" do app */}
+      <div className={viewerStyles.liveIndicator} role="status">
+        <span className={viewerStyles.liveDot} aria-hidden="true" />
         <span>Ao vivo</span>
       </div>
+      <span className={styles.hostStat} title="Tempo no ar">{formatElapsed(streamElapsed)}</span>
+      <span className={styles.hostStat} title="Espectadores" aria-label={` espectadores`}>
+        <IconUsers size={14} />
+        {viewerCount}
+        {maxViewers > 0 ? `/` : ''}
+      </span>
 
       <button
         type="button"
         className={`${viewerStyles.iconBtn} ${isPaused ? viewerStyles.activeBtn : ''}`}
         onClick={onTogglePause}
-        title={isPaused ? 'Retomar transmissão de tela' : 'Pausar transmissão momentaneamente'}
+        title={isPaused ? 'Retomar' : 'Pausar'}
         aria-label={isPaused ? 'Retomar transmissão' : 'Pausar transmissão'}
         aria-pressed={isPaused}
       >
@@ -103,11 +124,11 @@ const HostControlBar: React.FC<Props> = ({
         type="button"
         className={`${viewerStyles.iconBtn} ${isRecording ? viewerStyles.activeBtn : ''}`}
         onClick={onToggleRecording}
-        title="A gravação fica só neste computador. Gravar usa CPU e espaço em disco."
+        title="Gravar (fica só neste computador)"
         aria-label={isRecording ? 'Parar gravação' : 'Gravar transmissão'}
         aria-pressed={isRecording}
       >
-        <span>{isRecording ? `● ${formatElapsed(elapsed)}` : 'Gravar'}</span>
+        <span>{isRecording ? `Gravando ${formatElapsed(elapsed)}` : 'Gravar'}</span>
       </button>
       {recorderError && <span role="alert">{recorderError}</span>}
 
@@ -115,11 +136,11 @@ const HostControlBar: React.FC<Props> = ({
         type="button"
         className={styles.stopBtn}
         onClick={onStop}
-        title="Encerrar transmissão e fechar sala"
-        aria-label="Encerrar transmissão"
+        title="Parar e fechar a sala"
+        aria-label="Parar transmissão"
       >
         <IconStop size={16} />
-        <span>Encerrar</span>
+        <span>Parar</span>
       </button>
     </div>
 
@@ -128,8 +149,8 @@ const HostControlBar: React.FC<Props> = ({
         type="button"
         className={`${viewerStyles.iconBtn} ${copiedLink ? viewerStyles.activeBtn : ''}`}
         onClick={onCopyLink}
-        title="Copiar link fixo da sala"
-        aria-label="Copiar link da sala"
+        title={copiedLink ? 'Copiado' : 'Copiar link'}
+        aria-label={copiedLink ? 'Link copiado' : 'Copiar link da sala'}
       >
         {copiedLink ? <IconCheck size={18} /> : <IconCopy size={18} />}
       </button>
@@ -138,8 +159,8 @@ const HostControlBar: React.FC<Props> = ({
         type="button"
         className={viewerStyles.iconBtn}
         onClick={onTogglePreview}
-        title={previewAtivo ? 'Ocultar retorno de tela' : 'Exibir retorno de tela'}
-        aria-label={previewAtivo ? 'Ocultar retorno de tela' : 'Exibir retorno de tela'}
+        title={previewAtivo ? 'Ocultar retorno' : 'Mostrar retorno'}
+        aria-label={previewAtivo ? 'Ocultar retorno' : 'Mostrar retorno'}
         aria-pressed={!previewAtivo}
       >
         {previewAtivo ? <IconEyeOff size={18} /> : <IconEye size={18} />}
@@ -150,7 +171,7 @@ const HostControlBar: React.FC<Props> = ({
           type="button"
           className={viewerStyles.iconBtn}
           onClick={onChangeScreen}
-          title="Alternar para outra tela ou janela sem parar a transmissão"
+          title="Trocar tela ou janela"
           aria-label="Trocar tela ou janela"
         >
           <IconScreen size={18} />
@@ -202,7 +223,7 @@ const HostControlBar: React.FC<Props> = ({
           type="button"
           className={`${viewerStyles.iconBtn} ${showStats ? viewerStyles.activeBtn : ''}`}
           onClick={onToggleStats}
-          title="Exibir telemetria e latência"
+          title="Telemetria"
           aria-label="Telemetria da transmissão"
           aria-pressed={showStats}
         >
