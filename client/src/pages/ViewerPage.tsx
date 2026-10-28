@@ -603,6 +603,8 @@ const ViewerPage: React.FC = () => {
     );
   }
 
+  const hasTitleBar = Boolean(window.screenShareHost?.window);
+
   return (
     <div
       ref={containerRef}
@@ -621,46 +623,49 @@ const ViewerPage: React.FC = () => {
       {/* ── Barra Superior Flutuante do Player ────────────────────────────── */}
       <header className={`${styles.topBar} ${!showControls ? styles.hidden : ''}`}>
         <div className={styles.topBarLeft}>
-          <KiaraLogo size={22} withText />
-          <div className={styles.roomPill}>
-            <span className={styles.roomLabel}>SALA</span>
-            <strong className={styles.roomCode}>{code}</strong>
-          </div>
-        </div>
-
-        <div className={styles.topBarCenter}>
-          <ConnectionBadge state={state.connectionState} compact />
-          {state.viewerCount > 0 && (
-            <div className={styles.viewersBadge}>
-              <IconUsers size={14} />
-              <span>{state.viewerCount}</span>
-            </div>
-          )}
-        </div>
-
-        <div className={styles.topBarRight}>
-          {state.connectionState === 'connected' && (
-            <button
-              type="button"
-              className={styles.settingsToggle}
-              onClick={toggleSettingsPanel}
-              aria-expanded={showCoPresenterPanel}
-              aria-controls="viewer-settings-panel"
-              title={showCoPresenterPanel ? 'Ocultar painel (S)' : 'Configurações (S)'}
-            >
-              <IconSettings size={15} />
-              <span>{showCoPresenterPanel ? 'Ocultar' : 'Config'}</span>
-            </button>
-          )}
           <button
             type="button"
             className={styles.leaveBtn}
             onClick={handleLeave}
             title="Sair da transmissão"
+            aria-label="Sair da transmissão"
           >
             <IconArrowLeft size={15} />
             <span>Sair</span>
           </button>
+          {!hasTitleBar && (
+            <>
+              <div className={styles.divider} />
+              <KiaraLogo size={18} withText />
+              <div className={styles.roomPill}>
+                <span className={styles.roomLabel}>SALA</span>
+                <strong className={styles.roomCode}>{code}</strong>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className={styles.topBarRight}>
+          <ConnectionBadge state={state.connectionState} compact />
+          {state.viewerCount > 0 && (
+            <div className={styles.viewersBadge} title={`${state.viewerCount} espectador(es)`}>
+              <IconUsers size={13} />
+              <span>{state.viewerCount}</span>
+            </div>
+          )}
+          {state.connectionState === 'connected' && (
+            <button
+              type="button"
+              className={`${styles.settingsToggle} ${showCoPresenterPanel ? styles.settingsToggleActive : ''}`}
+              onClick={toggleSettingsPanel}
+              aria-expanded={showCoPresenterPanel}
+              aria-controls="viewer-settings-panel"
+              title={showCoPresenterPanel ? 'Ocultar configurações (S)' : 'Configurações (S)'}
+            >
+              <IconSettings size={15} />
+              <span>{showCoPresenterPanel ? 'Ocultar' : 'Config'}</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -768,16 +773,19 @@ const ViewerPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className={styles.coPresenterPanelHeader}>
-              <span>Configurações</span>
+              <div className={styles.panelHeaderTitle}>
+                <IconSettings size={15} />
+                <span>Configurações</span>
+              </div>
               <button
                 type="button"
-                className={styles.settingsToggle}
+                className={styles.panelCloseBtn}
                 onClick={() => setShowCoPresenterPanel(false)}
                 tabIndex={showCoPresenterPanel ? 0 : -1}
-                title="Ocultar painel de configurações"
+                title="Fechar configurações"
+                aria-label="Fechar painel de configurações"
               >
                 <IconX size={15} />
-                <span>Ocultar Configurações</span>
               </button>
             </div>
 
@@ -928,17 +936,17 @@ const ViewerPage: React.FC = () => {
           {state.connectionState === 'connected' && (
             <button
               type="button"
-              className={`${styles.coPresenterToggleBtn} ${showCoPresenterPanel ? styles.activeBtn : ''}`}
+              className={`${styles.coPresenterToggleBtn} ${showCoPresenterPanel ? styles.coPresenterToggleBtnActive : ''}`}
               onClick={() => {
                 setShowCoPresenterPanel((v) => !v);
                 resetHideTimer();
               }}
-              title="Também transmitir"
-              aria-label="Também transmitir"
+              title="Co-apresentar (compartilhar tela)"
+              aria-label="Co-apresentar"
               aria-pressed={showCoPresenterPanel}
             >
-              {showCoPresenterPanel ? <IconX size={16} /> : <IconBroadcast size={16} />}
-              <span>Também transmitir</span>
+              {showCoPresenterPanel ? <IconX size={15} /> : <IconBroadcast size={15} />}
+              <span>Co-apresentar</span>
             </button>
           )}
           {/* Seletor Individual de Resolução / Qualidade */}
@@ -954,11 +962,11 @@ const ViewerPage: React.FC = () => {
                 title="Qualidade de Reprodução"
                 aria-label="Qualidade de Reprodução"
               >
-                <option value="auto">Qualidade: Auto</option>
-                <option value="1080p">1080p (FHD)</option>
-                <option value="720p">720p (HD)</option>
-                <option value="480p">480p (SD)</option>
-                <option value="360p">360p (Mínima)</option>
+                <option value="auto">Auto</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+                <option value="480p">480p</option>
+                <option value="360p">360p</option>
               </select>
             </div>
           )}
