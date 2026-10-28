@@ -18,10 +18,12 @@ import styles from './PixelShihTzu.module.css';
 import { CLIPS, SPRITE_H, SPRITE_W, type SpriteAnim } from './spriteData';
 import { KIARA_PALETTE } from './kiaraPalette';
 import { rowsToImageData } from './pixelRender';
+import { FX_H, FX_PAD_TOP, FX_PALETTE, FX_W, renderPetFx } from './petFx';
 import {
   DEFAULT_PET_CONFIG,
   createPetState,
   getPetFrame,
+  petPet,
   stepPet,
   type PetConfig,
   type PetInput,
@@ -127,6 +129,7 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
   className = '',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fxRef = useRef<HTMLCanvasElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const [reduced, setReduced] = useState(prefersReducedMotion);
   const intScale = Math.max(1, Math.round(scale));
@@ -205,6 +208,12 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
     let lastAnim: SpriteAnim | null = null;
     let lastFrame = -1;
     let lastTransform = '';
+    // Camada de efeitos do carinho (mão + corações) e área clicável do Shitzu (px de viewport)
+    const fxCanvas = fxRef.current;
+    const fxCtx = fxCanvas?.getContext('2d') ?? null;
+    let lastFxKey = '';
+    let hitX = -Infinity;
+    let hitY = -Infinity;
     let lookX: number | null = null;
     let celebrateStart = -Infinity;
 
@@ -221,6 +230,18 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
       input.targetY = e.clientY;
       lastMoveAt = performance.now();
       pointerInside = true;
+    };
+    // Clique/toque em cima do Shitzu = carinho (o canvas não captura eventos, então testa a área)
+    const onDown = (e: PointerEvent) => {
+      onPointer(e);
+      if (
+        e.clientX >= hitX &&
+        e.clientX <= hitX + w &&
+        e.clientY >= hitY &&
+        e.clientY <= hitY + h
+      ) {
+        petPet(pet);
+      }
     };
     const onLeave = () => {
       pointerInside = false;
@@ -253,6 +274,18 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
         lastFrame = frame;
       }
 
+      // Efeitos do carinho: só redesenha quando o frame muda
+      if (fxCtx) {
+        const rows =
+          pet.mode === 'petted' ? renderPetFx(pet.animTime, cfg.pettedSec - pet.modeTime) : null;
+        const key = rows ? rows.join('|') : '';
+        if (key !== lastFxKey) {
+          if (rows) fxCtx.putImageData(rowsToImageData(fxCtx, rows, FX_W, FX_H, FX_PALETTE), 0, 0);
+          else fxCtx.clearRect(0, 0, FX_W, FX_H);
+          lastFxKey = key;
+        }
+      }
+
       if (followCursor) {
         // Mantém dentro da janela (também cobre resize)
         const maxX = Math.max(w / 2, window.innerWidth - w / 2);
@@ -262,6 +295,8 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
         // Pixel perfeito: posição sempre em múltiplos da escala
         const px = Math.round((pet.x - w / 2) / intScale) * intScale;
         let py = Math.round((pet.y - h / 2) / intScale) * intScale;
+        hitX = px;
+        hitY = py;
         // Comemoração: pulinhos só com transform (em múltiplos da escala)
         const ce = t - celebrateStart;
         if (ce >= 0 && ce < CELEBRATE_MS) {
@@ -272,6 +307,10 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
         if (transform !== lastTransform) {
           canvas.style.transform = transform;
           if (glowRef.current) glowRef.current.style.transform = `translate3d(${px}px, ${py}px, 0)`;
+          if (fxCanvas) {
+            const fy = py - FX_PAD_TOP * intScale;
+            fxCanvas.style.transform = `translate3d(${px}px, ${fy}px, 0) scaleX(${pet.facing})`;
+          }
           lastTransform = transform;
         }
       }
@@ -279,7 +318,7 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
 
     if (followCursor) {
       window.addEventListener('pointermove', onPointer, { passive: true });
-      window.addEventListener('pointerdown', onPointer, { passive: true });
+      window.addEventListener('pointerdown', onDown, { passive: true });
       document.documentElement.addEventListener('mouseleave', onLeave);
       window.addEventListener('blur', onLeave);
       document.addEventListener('visibilitychange', onVisibility);
@@ -291,7 +330,7 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointer);
-      window.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('pointerdown', onDown);
       document.documentElement.removeEventListener('mouseleave', onLeave);
       window.removeEventListener('blur', onLeave);
       document.removeEventListener('visibilitychange', onVisibility);
@@ -333,6 +372,16 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
           />
         )}
         {canvas}
+        {!reduced && (
+          <canvas
+            ref={fxRef}
+            className={styles.floating}
+            style={{ width: FX_W * intScale, height: FX_H * intScale, zIndex: zIndex + 1 }}
+            width={FX_W}
+            height={FX_H}
+            aria-hidden="true"
+          />
+        )}
       </>,
       document.body,
     );

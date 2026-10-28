@@ -3,10 +3,12 @@ import {
   DEFAULT_PET_CONFIG,
   createPetState,
   getPetFrame,
+  petPet,
   stepPet,
   type PetInput,
   type PetState,
 } from './followerEngine';
+import { FX_H, FX_PAD_TOP, FX_PALETTE, FX_W, renderPetFx } from './petFx';
 import { CLIPS, PALETTE, SPRITE_H, SPRITE_W, type SpriteAnim } from './spriteData';
 
 const cfg = DEFAULT_PET_CONFIG;
@@ -120,6 +122,43 @@ describe('followerEngine', () => {
     expect(Math.abs(pet.sitProgress - mid)).toBeLessThan(0.1);
   });
 
+  it('carinho: entra em petted, renova com novos cliques e volta a sentar sozinho', () => {
+    const idleInput: PetInput = { targetX: null, targetY: null, active: false };
+    const pet = createPetState(100, 100);
+    petPet(pet);
+    expect(pet.mode).toBe('petted');
+    expect(getPetFrame(pet).anim).toBe('petted');
+
+    run(pet, idleInput, cfg.pettedSec - 0.5);
+    petPet(pet); // novo clique renova o tempo sem reiniciar a animação
+    expect(pet.mode).toBe('petted');
+    expect(pet.modeTime).toBe(0);
+    expect(pet.animTime).toBeGreaterThan(1);
+
+    run(pet, idleInput, cfg.pettedSec - 0.5);
+    expect(pet.mode).toBe('petted');
+    run(pet, idleInput, 1);
+    expect(pet.mode).toBe('sit');
+  });
+
+  it('carinho: para um Shitzu em movimento e levanta quando o cursor se afasta', () => {
+    const pet = createPetState(100, 100);
+    run(pet, { targetX: 900, targetY: 100, active: true }, 0.5);
+    expect(pet.mode).toMatch(/walk|rise/);
+
+    petPet(pet);
+    expect(pet.mode).toBe('petted');
+    expect(pet.vx).toBe(0);
+
+    // cursor em cima dele: continua recebendo carinho
+    run(pet, { targetX: pet.x + 10, targetY: pet.y, active: true }, 0.5);
+    expect(pet.mode).toBe('petted');
+
+    // cursor longe: levanta e volta a perseguir
+    run(pet, { targetX: pet.x + 600, targetY: pet.y, active: true }, 2);
+    expect(pet.mode).toMatch(/walk|rise/);
+  });
+
   it('getPetFrame sempre devolve um frame existente', () => {
     const pet = createPetState(100, 100);
     for (let i = 0; i < 2000; i++) {
@@ -130,5 +169,45 @@ describe('followerEngine', () => {
       expect(frame).toBeGreaterThanOrEqual(0);
       expect(frame).toBeLessThan(clip.frames.length);
     }
+  });
+
+  it('getPetFrame no carinho nunca sai dos frames do clip petted', () => {
+    const pet = createPetState(100, 100);
+    petPet(pet);
+    for (let i = 0; i < 300; i++) {
+      stepPet(pet, DT, { targetX: null, targetY: null, active: false }, cfg);
+      const { anim, frame } = getPetFrame(pet);
+      if (pet.mode === 'petted') expect(anim).toBe('petted');
+      expect(frame).toBeLessThan(CLIPS[anim as SpriteAnim].frames.length);
+    }
+  });
+});
+
+describe('petFx', () => {
+  it('todos os frames têm o tamanho certo e só usam cores da paleta de efeitos', () => {
+    for (let t = 0; t < cfg.pettedSec; t += 0.05) {
+      const rows = renderPetFx(t, cfg.pettedSec - t);
+      expect(rows).toHaveLength(FX_H);
+      for (const row of rows) {
+        expect(row).toHaveLength(FX_W);
+        for (const ch of row) expect(ch === '.' || ch in FX_PALETTE).toBe(true);
+      }
+    }
+  });
+
+  it('mão e corações aparecem durante o carinho, a mão fica sobre a cabeça e sobe no fim', () => {
+    const rows = renderPetFx(1, 1.4);
+    const rowsWith = (ch: string) => rows.flatMap((r, y) => (r.includes(ch) ? [y] : []));
+    expect(rowsWith('k').length).toBeGreaterThan(0);
+    expect(rowsWith('p').length).toBeGreaterThan(0);
+    // a mão nunca desce até os pés do sprite
+    expect(Math.max(...rowsWith('k'))).toBeLessThan(FX_PAD_TOP + 10);
+
+    // no instante final os corações param de nascer e a mão está mais alta que durante o afago
+    const ending = renderPetFx(cfg.pettedSec - 0.05, 0.05);
+    expect(ending.join('')).not.toContain('p');
+    const handBottom = (r: string[]) =>
+      Math.max(...r.flatMap((l, y) => (l.includes('j') ? [y] : [])));
+    expect(handBottom(ending)).toBeLessThan(handBottom(rows));
   });
 });

@@ -6,6 +6,7 @@
  *   settle → sentando (clip "sitDown" para frente)
  *   sit    → sentado em idle (clip "idle")
  *   sleep  → deitado dormindo (clip "sleep"), após ficar muito tempo parado
+ *   petted → recebendo carinho (clip "petted"), disparado por `petPet`; cada novo clique renova
  *   rise   → levantando (clip "sitDown" ao contrário) antes de voltar a andar
  *
  * Settle e rise compartilham `sitProgress` (0 = em pé, 1 = sentado), então interromper
@@ -27,6 +28,8 @@ export interface PetConfig {
   sleepAfterMs: number;
   /** Duração (s) da transição em pé ↔ sentado. */
   transitionSec: number;
+  /** Duração (s) do carinho depois do último clique. */
+  pettedSec: number;
 }
 
 export const DEFAULT_PET_CONFIG: Readonly<PetConfig> = {
@@ -36,9 +39,10 @@ export const DEFAULT_PET_CONFIG: Readonly<PetConfig> = {
   idleTimeoutMs: 4000,
   sleepAfterMs: 6000,
   transitionSec: 0.5,
+  pettedSec: 2.4,
 };
 
-export type PetMode = 'walk' | 'settle' | 'rise' | 'sit' | 'sleep';
+export type PetMode = 'walk' | 'settle' | 'rise' | 'sit' | 'sleep' | 'petted';
 
 export interface PetState {
   /** Centro do sprite, em px de viewport. */
@@ -93,7 +97,22 @@ export const createPetState = (x: number, y: number): PetState => ({
 const setMode = (s: PetState, mode: PetMode): void => {
   s.mode = mode;
   s.modeTime = 0;
-  if (mode === 'walk' || mode === 'sit' || mode === 'sleep') s.animTime = 0;
+  if (mode === 'walk' || mode === 'sit' || mode === 'sleep' || mode === 'petted') s.animTime = 0;
+};
+
+/**
+ * Registra um carinho (clique no Shitzu): ele para, senta e entra em "petted".
+ * Se já está recebendo carinho, só renova o tempo (a animação continua sem reiniciar).
+ */
+export const petPet = (s: PetState): void => {
+  if (s.mode === 'petted') {
+    s.modeTime = 0;
+    return;
+  }
+  s.vx = 0;
+  s.vy = 0;
+  s.sitProgress = 1;
+  setMode(s, 'petted');
 };
 
 /** Avança a simulação em `dt` segundos. Muta `s`. */
@@ -183,6 +202,15 @@ export const stepPet = (
       }
       break;
     }
+    case 'petted': {
+      if (wantMove) {
+        s.sitProgress = 1;
+        setMode(s, 'rise');
+      } else if (s.modeTime >= cfg.pettedSec) {
+        setMode(s, 'sit');
+      }
+      break;
+    }
   }
 
   // Olha na direção do cursor mesmo parado
@@ -207,6 +235,8 @@ export const getPetFrame = (s: PetState): PetFrame => {
     }
     case 'sleep':
       return { anim: 'sleep', frame: loopFrame('sleep') };
+    case 'petted':
+      return { anim: 'petted', frame: loopFrame('petted') };
     default:
       return { anim: 'idle', frame: loopFrame('idle') };
   }
