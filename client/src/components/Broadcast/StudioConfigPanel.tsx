@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import type { CaptureSourceInfo, VideoConfig } from '@shared/index';
+import React from 'react';
+import type { VideoConfig } from '@shared/index';
 import type { useAudioSources } from '../../hooks/useAudioSources';
 import VideoConfigPanel from '../Controls/VideoConfigPanel';
 import AudioSourceList from '../Controls/AudioSourceList';
-import CaptureSourceModal from '../Controls/CaptureSourceModal';
-import { IconScreen, IconWindow } from '../UI/Icons';
+import CaptureSourcePicker from '../Controls/CaptureSourcePicker';
 import styles from '../../pages/BroadcastPage.module.css';
 
 interface Props {
@@ -25,11 +24,6 @@ const StudioConfigPanel: React.FC<Props> = ({
   captureSourceId,
   onSelectSource,
 }) => {
-  const [modalOpen, setModalOpen] = useState(false);
-  // Nome/tipo da fonte escolhida, para mostrar sem reabrir o modal
-  const [selectedSource, setSelectedSource] = useState<CaptureSourceInfo | null>(null);
-  const hasAppIcon = Boolean(selectedSource?.appIconDataUrl?.startsWith('data:image/'));
-
   return (
     <aside
       id="studio-config-panel"
@@ -37,7 +31,6 @@ const StudioConfigPanel: React.FC<Props> = ({
       aria-label="Configurações de transmissão"
     >
       <div className={styles.sidebarInner}>
-
         {/* Configurações de Qualidade de Vídeo */}
         <VideoConfigPanel
           config={videoConfig}
@@ -45,54 +38,13 @@ const StudioConfigPanel: React.FC<Props> = ({
           isSharing={isSharing}
         />
 
-        {/* Seletor de Tela/Janela — abre como modal (Desktop Electron) */}
+        {/* Seletor Inline de Tela/Janela (Desktop Electron) */}
         {audio.isDesktop && (
-          <div className={styles.captureSourceSection}>
-            <button
-              type="button"
-              className={`${styles.captureSourceTrigger} ${captureSourceId ? styles.captureSourceTriggerActive : ''}`}
-              onClick={() => setModalOpen(true)}
-              aria-haspopup="dialog"
-            >
-              <IconScreen size={15} />
-              <span className={styles.captureSourceTriggerText}>
-                {captureSourceId
-                  ? isSharing
-                    ? 'Trocar tela transmitida'
-                    : 'Tela selecionada'
-                  : 'Selecionar tela ou janela'}
-              </span>
-              {captureSourceId && isSharing && (
-                <span className={styles.captureSourceLivePill}>no ar</span>
-              )}
-            </button>
-            {captureSourceId && selectedSource?.id === captureSourceId && (
-              <div className={styles.captureSourceCurrent} title={selectedSource.name}>
-                <div
-                  className={`${styles.captureSourceAvatar} ${hasAppIcon ? styles.captureSourceAvatarIcon : ''}`}
-                  aria-hidden="true"
-                >
-                  {hasAppIcon ? (
-                    <img
-                      src={selectedSource.appIconDataUrl}
-                      alt=""
-                      className={styles.captureSourceAvatarImg}
-                      draggable={false}
-                    />
-                  ) : (
-                    selectedSource.name.trim().charAt(0).toUpperCase() || '?'
-                  )}
-                  <span className={styles.captureSourceBadge}>
-                    {selectedSource.type === 'screen' ? <IconScreen size={10} /> : <IconWindow size={10} />}
-                  </span>
-                </div>
-                <span className={styles.captureSourceCurrentName}>{selectedSource.name}</span>
-                <span className={styles.captureSourceCurrentIcon} aria-hidden="true">
-                  <IconScreen size={16} />
-                </span>
-              </div>
-            )}
-          </div>
+          <CaptureSourcePicker
+            selectedId={captureSourceId}
+            onSelect={(id) => void onSelectSource(id)}
+            isSharing={isSharing}
+          />
         )}
 
         {/* Fontes de Áudio por Processo */}
@@ -107,21 +59,6 @@ const StudioConfigPanel: React.FC<Props> = ({
           webMode={!audio.isDesktop}
         />
       </div>
-
-      {/* Modal de seleção de tela */}
-      {modalOpen && (
-        <CaptureSourceModal
-          selectedId={captureSourceId}
-          isSharing={isSharing}
-          videoConfig={videoConfig}
-          onVideoConfigChange={onVideoConfigChange}
-          onConfirm={(id, source) => {
-            setSelectedSource(source ?? null);
-            void onSelectSource(id);
-          }}
-          onClose={() => setModalOpen(false)}
-        />
-      )}
     </aside>
   );
 };
