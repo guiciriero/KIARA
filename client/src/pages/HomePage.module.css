@@ -1,46 +1,55 @@
 /* ── Keyframes ─────────────────────────────────────────────────────── */
-@keyframes meshDrift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+@keyframes bgBreath {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
 }
 
-@keyframes fadeSlideUp {
-  from { opacity: 0; transform: translateY(12px); }
+@keyframes enterUp {
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes eyebrowIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes cardLand {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* ── Layout raiz ─────────────────────────────────────────────────────── */
 .container {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 28px;
-  max-width: 960px;
-  margin: 0 auto;
-  overflow: hidden;
+  padding: 0 var(--space-5);
+  overflow: hidden auto;
+  animation: enterUp var(--dur-med) var(--ease-out) both;
 }
 
-/* ── Fundo: malha de gradiente em movimento ───────────────────────────── */
-.bgMesh {
+/* ── Fundo: dois marrons em transição lenta + grão ─────────────────── */
+.bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 30%, rgba(47, 123, 255, 0.10) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 70%, rgba(56, 189, 248, 0.07) 0%, transparent 55%),
-    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(47, 123, 255, 0.05) 0%, transparent 70%),
-    var(--kiara-bg);
-  background-size: 300% 300%;
-  animation: meshDrift 18s ease-in-out infinite;
+  background: var(--kiara-bg);
+}
+
+/* Segundo marrom entra e sai por opacity (barato; sem animar gradiente) */
+.bgAlt {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 90% 70% at 70% 20%, var(--kiara-bg-alt), transparent 75%);
+  animation: bgBreath 26s var(--ease-in-out) infinite;
+}
+
+/* Grão fino quase invisível (SVG de ruído embutido, sem rede) */
+.grain {
+  position: absolute;
+  inset: 0;
+  opacity: var(--kiara-grain-opacity);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.4  0 0 0 0 0.3  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 160px 160px;
 }
 
 /* ── Header ───────────────────────────────────────────────────────────── */
@@ -48,412 +57,352 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--kiara-border);
+  min-height: 48px;
+  padding: var(--space-3) 0;
 }
 
 .logoWrap {
   display: flex;
   align-items: center;
-  transition: opacity var(--transition-fast);
 }
-.logoWrap:hover { opacity: 0.8; }
 
 .headerRight {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .btnDownload {
-  padding: 5px 14px;
+  padding: 6px 14px;
   border-radius: var(--radius-full);
   border: 1px solid var(--kiara-border-active);
-  background: transparent;
   color: var(--kiara-text-secondary);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   font-weight: 500;
-  letter-spacing: 0.02em;
   white-space: nowrap;
-  text-decoration: none;
-  transition: background var(--transition-fast), border-color var(--transition-fast),
-    color var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
 .btnDownload:hover {
   background: var(--kiara-surface-hover);
   border-color: var(--kiara-border-strong);
   color: var(--kiara-text-strong);
-  transform: translateY(-1px);
-}
-.btnDownload:focus-visible {
-  outline: 2px solid var(--kiara-accent);
-  outline-offset: 2px;
 }
 
 /* ── Main ─────────────────────────────────────────────────────────────── */
 .main {
   flex: 1;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  padding: var(--space-7) 0 var(--space-6);
+  padding: var(--space-5) 0 var(--space-8);
   gap: var(--space-5);
 }
 
-/* ── Eyebrow: chip de estado ─────────────────────────────────────────── */
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.76rem;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  color: var(--kiara-text-secondary);
-  background: var(--kiara-surface);
-  border: 1px solid var(--kiara-border-active);
-  border-radius: var(--radius-full);
-  padding: 4px 12px;
-  animation: eyebrowIn 400ms var(--ease-spring) both;
-  white-space: nowrap;
-}
-
-/* ── Título principal ────────────────────────────────────────────────── */
+/* Saudação: alinhada à esquerda (ritmo assimétrico) */
 .title {
-  font-size: clamp(1.7rem, 1.2rem + 2.2vw, 2.4rem);
+  font-size: var(--text-xl);
   font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.04em;
+  line-height: var(--lh-title);
+  letter-spacing: var(--tracking-tight);
   color: var(--kiara-text-strong);
-  text-align: center;
-  text-wrap: balance;
-  max-width: 22ch;
-  animation: fadeSlideUp 500ms var(--ease-spring) 80ms both;
+  animation: enterUp var(--dur-med) var(--ease-out) 60ms both;
 }
 
-/* ── Grid de cards ────────────────────────────────────────────────────── */
+.titleSoft {
+  color: var(--kiara-text-secondary);
+  font-weight: 500;
+}
+
+/* ── Grid: o cartão principal é maior (grade quebrada de propósito) ─── */
 .cardsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.25fr 1fr;
   gap: var(--space-4);
   width: 100%;
-  animation: fadeSlideUp 500ms var(--ease-spring) 160ms both;
+  perspective: 900px;
 }
 
-/* ── Card ─────────────────────────────────────────────────────────────── */
+/* ── Cartão ───────────────────────────────────────────────────────────── */
 .card {
   --spot-x: 50%;
   --spot-y: 50%;
+  --rx: 0deg;
+  --ry: 0deg;
   position: relative;
-  background: var(--kiara-surface);
-  border: 1px solid var(--kiara-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5) var(--space-5) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  justify-content: space-between;
+  gap: var(--space-6);
+  min-height: 260px;
+  padding: var(--space-5);
+  border-radius: var(--radius-card);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
   transition:
-    border-color var(--transition-base),
-    box-shadow var(--transition-base),
-    transform var(--transition-base);
-  will-change: transform, border-color;
+    transform var(--dur-med) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out);
+  animation: cardLand var(--dur-slow) var(--ease-spring) calc(120ms + var(--i, 0) * 90ms) both;
+  will-change: transform;
 }
 
-/* Spotlight que segue o cursor */
+/* Borda interna fina creme (inset, sem sombra pesada) */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--card-edge);
+  pointer-events: none;
+}
+
+.cardLight {
+  --card-edge: var(--card-cream-border);
+  background: var(--card-cream-bg);
+  color: var(--card-cream-text);
+  min-height: 300px;
+  box-shadow: var(--shadow-lg);
+}
+
+.cardDark {
+  --card-edge: var(--card-choc-border);
+  background: var(--card-choc-bg);
+  color: var(--card-choc-text);
+  box-shadow: var(--shadow-md);
+  /* quebra de alinhamento: cartão secundário mais baixo */
+  align-self: end;
+}
+
+.card:hover {
+  transform: translateY(-2px) rotateX(var(--rx)) rotateY(var(--ry));
+}
+
+/* Spotlight caramelo que segue o cursor (um por cartão, só no hover) */
 .spotlight {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
   background: radial-gradient(
-    200px circle at var(--spot-x) var(--spot-y),
-    rgba(47, 123, 255, 0.12) 0%,
-    transparent 80%
+    220px circle at var(--spot-x) var(--spot-y),
+    var(--kiara-accent-subtle),
+    transparent 75%
   );
   opacity: 0;
-  transition: opacity var(--transition-base);
+  transition: opacity var(--dur-med) var(--ease-out);
 }
-
+.cardLight .spotlight {
+  background: radial-gradient(
+    240px circle at var(--spot-x) var(--spot-y),
+    var(--kiara-accent-glow),
+    transparent 75%
+  );
+}
 .card:hover .spotlight,
 .card:focus-within .spotlight {
   opacity: 1;
 }
 
-/* Borda brilhante no topo */
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 10%;
-  right: 10%;
-  height: 1px;
-  background: var(--kiara-hairline);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--transition-base);
+.cardTop,
+.cardBottom {
+  position: relative;
+  z-index: 1;
 }
 
-.card:hover,
-.card:focus-within {
-  border-color: rgba(47, 123, 255, 0.30);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(47, 123, 255, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transform: translateY(-2px);
-}
-
-.card:hover::before,
-.card:focus-within::before {
-  opacity: 1;
-}
-
-/* Variante do card de transmissão */
-.cardBroadcast {
-  background: linear-gradient(155deg, var(--kiara-surface) 55%, rgba(47, 123, 255, 0.06) 100%);
-}
-
-/* Atalho de teclado sutil no canto inferior direito */
-.cardKbd {
-  position: absolute;
-  bottom: 12px;
-  right: 14px;
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 600;
-  color: var(--kiara-text-disabled);
-  background: var(--kiara-surface-raised);
-  border: 1px solid var(--kiara-border);
-  border-radius: var(--radius-xs);
-  padding: 1px 5px;
-  pointer-events: none;
-  letter-spacing: 0.06em;
-  opacity: 0;
-  transition: opacity var(--transition-base);
-}
-
-.card:hover .cardKbd { opacity: 1; }
-
-/* ── Cabeçalho do card ────────────────────────────────────────────────── */
-.cardHeader {
+.cardTop {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.cardBottom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .cardIcon {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-sm);
-  background: var(--kiara-accent-subtle);
-  border: 1px solid rgba(47, 123, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--kiara-accent);
   flex-shrink: 0;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: transform var(--dur-med) var(--ease-spring);
+}
+.cardLight .cardIcon {
+  background: var(--card-cream-btn-bg);
+  color: var(--card-cream-btn-text);
+}
+.cardDark .cardIcon {
+  background: var(--card-choc-field);
+  color: var(--kiara-accent-text);
+  box-shadow: inset 0 0 0 1px var(--card-choc-border);
+}
+.card:hover .cardIcon {
+  transform: rotate(-6deg) scale(1.06);
 }
 
-.card:hover .cardIcon {
-  transform: scale(1.05);
-  box-shadow: 0 0 14px var(--kiara-accent-glow);
+/* Atalho de teclado discreto */
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+.cardLight .kbd {
+  color: var(--card-cream-muted);
+  box-shadow: inset 0 0 0 1px var(--card-cream-border);
+}
+.cardDark .kbd {
+  color: var(--card-choc-muted);
+  box-shadow: inset 0 0 0 1px var(--card-choc-border);
+}
+
+/* Títulos: contraste forte de tamanho entre os dois cartões */
+.cardTitleLarge {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
 }
 
 .cardTitle {
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--kiara-text-strong);
+  line-height: var(--lh-title);
+  letter-spacing: var(--tracking-tight);
 }
 
-.cardDesc {
-  font-size: 0.84rem;
-  color: var(--kiara-text-secondary);
-  line-height: 1.55;
-  flex: 1;
-}
-
-/* ── Botão primário (Começar) ─────────────────────────────────────────── */
+/* ── Botão primário (cartão claro) ────────────────────────────────────── */
 .btnPrimary {
   width: 100%;
-  min-height: 44px;
-  background: var(--kiara-accent);
-  color: var(--kiara-on-accent);
-  padding: 10px 18px;
+  min-height: 48px;
+  padding: 10px 20px;
   border-radius: var(--radius-full);
-  font-size: 0.88rem;
+  background: var(--card-cream-btn-bg);
+  color: var(--card-cream-btn-text);
+  font-size: var(--text-base);
   font-weight: 600;
   justify-content: space-between;
-  box-shadow: 0 2px 12px var(--kiara-accent-glow);
+  box-shadow: 0 0 0 0 var(--kiara-accent-glow);
   transition:
-    background-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    transform var(--transition-fast);
-  animation: kiaraReadyPulse 2.5s ease-in-out infinite;
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
-
 .btnPrimary svg {
-  transition: transform var(--transition-fast);
+  transition: transform var(--dur-fast) var(--ease-out);
 }
-
 .btnPrimary:hover:not(:disabled) {
-  background: var(--kiara-accent-hover);
-  box-shadow: 0 4px 20px var(--kiara-accent-glow);
-  transform: translateY(-1px);
-  animation: none;
+  background: var(--card-cream-btn-hover);
+  box-shadow: 0 6px 18px var(--kiara-accent-glow);
+  transform: translateY(-2px);
 }
-
 .btnPrimary:hover:not(:disabled) svg {
   transform: translateX(3px);
 }
-
-.btnPrimary:active:not(:disabled) {
-  transform: scale(0.97);
-  animation: none;
-}
-
 .btnPrimary:disabled {
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
-  animation: none;
 }
 
-/* ── Linha de entrada + botão secundário ─────────────────────────────── */
+/* ── Campo de código embutido (cartão escuro) ─────────────────────────── */
 .inputRow {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .input {
   flex: 1;
   min-width: 0;
   min-height: 44px;
-  background: var(--kiara-surface-raised);
-  border: 1px solid var(--kiara-border-input);
-  padding: 8px 14px;
+  padding: 8px 16px;
   border-radius: var(--radius-full);
-  color: var(--kiara-text-strong);
-  font-size: 0.86rem;
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+  background: var(--card-choc-field);
+  border: 1px solid var(--kiara-border-input);
+  color: var(--card-choc-text);
+  font-size: var(--text-base);
 }
-
-.input::placeholder { color: var(--kiara-text-muted); }
-
-.input:hover:not(:disabled) { border-color: var(--kiara-border-input-hover); }
-
+.input::placeholder {
+  color: var(--card-choc-muted);
+}
+.input:hover:not(:disabled) {
+  border-color: var(--kiara-border-input-hover);
+}
 .input[aria-invalid='true'] {
   border-color: var(--kiara-danger);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
 
-.input:focus {
-  border-color: var(--kiara-accent);
-  box-shadow: 0 0 0 3px var(--kiara-accent-subtle);
-  outline: none;
-}
-
-.btnSecondary {
-  min-height: 44px;
-  background: transparent;
-  border: 1px solid var(--kiara-border-input);
-  color: var(--kiara-text);
-  padding: 8px 18px;
+.btnJoin {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  flex-shrink: 0;
   border-radius: var(--radius-full);
-  font-size: 0.86rem;
-  font-weight: 600;
-  white-space: nowrap;
+  background: var(--card-cream-bg);
+  color: var(--card-cream-text);
   transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast),
-    color var(--transition-fast),
-    transform var(--transition-fast);
+    background-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
-
-.btnSecondary:hover:not(:disabled) {
+.btnJoin:hover:not(:disabled) {
   background: var(--kiara-accent);
-  border-color: var(--kiara-accent);
   color: var(--kiara-on-accent);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
-
-.btnSecondary:active:not(:disabled) { transform: scale(0.97); }
-.btnSecondary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btnJoin:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 /* ── Erro ─────────────────────────────────────────────────────────────── */
 .error {
-  color: var(--kiara-danger);
-  font-size: 0.76rem;
+  color: var(--kiara-danger-hover);
+  font-size: var(--text-xs);
   line-height: 1.4;
-  animation: fadeSlideUp 200ms var(--ease-spring) both;
+  animation: enterUp var(--dur-fast) var(--ease-out) both;
 }
 
-/* ── Responsividade ───────────────────────────────────────────────────── */
-@media (max-width: 700px) {
-  .container { padding: 0 max(18px, env(safe-area-inset-left)); }
-  .main { padding: var(--space-6) 0 var(--space-5); gap: var(--space-4); }
+/* ── Responsividade / janelas pequenas ────────────────────────────────── */
+@media (max-width: 760px) {
+  .container { padding: 0 var(--space-4); }
   .cardsGrid { grid-template-columns: 1fr; }
-  .header { flex-wrap: wrap; gap: 8px; }
+  .cardDark { align-self: stretch; }
+  .card, .cardLight { min-height: 0; gap: var(--space-5); }
   .btnDownload { display: none; }
-  .title { font-size: clamp(1.5rem, 5vw, 1.9rem); }
-  .cardKbd { display: none; }
+  .main { padding-bottom: var(--space-7); justify-content: flex-start; }
 }
 
-/* ── Canto inferior esquerdo: status de conexão discreto ─────────────── */
-@keyframes cornerIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes dotLive {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.55; transform: scale(0.8); }
-}
-
-.connectionCorner {
-  position: fixed;
-  bottom: 14px;
-  left: 16px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-  user-select: none;
-  animation: cornerIn 400ms var(--ease-spring, ease-out) 700ms both;
-}
-
-.connectionCornerDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--kiara-live);
-  flex-shrink: 0;
-  animation: dotLive 2.4s ease-in-out infinite;
-}
-
-.connectionCornerLabel {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--kiara-text-disabled);
-  letter-spacing: 0.03em;
-  font-family: var(--font-mono, monospace);
-  line-height: 1;
-  white-space: nowrap;
+@media (max-height: 560px) {
+  .card, .cardLight { min-height: 0; }
+  .cardTitleLarge { font-size: 1.5rem; }
 }
 
 /* ── Redução de movimento ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .bgMesh { animation: none; }
-  .eyebrow { animation: none; }
-  .title { animation: none; }
-  .cardsGrid { animation: none; }
-  .btnPrimary { animation: none; }
-  .card, .cardIcon, .spotlight { transition: none; }
-  .connectionCorner { animation: none; }
-  .connectionCornerDot { animation: none; }
+  .bgAlt,
+  .container,
+  .title,
+  .card,
+  .error {
+    animation: none;
+  }
+  .card,
+  .cardIcon,
+  .spotlight {
+    transition: none;
+  }
+  .card:hover {
+    transform: none;
+  }
 }

@@ -1,114 +1,118 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useUpdater } from '../../hooks/useUpdater';
+import { IconDownload, IconRefresh, IconCheck, IconAlertTriangle } from './Icons';
 import styles from './VersionCorner.module.css';
 
+/** Tempo (ms) que o feedback "Atualizado" fica visível. */
+const UPDATED_FEEDBACK_MS = 2200;
+
 /**
- * Canto inferior direito da tela inicial.
- * – Sem o app desktop: nada é renderizado (unsupported).
- * – Com o app desktop: versão atual + ícone de ação conforme o estado.
+ * Canto inferior do menu: versão (lida do app via updater) + botão de atualizar.
+ * Estados do botão: normal, verificando (ícone girando), atualização disponível
+ * (um único ponto indicador), atualizado (feedback rápido) e erro (mensagem curta).
+ * Sem o app desktop: nada é renderizado.
  */
 const VersionCorner: React.FC = () => {
   const { state, check, download, install, supported } = useUpdater();
-  if (!supported) return null;
-
-  const version = state?.currentVersion ?? '…';
+  const [justUpdated, setJustUpdated] = useState(false);
+  const prevStatus = useRef<string | null>(null);
   const status = state?.status ?? 'idle';
 
-  /* Ação e label acessível para cada estado */
-  let actionLabel: string | null = null;
-  let onAction: (() => void) | null = null;
-  let dataAttr: string = status;
+  // "Atualizado": só aparece quando uma verificação termina sem novidades
+  useEffect(() => {
+    const wasChecking = prevStatus.current === 'checking';
+    prevStatus.current = status;
+    if (wasChecking && status === 'not-available') {
+      setJustUpdated(true);
+      const t = window.setTimeout(() => setJustUpdated(false), UPDATED_FEEDBACK_MS);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, [status]);
 
-  if (status === 'idle') {
-    actionLabel = 'Verificar atualizações';
-    onAction = () => void check();
-  } else if (status === 'not-available') {
-    actionLabel = 'Verificar atualizações';
-    onAction = () => void check();
-  } else if (status === 'available') {
-    const latestVersion = state?.status === 'available' ? state.latestVersion : '';
-    actionLabel = `Baixar versão ${latestVersion}`;
-    onAction = () => void download();
-    dataAttr = 'available';
-  } else if (status === 'downloaded') {
-    actionLabel = 'Reiniciar e instalar';
-    onAction = () => void install();
-    dataAttr = 'downloaded';
-  } else if (status === 'error') {
-    actionLabel = 'Tentar novamente';
-    onAction = () => void check();
-    dataAttr = 'error';
+  if (!supported) return null;
+
+  const version = state?.currentVersion ?? '';
+
+  let label = 'Verificar atualizações';
+  let onAction: (() => void) | undefined = () => void check();
+  let icon: React.ReactNode = <IconRefresh size={14} />;
+  let message = '';
+
+  switch (status) {
+    case 'checking':
+      label = 'Verificando…';
+      onAction = undefined;
+      icon = <IconRefresh size={14} className={styles.spin} />;
+      break;
+    case 'available':
+      label = `Baixar versão ${state?.status === 'available' ? state.latestVersion : ''}`.trim();
+      onAction = () => void download();
+      icon = <IconDownload size={14} />;
+      break;
+    case 'downloading':
+      label = 'Baixando…';
+      onAction = undefined;
+      icon = <IconRefresh size={14} className={styles.spin} />;
+      break;
+    case 'downloaded':
+      label = 'Reiniciar e atualizar';
+      onAction = () => void install();
+      icon = <IconDownload size={14} />;
+      break;
+    case 'error':
+      label = 'Tentar de novo';
+      onAction = () => void check();
+      icon = <IconAlertTriangle size={14} />;
+      message = 'Não foi possível atualizar.';
+      break;
+    case 'disabled':
+      return version ? (
+        <div className={styles.corner}>
+          <span className={styles.version}>v{version}</span>
+        </div>
+      ) : null;
+    default:
+      break;
   }
-  // checking | downloading | disabled: sem ação clicável
 
-  /* Progresso do download (só existe no estado 'downloading' | 'downloaded') */
-  const downloadProgress =
-    state?.status === 'downloading' || state?.status === 'downloaded'
-      ? state.progress
-      : 0;
+  if (justUpdated) {
+    icon = <IconCheck size={14} />;
+    message = 'Atualizado';
+  }
+
+  const progress =
+    state?.status === 'downloading' || state?.status === 'downloaded' ? state.progress : 0;
 
   return (
     <div className={styles.corner} aria-live="polite">
-      <span className={styles.version} title={`KIARA v${version}`}>
-        v{version}
-      </span>
+      {version && <span className={styles.version}>v{version}</span>}
 
-      {/* Indicador de progresso de download */}
+      <button
+        type="button"
+        className={styles.iconBtn}
+        onClick={onAction}
+        disabled={!onAction}
+        aria-label={label}
+        data-tip={label}
+        data-state={justUpdated ? 'updated' : status}
+      >
+        {icon}
+        {(status === 'available' || status === 'downloaded') && (
+          <span className={styles.dot} aria-hidden="true" />
+        )}
+      </button>
+
       {status === 'downloading' && (
-        <div className={styles.progressWrap} title={`Baixando… ${downloadProgress}%`}>
-          <div
-            className={styles.progressBar}
-            style={{ width: `${downloadProgress}%` }}
-          />
-        </div>
+        <span className={styles.message}>{progress}%</span>
       )}
-
-      {/* Ícone de ação */}
-      {onAction && (
-        <button
-          type="button"
-          className={styles.iconBtn}
-          onClick={onAction}
-          title={actionLabel ?? undefined}
-          aria-label={actionLabel ?? undefined}
-          data-state={dataAttr}
-        >
-          {status === 'available' || status === 'downloaded'
-            ? <IconDownload />
-            : status === 'error'
-              ? <IconAlert />
-              : <IconCheck />}
-        </button>
-      )}
-
-      {/* Spinner silencioso durante verificação/download */}
-      {(status === 'checking' || status === 'downloading') && (
-        <span className={styles.spinner} aria-label="Verificando…" />
+      {message && status !== 'downloading' && (
+        <span className={styles.message} data-kind={justUpdated ? 'ok' : 'error'}>
+          {message}
+        </span>
       )}
     </div>
   );
 };
-
-/* ── Ícones inline mínimos ──────────────────────────────────────────── */
-const IconDownload: React.FC = () => (
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 2v8M5 7l3 3 3-3" />
-    <path d="M3 13h10" />
-  </svg>
-);
-
-const IconAlert: React.FC = () => (
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 2L1.5 13h13L8 2z" />
-    <line x1="8" y1="7" x2="8" y2="9.5" />
-    <circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none" />
-  </svg>
-);
-
-const IconCheck: React.FC = () => (
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 8.5L6.5 12 13 5" />
-  </svg>
-);
 
 export default VersionCorner;
