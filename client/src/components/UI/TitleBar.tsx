@@ -1,12 +1,13 @@
 /**
- * TitleBar — barra de título personalizada para o app Electron (Windows/Linux).
+ * TitleBar — barra de título unificada do app Electron (sem moldura nativa).
  *
- * Renderizado em todas as páginas quando `window.screenShareHost?.window` existe.
- * Usa `-webkit-app-region: drag` para arrastar a janela; elementos clicáveis
- * ficam marcados com `no-drag`.
- *
- * No macOS o frame nativo é usado com titleBarStyle:'hidden'; esta barra não é
- * renderizada lá (os semáforos nativos aparecem no lugar).
+ * - Arrastar: a barra inteira é `drag`; botões e o alternador de tema são `no-drag`.
+ * - Duplo clique na barra maximiza/restaura (via IPC `window:maximize-toggle`).
+ * - É o ÚNICO lugar com o nome "Kiara" no app desktop (as telas não repetem a marca).
+ * - Durante a transmissão/assistindo (`data-streaming`) a barra recolhe e fica discreta
+ *   (sem blur), ver TitleBar.module.css.
+ * - No macOS o frame nativo usa semáforos (titleBarStyle:'hidden'); aqui só aparecem
+ *   a marca e o alternador de tema.
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -22,23 +23,24 @@ interface WindowApi {
 }
 
 const win = (window.screenShareHost as { window?: WindowApi } | undefined)?.window;
+// VERIFICAR: detecção de macOS pelo userAgent (semáforos nativos já cobrem os botões).
+const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent);
 
-/** Ícones SVG inline para os botões de janela (escala 10px) */
 const IconMinimize: React.FC = () => (
-  <svg width="10" height="1" viewBox="0 0 10 1" fill="none" aria-hidden="true">
-    <rect width="10" height="1" rx="0.5" fill="currentColor" />
+  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+    <line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
   </svg>
 );
 
 const IconMaximize: React.FC<{ restore?: boolean }> = ({ restore }) =>
   restore ? (
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <rect x="2" y="0" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" fill="none" />
-      <rect x="0" y="2" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" fill="none" />
+      <rect x="2.5" y="0.6" width="6.9" height="6.9" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="0.6" y="2.5" width="6.9" height="6.9" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   ) : (
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <rect x="0.5" y="0.5" width="9" height="9" rx="1" stroke="currentColor" strokeWidth="1" fill="none" />
+      <rect x="0.7" y="0.7" width="8.6" height="8.6" rx="1.4" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   );
 
@@ -49,80 +51,64 @@ const IconClose: React.FC = () => (
   </svg>
 );
 
-interface TitleBarProps {
-  /** Título da tela atual (exibido uma vez no centro) */
-  title?: string;
-}
-
-const TitleBar: React.FC<TitleBarProps> = ({ title }) => {
+const TitleBar: React.FC = () => {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
-    if (!win) return;
+    if (!win) return undefined;
     win.isMaximized().then(setMaximized).catch(() => {});
-    const unsub = win.onMaximizedChange(setMaximized);
-    return unsub;
+    return win.onMaximizedChange(setMaximized);
   }, []);
 
   const handleMinimize = useCallback(() => { win?.minimize().catch(() => {}); }, []);
   const handleMaximize = useCallback(() => { win?.maximizeToggle().catch(() => {}); }, []);
-  const handleClose    = useCallback(() => { win?.close().catch(() => {}); }, []);
-  const handleDblClick = useCallback(() => { win?.maximizeToggle().catch(() => {}); }, []);
+  const handleClose = useCallback(() => { win?.close().catch(() => {}); }, []);
 
-  if (!win) return null; // Não é Electron com janela customizada
+  if (!win) return null; // Navegador comum: sem barra customizada
 
   return (
-    <div
-      className={styles.titleBar}
-      onDoubleClick={handleDblClick}
-      role="banner"
-    >
-      {/* Região de drag ocupa todo o banner; elementos com no-drag interceptam cliques */}
-
-      <div className={`${styles.dragRegion} ${styles.left}`}>
-        <div className={styles.noDrag}>
-          <KiaraLogo size={16} withText />
-        </div>
+    <header className={styles.titleBar} onDoubleClick={handleMaximize}>
+      <div className={styles.brand}>
+        <KiaraLogo size={16} withText />
       </div>
 
-      {title && (
-        <div className={styles.titleCenter} aria-live="polite">
-          <span className={styles.titleText}>{title}</span>
-        </div>
-      )}
-
-      <div className={`${styles.dragRegion} ${styles.right}`}>
-        <div className={`${styles.noDrag} ${styles.winControls}`}>
-          <button
-            type="button"
-            className={styles.winBtn}
-            onClick={handleMinimize}
-            title="Minimizar"
-            aria-label="Minimizar janela"
-          >
-            <IconMinimize />
-          </button>
-          <button
-            type="button"
-            className={styles.winBtn}
-            onClick={handleMaximize}
-            title={maximized ? 'Restaurar' : 'Maximizar'}
-            aria-label={maximized ? 'Restaurar janela' : 'Maximizar janela'}
-          >
-            <IconMaximize restore={maximized} />
-          </button>
-          <button
-            type="button"
-            className={`${styles.winBtn} ${styles.winBtnClose}`}
-            onClick={handleClose}
-            title="Fechar"
-            aria-label="Fechar janela"
-          >
-            <IconClose />
-          </button>
-        </div>
+      <div className={styles.controls}>
+        {!isMac && (
+          <div className={styles.winControls}>
+            <button
+              type="button"
+              className={styles.winBtn}
+              onClick={handleMinimize}
+              onDoubleClick={(e) => e.stopPropagation()}
+              title="Minimizar"
+              aria-label="Minimizar janela"
+            >
+              <IconMinimize />
+            </button>
+            <button
+              type="button"
+              className={styles.winBtn}
+              onClick={handleMaximize}
+              onDoubleClick={(e) => e.stopPropagation()}
+              title={maximized ? 'Restaurar' : 'Maximizar'}
+              aria-label={maximized ? 'Restaurar janela' : 'Maximizar janela'}
+            >
+              <IconMaximize restore={maximized} />
+            </button>
+            <button
+              type="button"
+              className={`${styles.winBtn} ${styles.winBtnClose}`}
+              onClick={handleClose}
+              onDoubleClick={(e) => e.stopPropagation()}
+              title="Fechar"
+              aria-label="Fechar janela"
+            >
+              <IconClose />
+            </button>
+          </div>
+        )}
       </div>
-    </div>
+    </header>
   );
 };
 

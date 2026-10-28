@@ -342,15 +342,7 @@ function registerIpc() {
   handle('window:close', () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close(); });
   handle('window:is-maximized', () => mainWindow ? mainWindow.isMaximized() : false);
 
-  // Notifica o renderer quando a janela muda de estado (maximizado/restaurado)
-  if (mainWindow) {
-    mainWindow.on('maximize', () => {
-      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window:maximized', true);
-    });
-    mainWindow.on('unmaximize', () => {
-      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window:maximized', false);
-    });
-  }
+  // (Os listeners maximize/unmaximize são ligados em createWindow(), depois que a janela existe.)
 
   handle('app:open-viewer-link', async (urlString) => {
     const href = validateViewerUrl(urlString);
@@ -513,7 +505,7 @@ function createWindow() {
     minWidth: 860,
     minHeight: 600,
     show: false,
-    backgroundColor: '#080B12',
+    backgroundColor: '#14100D',
     title: 'KIARA',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     // Titlebar customizado: frame nativo removido no Windows/Linux;
@@ -521,8 +513,8 @@ function createWindow() {
     frame: process.platform === 'darwin',
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     titleBarOverlay: process.platform === 'darwin' ? {
-      color: '#0F1420',
-      symbolColor: '#7A8BA8',
+      color: '#1D1814',
+      symbolColor: '#A89A8A',
       height: 38,
     } : false,
     webPreferences: {
@@ -539,6 +531,14 @@ function createWindow() {
   });
   mainWindow = win;
   win.removeMenu();
+
+  // Notifica o renderer quando a janela muda de estado (maximizado/restaurado)
+  win.on('maximize', () => {
+    if (!win.isDestroyed()) win.webContents.send('window:maximized', true);
+  });
+  win.on('unmaximize', () => {
+    if (!win.isDestroyed()) win.webContents.send('window:maximized', false);
+  });
   const wc = win.webContents;
 
   win.once('ready-to-show', () => win.show());
