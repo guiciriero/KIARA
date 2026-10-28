@@ -14,7 +14,10 @@ import '@fontsource/inter/latin-700.css';
 import '@fontsource/inter/latin-800.css';
 import '@fontsource/jetbrains-mono/latin-500.css';
 import '@fontsource/jetbrains-mono/latin-700.css';
+import './styles/tokens.css';
 import './styles/global.css';
+
+// Tema: sistema por padrão, escolha do usuário salva (aplicado antes do primeiro render).
 
 // PWA: registra o service worker apenas em produção, em origem segura (não no Electron, protocolo 'app:').
 if (
