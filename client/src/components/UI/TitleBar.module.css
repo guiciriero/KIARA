@@ -87,6 +87,7 @@
   height: 28px;
   background: var(--kiara-bg);
   opacity: 0.55;
+  border-bottom-color: transparent; /* sem a linha fina entre a barra e o video */
 }
 
 :global(:root[data-streaming='true']) .titleBar:hover,

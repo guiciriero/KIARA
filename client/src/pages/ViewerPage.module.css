@@ -46,7 +46,6 @@
   background: linear-gradient(180deg, var(--kiara-shade-70) 0%, var(--kiara-shade-30) 70%, transparent 100%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--kiara-wash-1);
   z-index: 30;
   transition: opacity var(--transition-base, 200ms), transform var(--transition-base, 200ms);
 }
