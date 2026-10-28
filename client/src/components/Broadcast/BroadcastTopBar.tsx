@@ -2,6 +2,7 @@ import React from 'react';
 import type { ConnectionState } from '@shared/index';
 import { IconArrowLeft, IconSettings } from '../UI/Icons';
 import ConnectionBadge from '../UI/ConnectionBadge';
+import LiveScene from '../UI/PixelShihTzu/LiveScene';
 import styles from '../../pages/BroadcastPage.module.css';
 
 interface Props {
@@ -15,8 +16,9 @@ interface Props {
 }
 
 /**
- * Barra superior do estúdio: voltar, alternância dos painéis e conexão (só quando há problema).
- * "Ao vivo", tempo e espectadores ficam apenas na barra flutuante do palco.
+ * Barra superior do estúdio: voltar, Shih Tzu pedalando durante a transmissão, alternância dos
+ * painéis e conexão (só quando há problema). "Ao vivo", tempo e espectadores ficam apenas na
+ * barra flutuante do palco.
  */
 const BroadcastTopBar: React.FC<Props> = ({
   isSharing,
@@ -26,7 +28,7 @@ const BroadcastTopBar: React.FC<Props> = ({
   onBack,
   hasTitleBar = false,
 }) => (
-  <header className={styles.topBar}>
+  <header className={`${styles.topBar} ${isSharing ? styles.topBarLive : ''}`}>
     <div className={styles.topBarLeft}>
       <button
         type="button"
@@ -39,6 +41,9 @@ const BroadcastTopBar: React.FC<Props> = ({
       </button>
       {!hasTitleBar && <div className={styles.divider} />}
     </div>
+
+    {/* Durante a transmissão: Shih Tzu pedalando e alimentando o computador "LIVE ON" */}
+    {isSharing && <LiveScene scale={2} className={styles.liveScene} />}
 
     <div className={styles.topBarRight}>
       {connectionState !== 'connected' && connectionState !== 'disconnected' && (
