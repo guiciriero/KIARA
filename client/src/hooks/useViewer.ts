@@ -62,9 +62,6 @@ function qualityLimits(pref: ViewerQualityPreference): { targetHeight: number | 
   }
 }
 
-/** Reentradas automáticas quando o vídeo não começa */
-const MAX_STALL_RETRIES = 2;
-
 const E2EE_UNSUPPORTED_MESSAGE =
   'Esta sala usa criptografia de ponta a ponta, que este navegador não suporta. Use o Chrome, o Edge ou o app para Windows. Por segurança, a transmissão não é exibida sem cifra.';
 
@@ -80,8 +77,6 @@ export function useViewer(roomCode: string | undefined) {
   const sessionRef = useRef(false);
   /** Envia room:join com as credenciais atuais (definida pelo efeito) */
   const sendJoinRef = useRef<(() => void) | null>(null);
-  /** Reentradas já feitas porque o vídeo não começou (tela preta) */
-  const stallRetriesRef = useRef(0);
   /** Última preferência de qualidade escolhida (reenviada a cada room:joined, inclusive nas reconexões) */
   const qualityRef = useRef<ViewerQualityPreference>('1080p');
   /** A sala é E2EE (anunciado pelo servidor no password-required): a senha vira token + chave */
@@ -112,8 +107,7 @@ export function useViewer(roomCode: string | undefined) {
         const payload: JoinRoomPayload = { code: roomCode };
         if (credsRef.current.password) payload.password = credsRef.current.password;
         if (credsRef.current.name) payload.name = credsRef.current.name;
-        // Depois de uma tela preta, não anuncia decodificação por hardware: o host cai no H.264 (mais compatível)
-        if (hwDecode && stallRetriesRef.current === 0) payload.hwDecode = hwDecode;
+        if (hwDecode) payload.hwDecode = hwDecode;
         socket.emit('room:join', payload);
       });
     };
@@ -175,10 +169,7 @@ export function useViewer(roomCode: string | undefined) {
       viewer.onStream((stream) => dispatch({ type: 'stream', stream }));
       viewer.onVideoStatus((ok) => {
         if (cancelled || viewerRef.current !== viewer) return;
-        if (ok) {
-          stallRetriesRef.current = 0;
-          return;
-        }
+        if (ok) return;
         // Se após o timeout nenhum frame de vídeo foi recebido, reenvia a solicitação de qualidade
         // para pedir novo keyframe ao apresentador sem destruir a conexão nem piscar a tela com loading
         if (sessionRef.current) {
