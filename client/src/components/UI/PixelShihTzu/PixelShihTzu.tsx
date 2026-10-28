@@ -15,7 +15,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './PixelShihTzu.module.css';
-import { CLIPS, PALETTE, SPRITE_H, SPRITE_W, type SpriteAnim } from './spriteData';
+import { CLIPS, SPRITE_H, SPRITE_W, type SpriteAnim } from './spriteData';
+import { KIARA_PALETTE } from './kiaraPalette';
 import { rowsToImageData } from './pixelRender';
 import {
   DEFAULT_PET_CONFIG,
@@ -28,6 +29,24 @@ import {
 } from './followerEngine';
 
 export type PetStartCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+/** Eventos (window) para o mascote reagir ao contexto, sem acoplar componentes. */
+export const PET_LOOK_EVENT = 'kiara:pet-look';
+export const PET_CELEBRATE_EVENT = 'kiara:pet-celebrate';
+
+/** Faz o mascote "olhar" para um ponto (x em px de viewport) ou parar de olhar (null). */
+export const petLookAt = (x: number | null): void => {
+  window.dispatchEvent(new CustomEvent(PET_LOOK_EVENT, { detail: { x } }));
+};
+
+/** Faz o mascote comemorar (pulinho com o sprite existente). */
+export const petCelebrate = (): void => {
+  window.dispatchEvent(new Event(PET_CELEBRATE_EVENT));
+};
+
+/** Duração (ms) e altura (em pixels do sprite) do pulinho de comemoração. */
+const CELEBRATE_MS = 900;
+const CELEBRATE_HOP = 5;
 
 /** Pose do modo inline: sentado respirando, andando no lugar (procurando) ou dormindo. */
 export type PetPose = 'idle' | 'walk' | 'sleep';
@@ -53,6 +72,8 @@ export interface PixelShihTzuProps {
   sleepAfterMs?: number;
   /** z-index do modo followCursor. */
   zIndex?: number;
+  /** Só com followCursor: ponto de luz quente atrás do mascote. */
+  glow?: boolean;
   className?: string;
 }
 
@@ -67,7 +88,7 @@ const getFrameData = (ctx: CanvasRenderingContext2D, anim: SpriteAnim, frame: nu
   const cached = frameCache.get(key);
   if (cached) return cached;
 
-  const img = rowsToImageData(ctx, CLIPS[anim].frames[frame], SPRITE_W, SPRITE_H, PALETTE);
+  const img = rowsToImageData(ctx, CLIPS[anim].frames[frame], SPRITE_W, SPRITE_H, KIARA_PALETTE);
   frameCache.set(key, img);
   return img;
 };
@@ -102,9 +123,11 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
   stopDistance,
   sleepAfterMs = DEFAULT_PET_CONFIG.sleepAfterMs,
   zIndex = 90,
+  glow = false,
   className = '',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
   const [reduced, setReduced] = useState(prefersReducedMotion);
   const intScale = Math.max(1, Math.round(scale));
 
@@ -140,6 +163,7 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
         const x = Math.round((start.x - w / 2) / intScale) * intScale;
         const y = Math.round((start.y - h / 2) / intScale) * intScale;
         canvas.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        if (glowRef.current) glowRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       }
       return;
     }
@@ -181,6 +205,16 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
     let lastAnim: SpriteAnim | null = null;
     let lastFrame = -1;
     let lastTransform = '';
+    let lookX: number | null = null;
+    let celebrateStart = -Infinity;
+
+    const onLook = (e: Event) => {
+      const x = (e as CustomEvent<{ x: number | null }>).detail?.x;
+      lookX = typeof x === 'number' ? x : null;
+    };
+    const onCelebrate = () => {
+      celebrateStart = performance.now();
+    };
 
     const onPointer = (e: PointerEvent) => {
       input.targetX = e.clientX;
@@ -207,6 +241,10 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
       input.active =
         followCursor && pointerInside && !document.hidden && t - lastMoveAt < cfg.idleTimeoutMs;
       stepPet(pet, dt, input, cfg);
+      // Olha para o cartão em hover quando está parado
+      if (lookX !== null && pet.mode !== 'walk' && Math.abs(lookX - pet.x) > 4) {
+        pet.facing = lookX > pet.x ? 1 : -1;
+      }
 
       const { anim, frame } = getPetFrame(pet);
       if (anim !== lastAnim || frame !== lastFrame) {
@@ -223,10 +261,17 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
         pet.y = Math.min(maxY, Math.max(h / 2, pet.y));
         // Pixel perfeito: posição sempre em múltiplos da escala
         const px = Math.round((pet.x - w / 2) / intScale) * intScale;
-        const py = Math.round((pet.y - h / 2) / intScale) * intScale;
+        let py = Math.round((pet.y - h / 2) / intScale) * intScale;
+        // Comemoração: pulinhos só com transform (em múltiplos da escala)
+        const ce = t - celebrateStart;
+        if (ce >= 0 && ce < CELEBRATE_MS) {
+          const hop = Math.abs(Math.sin((ce / CELEBRATE_MS) * Math.PI * 3));
+          py -= Math.round(hop * CELEBRATE_HOP) * intScale;
+        }
         const transform = `translate3d(${px}px, ${py}px, 0) scaleX(${pet.facing})`;
         if (transform !== lastTransform) {
           canvas.style.transform = transform;
+          if (glowRef.current) glowRef.current.style.transform = `translate3d(${px}px, ${py}px, 0)`;
           lastTransform = transform;
         }
       }
@@ -238,6 +283,8 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
       document.documentElement.addEventListener('mouseleave', onLeave);
       window.addEventListener('blur', onLeave);
       document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener(PET_LOOK_EVENT, onLook);
+      window.addEventListener(PET_CELEBRATE_EVENT, onCelebrate);
     }
     rafId = requestAnimationFrame(tick);
 
@@ -248,6 +295,8 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
       document.documentElement.removeEventListener('mouseleave', onLeave);
       window.removeEventListener('blur', onLeave);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener(PET_LOOK_EVENT, onLook);
+      window.removeEventListener(PET_CELEBRATE_EVENT, onCelebrate);
     };
     // startPosition é representado por startKey (evita reiniciar com objetos novos a cada render)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,7 +317,26 @@ export const PixelShihTzu: React.FC<PixelShihTzuProps> = ({
     />
   );
 
-  if (followCursor) return createPortal(canvas, document.body);
+  if (followCursor) {
+    return createPortal(
+      <>
+        {glow && !reduced && (
+          <div
+            ref={glowRef}
+            className={styles.glow}
+            style={{
+              width: SPRITE_W * intScale,
+              height: SPRITE_H * intScale,
+              zIndex: zIndex - 1,
+            }}
+            aria-hidden="true"
+          />
+        )}
+        {canvas}
+      </>,
+      document.body,
+    );
+  }
 
   return (
     <div className={`${styles.inline} ${className}`}>

@@ -5,7 +5,7 @@ interface IconProps extends React.SVGProps<SVGSVGElement> {
   className?: string;
 }
 
-/** Logotipo da KIARA: shih tzu em pixel art (public/favicon.svg), o mesmo ícone do app e da aba. */
+/** Logotipo da KIARA: shih tzu em pixel art (public/kiara-mark.svg, paleta marrom/creme). */
 export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
   size = 24,
   withText = true,
@@ -13,7 +13,7 @@ export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
 }) => (
   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)', verticalAlign: 'middle', userSelect: 'none' }}>
     <img
-      src="/favicon.svg"
+      src="/kiara-mark.svg"
       width={size}
       height={size}
       alt=""
@@ -37,6 +37,27 @@ export const KiaraLogo: React.FC<IconProps & { withText?: boolean }> = ({
       </span>
     )}
   </div>
+);
+
+export const IconSun: React.FC<IconProps> = ({ size = 18, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+  </svg>
+);
+
+export const IconMoon: React.FC<IconProps> = ({ size = 18, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+  </svg>
+);
+
+export const IconDownload: React.FC<IconProps> = ({ size = 18, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
 );
 
 export const IconScreen: React.FC<IconProps> = ({ size = 20, ...props }) => (
