@@ -2,9 +2,9 @@
   <title>KIARA</title>
   <rect width="16" height="16" fill="#271F19"/>
   <g transform="translate(2.4 2.4) scale(0.7)">
-  <rect x="5" y="2" width="2" height="1" fill="#C98A52"/>
-  <rect x="8" y="2" width="2" height="1" fill="#C98A52"/>
-  <rect x="5" y="3" width="5" height="1" fill="#C98A52"/>
+  <rect x="5" y="2" width="2" height="1" fill="#C23B34"/>
+  <rect x="8" y="2" width="2" height="1" fill="#C23B34"/>
+  <rect x="5" y="3" width="5" height="1" fill="#C23B34"/>
   <rect x="4" y="4" width="1" height="1" fill="#D9CBB8"/>
   <rect x="5" y="4" width="5" height="1" fill="#FBF7F1"/>
   <rect x="10" y="4" width="1" height="1" fill="#D9CBB8"/>
