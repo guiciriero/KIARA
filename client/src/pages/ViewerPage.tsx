@@ -27,7 +27,6 @@ import { useHudNotification } from '../hooks/useHudNotification';
 import { DEFAULT_VIDEO_CONFIG } from '../services/rtcConfig';
 import type { ViewerQualityPreference, VideoConfig } from '@shared/index';
 import {
-  KiaraLogo,
   IconArrowLeft,
   IconBroadcast,
   IconScreen,
@@ -50,6 +49,7 @@ import { useStatsHistory } from '../hooks/useStatsHistory';
 import PipPlayer from '../components/UI/PipPlayer';
 import ConnectionBadge from '../components/UI/ConnectionBadge';
 import PixelShihTzu from '../components/UI/PixelShihTzu/PixelShihTzu';
+import { useStreamingMode } from '../theme/theme';
 import styles from './ViewerPage.module.css';
 
 const ViewerPage: React.FC = () => {
@@ -257,6 +257,9 @@ const ViewerPage: React.FC = () => {
   // Mantém a tela do celular acesa enquanto assiste
   useWakeLock(state.connectionState === 'connected');
 
+  // Assistindo: efeitos pesados desligados (CPU/GPU ficam para o vídeo)
+  useStreamingMode(state.connectionState === 'connected');
+
   // Autohide de controles após inatividade do mouse
   const resetHideTimer = useCallback(() => {
     setShowControls(true);
@@ -442,11 +445,11 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard}>
-          <PixelShihTzu pose="sleep" scale={5} speech="Código de sala inválido..." />
+          <PixelShihTzu pose="sleep" scale={5} speech="Esse código não existe." />
           <h2>Código inválido</h2>
-          <p>O código deve ter 6 caracteres (letras e números). Confira o link recebido.</p>
+          <p>O código tem 6 letras ou números. Confira o link.</p>
           <button type="button" className={styles.btnPrimary} onClick={() => navigate('/')}>
-            <span>Voltar à Página Inicial</span>
+            <span>Voltar ao início</span>
           </button>
         </div>
       </div>
@@ -461,16 +464,16 @@ const ViewerPage: React.FC = () => {
           <PixelShihTzu
             pose="idle"
             scale={5}
-            speech={state.hostDisconnected ? 'Transmissão encerrada! Até a próxima 🐾' : 'Sala indisponível no momento...'}
+            speech={state.hostDisconnected ? 'Até a próxima!' : 'Sala indisponível.'}
           />
-          <h2>{state.hostDisconnected ? 'Transmissão finalizada' : 'Sala indisponível'}</h2>
+          <h2>{state.hostDisconnected ? 'Transmissão encerrada' : 'Sala indisponível'}</h2>
           <p>
             {state.hostDisconnected
-              ? 'O apresentador encerrou o compartilhamento de tela.'
-              : 'Não foi possível reconectar à sala. Ela pode ter sido encerrada.'}
+              ? 'O apresentador parou de transmitir.'
+              : 'Não deu para reconectar. A sala pode ter sido fechada.'}
           </p>
           <button type="button" className={styles.btnPrimary} onClick={handleLeave}>
-            <span>Voltar à Página Inicial</span>
+            <span>Voltar ao início</span>
           </button>
         </div>
       </div>
@@ -482,13 +485,12 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <form className={styles.messageCard} onSubmit={handleSubmitPassword}>
-          <PixelShihTzu pose="idle" scale={5} speech="Esta sala tem senha! 🔒" />
-          <h2>Sala protegida</h2>
-          <p>Digite a senha enviada pelo apresentador.</p>
+          <PixelShihTzu pose="idle" scale={5} speech="Essa sala tem senha." />
+          <h2>Sala com senha</h2>
+          <p>Digite a senha que o apresentador enviou.</p>
           {state.e2ee && (
             <p className={styles.fieldLabel}>
-              Esta sala usa criptografia de ponta a ponta: a senha é transformada no seu navegador e a
-              chave do vídeo não é enviada ao servidor.
+              Sala com criptografia total: a chave do vídeo não passa pelo servidor.
             </p>
           )}
           <label htmlFor="kiara-viewer-name" className={styles.fieldLabel}>Seu apelido (opcional)</label>
@@ -534,9 +536,9 @@ const ViewerPage: React.FC = () => {
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard} role="status" aria-live="polite">
-          <PixelShihTzu pose="idle" scale={5} speech="Esperando o host aprovar... 🐾" />
+          <PixelShihTzu pose="idle" scale={5} speech="Já já ele aprova." />
           <h2>Aguardando aprovação</h2>
-          <p>O apresentador precisa aceitar a sua entrada. Mantenha esta página aberta.</p>
+          <p>O apresentador precisa aceitar sua entrada. Mantenha esta página aberta.</p>
           <button type="button" className={styles.btnSecondary} onClick={handleLeave}>
             <span>Cancelar</span>
           </button>
@@ -550,40 +552,40 @@ const ViewerPage: React.FC = () => {
     const messages: Partial<Record<string, { title: string; text: string }>> = {
       'room-full': {
         title: 'Sala cheia',
-        text: 'A sala atingiu o limite de espectadores. Peça ao apresentador para liberar uma vaga.',
+        text: 'A sala chegou ao limite de espectadores. Peça uma vaga ao apresentador.',
       },
       denied: {
         title: 'Entrada não autorizada',
-        text: 'O apresentador não aprovou a sua entrada (ou não respondeu a tempo).',
+        text: 'O apresentador não aprovou sua entrada a tempo.',
       },
       'not-found': {
         title: 'Sala não encontrada',
-        text: 'Confira o código. A sala pode já ter sido encerrada.',
+        text: 'Confira o código. A sala pode ter sido fechada.',
       },
-      closed: { title: 'Sala encerrada', text: 'Esta sala já foi encerrada pelo apresentador.' },
-      kicked: { title: 'Você foi removido', text: 'Você foi removido da sala pelo apresentador.' },
+      closed: { title: 'Sala encerrada', text: 'O apresentador fechou esta sala.' },
+      kicked: { title: 'Você foi removido', text: 'O apresentador tirou você da sala.' },
       banned: { title: 'Entrada bloqueada', text: 'Você não pode entrar nesta sala.' },
       'rate-limited': {
         title: 'Muitas tentativas',
-        text: 'Aguarde um minuto antes de tentar entrar de novo.',
+        text: 'Espere um minuto e tente de novo.',
       },
       'server-busy': {
         title: 'Servidor ocupado',
-        text: 'O servidor está no limite agora. Tente novamente em alguns minutos.',
+        text: 'O servidor está lotado. Tente de novo em alguns minutos.',
       },
     };
     const info = (state.errorCode && messages[state.errorCode]) || {
-      title: 'Não foi possível entrar na sala',
+      title: 'Não deu para entrar',
       text: state.error,
     };
     return (
       <div className={styles.centeredPage}>
         <div className={styles.messageCard} role="alert">
-          <PixelShihTzu pose="sleep" scale={5} speech="Ops! Houve um imprevisto na conexão." />
+          <PixelShihTzu pose="sleep" scale={5} speech="Algo deu errado." />
           <h2>{info.title}</h2>
           <p>{info.text}</p>
           <button type="button" className={styles.btnPrimary} onClick={handleLeave}>
-            <span>Voltar e conferir o código</span>
+            <span>Conferir o código</span>
           </button>
         </div>
       </div>
@@ -614,8 +616,8 @@ const ViewerPage: React.FC = () => {
             type="button"
             className={styles.leaveBtn}
             onClick={handleLeave}
-            title="Sair da transmissão"
-            aria-label="Sair da transmissão"
+            title="Sair"
+            aria-label="Sair da sala"
           >
             <IconArrowLeft size={15} />
             <span>Sair</span>
@@ -623,7 +625,6 @@ const ViewerPage: React.FC = () => {
           {!hasTitleBar && (
             <>
               <div className={styles.divider} />
-              <KiaraLogo size={18} withText />
               <div className={styles.roomPill}>
                 <span className={styles.roomLabel}>SALA</span>
                 <strong className={styles.roomCode}>{code}</strong>
@@ -633,7 +634,7 @@ const ViewerPage: React.FC = () => {
         </div>
 
         <div className={styles.topBarRight}>
-          <ConnectionBadge state={state.connectionState} compact />
+          {state.connectionState !== 'connected' && <ConnectionBadge state={state.connectionState} compact />}
           {state.viewerCount > 0 && (
             <div className={styles.viewersBadge} title={`${state.viewerCount} espectador(es)`}>
               <IconUsers size={13} />
@@ -658,13 +659,10 @@ const ViewerPage: React.FC = () => {
 
       {/* ── Área Central do Vídeo (Foco Total e Máxima Resolução) ───────── */}
       <div className={styles.videoViewport}>
-        {/* Aura ambiente sutil */}
-        {state.connectionState === 'connected' && <div className={styles.ambientAura} />}
-
         {/* Apresentador caiu: mantém o último frame e avisa que a sala aguarda a volta dele */}
         {state.connectionState === 'connected' && state.hostReconnecting && (
           <div className={styles.hudNotification} role="status" aria-live="polite">
-            <span>O apresentador perdeu a conexão. Aguardando ele voltar… 🐾</span>
+            <span>O apresentador caiu. Esperando ele voltar…</span>
           </div>
         )}
 
@@ -674,7 +672,7 @@ const ViewerPage: React.FC = () => {
             <PixelShihTzu
               pose="walk"
               scale={5}
-              speech={state.connectionState === 'reconnecting' ? 'Reconectando… 🐾' : 'Aguardando o host… 🐾'}
+              speech={state.connectionState === 'reconnecting' ? 'Reconectando…' : 'Chamando o apresentador…'}
             />
             <h3>
               {state.connectionState === 'reconnecting'
@@ -742,7 +740,7 @@ const ViewerPage: React.FC = () => {
             <div className={styles.coPresenterPanelHeader}>
               <div className={styles.panelHeaderTitle}>
                 <IconSettings size={15} />
-                <span>Configurações</span>
+                <span>Co-apresentar</span>
               </div>
               <button
                 type="button"
@@ -769,11 +767,11 @@ const ViewerPage: React.FC = () => {
               />
 
               {coState.starting && (
-                <p role="status" aria-live="polite">Iniciando transmissão…</p>
+                <p role="status" aria-live="polite">Iniciando…</p>
               )}
               {!captureSupported && (
                 <p role="alert">
-                  Este aparelho não consegue compartilhar a tela pelo navegador.
+                  Este aparelho não compartilha a tela.
                 </p>
               )}
               {coState.error && <p role="alert">{coState.error}</p>}
@@ -828,7 +826,7 @@ const ViewerPage: React.FC = () => {
         <div className={styles.modalBackdrop}>
           <form className={styles.modalContent} onSubmit={handleConfirmNameModal}>
             <h2>Identifique-se</h2>
-            <p>Insira seu nome ou apelido para reagir à transmissão.</p>
+            <p>Como devemos chamar você?</p>
             <label htmlFor="viewer-name-modal-input" className={styles.fieldLabel}>
               Seu nome
             </label>
@@ -848,7 +846,7 @@ const ViewerPage: React.FC = () => {
                 className={styles.btnPrimary}
                 disabled={modalNameValue.trim().length === 0}
               >
-                <span>Confirmar Nome</span>
+                <span>Confirmar</span>
               </button>
               <button
                 type="button"
@@ -865,11 +863,6 @@ const ViewerPage: React.FC = () => {
       {/* ── Barra Inferior Flutuante de Controles do Player ──────────────── */}
       <footer className={`${styles.bottomBar} ${!showControls ? styles.hidden : ''}`}>
         <div className={styles.bottomBarLeft}>
-          <div className={styles.liveIndicator}>
-            <span className={styles.liveDot} />
-            <span>AO VIVO</span>
-          </div>
-
           {/* Controle de Volume do Espectador */}
           <div className={styles.volumeControl}>
             <button
