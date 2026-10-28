@@ -1,9 +1,10 @@
-import React from 'react';
-import type { VideoConfig } from '@shared/index';
+import React, { useState } from 'react';
+import type { CaptureSourceInfo, VideoConfig } from '@shared/index';
 import type { useAudioSources } from '../../hooks/useAudioSources';
 import VideoConfigPanel from '../Controls/VideoConfigPanel';
 import AudioSourceList from '../Controls/AudioSourceList';
-import CaptureSourcePicker from '../Controls/CaptureSourcePicker';
+import SourcePickerModal from '../Controls/SourcePickerModal';
+import { IconArrowRight, IconScreen, IconWindow } from '../UI/Icons';
 import styles from '../../pages/BroadcastPage.module.css';
 
 interface Props {
@@ -15,7 +16,7 @@ interface Props {
   onSelectSource: (sourceId: string) => Promise<void>;
 }
 
-/** Painel direito: qualidade de vídeo, fonte de captura (desktop) e fontes de áudio */
+/** Painel direito: o que transmitir (desktop), áudio e ajustes avançados */
 const StudioConfigPanel: React.FC<Props> = ({
   videoConfig,
   onVideoConfigChange,
@@ -24,6 +25,16 @@ const StudioConfigPanel: React.FC<Props> = ({
   captureSourceId,
   onSelectSource,
 }) => {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [source, setSource] = useState<CaptureSourceInfo | null>(null);
+
+  const handleConfirm = async (id: string, picked?: CaptureSourceInfo) => {
+    setSource(picked ?? null);
+    await onSelectSource(id);
+  };
+
+  const SourceIcon = source?.type === 'window' ? IconWindow : IconScreen;
+
   return (
     <aside
       id="studio-config-panel"
@@ -31,20 +42,34 @@ const StudioConfigPanel: React.FC<Props> = ({
       aria-label="Configurações de transmissão"
     >
       <div className={styles.sidebarInner}>
-        {/* Configurações de Qualidade de Vídeo */}
-        <VideoConfigPanel
-          config={videoConfig}
-          onChange={onVideoConfigChange}
-          isSharing={isSharing}
-        />
-
-        {/* Seletor Inline de Tela/Janela (Desktop Electron) */}
+        {/* Escolha de tela/janela (Desktop Electron): abre o modal de seleção */}
         {audio.isDesktop && (
-          <CaptureSourcePicker
-            selectedId={captureSourceId}
-            onSelect={(id) => void onSelectSource(id)}
-            isSharing={isSharing}
-          />
+          <>
+            <button
+              type="button"
+              className={styles.sourceTrigger}
+              onClick={() => setPickerOpen(true)}
+              aria-haspopup="dialog"
+            >
+              <SourceIcon size={18} />
+              <span className={styles.sourceTriggerText}>
+                <span className={styles.sourceTriggerLabel}>Fonte</span>
+                <span className={styles.sourceTriggerName}>
+                  {source?.name ?? (captureSourceId ? 'Fonte escolhida' : 'Escolher tela ou janela')}
+                </span>
+              </span>
+              <IconArrowRight size={14} />
+            </button>
+            <SourcePickerModal
+              open={pickerOpen}
+              onClose={() => setPickerOpen(false)}
+              selectedId={captureSourceId}
+              isSharing={isSharing}
+              onConfirm={handleConfirm}
+              videoConfig={videoConfig}
+              onVideoConfigChange={onVideoConfigChange}
+            />
+          </>
         )}
 
         {/* Fontes de Áudio por Processo */}
@@ -57,6 +82,14 @@ const StudioConfigPanel: React.FC<Props> = ({
           onMuteToggle={audio.toggleMute}
           onRefresh={audio.refreshSources}
           webMode={!audio.isDesktop}
+        />
+
+        {/* Avançado: bitrate (e resolução no navegador; no desktop ela vive no modal) */}
+        <VideoConfigPanel
+          config={videoConfig}
+          onChange={onVideoConfigChange}
+          isSharing={isSharing}
+          hideResolution={audio.isDesktop}
         />
       </div>
     </aside>
