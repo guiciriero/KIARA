@@ -103,10 +103,14 @@ const HostControlBar: React.FC<Props> = ({
         <span>Ao vivo</span>
       </div>
       <span className={styles.hostStat} title="Tempo no ar">{formatElapsed(streamElapsed)}</span>
-      <span className={styles.hostStat} title="Espectadores" aria-label={` espectadores`}>
+      <span
+        className={styles.hostStat}
+        title="Espectadores"
+        aria-label={`${viewerCount} espectadores`}
+      >
         <IconUsers size={14} />
         {viewerCount}
-        {maxViewers > 0 ? `/` : ''}
+        {maxViewers > 0 ? `/${maxViewers}` : ''}
       </span>
 
       <button
