@@ -12,11 +12,11 @@ export const SCENE_FPS = 10;
 
 /** Cada caractere (exceto '.') mapeia para uma cor CSS. '.' = transparente. */
 export const SCENE_PALETTE: Readonly<Record<string, string>> = {
-  w: '#FBF7F1', // pelagem branca (creme)
-  s: '#D9CBB8', // sombra da pelagem / gabinete claro
-  a: '#C23B34', // lado/mancha do corpo → vermelho
-  f: '#E05050', // acento vermelho claro
-  m: '#6E4326', // marrom escuro das orelhas
+  w: '#f8fafc', // pelagem branca
+  s: '#cbd5e1', // sombra da pelagem / gabinete claro
+  a: '#d97706', // caramelo (orelhas/manchas/rabo)
+  f: '#f59e0b', // caramelo claro
+  m: '#78350f', // marrom escuro das orelhas
   n: '#0f172a', // nariz/boca / fundo da tela
   e: '#1e1b4b', // olho
   b: '#C23B34', // laco vermelho
