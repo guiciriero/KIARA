@@ -24,7 +24,7 @@ O KIARA transmite a tela ligando você e os espectadores de forma direta (WebRTC
 1. Abra o link que a pessoa mandou.
 2. Clique em **Ativar Som da Transmissão** para ouvir o áudio (os navegadores bloqueiam o som até você clicar).
 3. Se a sala tiver senha, digite-a (e, se quiser, um apelido). Se exigir aprovação, aguarde o apresentador aceitar.
-4. Atalhos: **F** tela cheia, **M** mutar, **P** janela flutuante com volume, tela cheia e estatísticas (Chrome, Edge e app desktop; nos demais, PiP nativo), **S** (ou **C**) ocultar/exibir o painel, **Z** preencher a tela ou manter a proporção. No player há também a **Qualidade** (Auto, 1080p, 720p, 480p, 360p), só para você.
+4. Atalhos: **F** tela cheia, **M** mutar, **P** janela flutuante com volume, tela cheia e estatísticas (Chrome e Edge; no app desktop e nos demais, PiP nativo), **S** (ou **C**) ocultar/exibir o painel, **Z** preencher a tela ou manter a proporção. No player há também a **Qualidade** (Auto, 1080p, 720p, 480p, 360p), só para você.
 5. Para sair, clique em **Sair**.
 
 Se preferir, abra a página inicial no navegador, digite o código de 6 caracteres (ou cole o link) e clique em **Entrar**. No app instalado, cole o link completo.

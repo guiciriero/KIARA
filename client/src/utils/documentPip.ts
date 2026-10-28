@@ -32,8 +32,21 @@ function hostOf(win?: DocumentPipHost): DocumentPipHost | undefined {
   return typeof window === 'undefined' ? undefined : (window as unknown as DocumentPipHost);
 }
 
-/** O navegador/Electron oferece `documentPictureInPicture.requestWindow` */
-export function isDocumentPipSupported(win?: DocumentPipHost): boolean {
+/**
+ * O Electron 44 expõe `documentPictureInPicture.requestWindow` e resolve a promessa, mas a janela é
+ * fechada na hora (`closed` vira true em menos de 100 ms, com `pagehide`): o vídeo ficava preso no app
+ * com o aviso de "janela aberta". No app desktop vale o PiP nativo, que abre a janela de verdade.
+ */
+function isElectron(userAgent: string | undefined): boolean {
+  return /\bElectron\//.test(userAgent ?? '');
+}
+
+/** O navegador oferece `documentPictureInPicture.requestWindow` e a janela abre de fato (fora do Electron) */
+export function isDocumentPipSupported(
+  win?: DocumentPipHost,
+  userAgent: string | undefined = typeof navigator === 'undefined' ? undefined : navigator.userAgent,
+): boolean {
+  if (isElectron(userAgent)) return false;
   return typeof hostOf(win)?.documentPictureInPicture?.requestWindow === 'function';
 }
 

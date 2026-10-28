@@ -21,6 +21,16 @@ describe('isDocumentPipSupported', () => {
   it('é falso sem a API', () => {
     expect(isDocumentPipSupported({})).toBe(false);
   });
+
+  it('é falso no Electron, onde a janela fecha na hora; vale o PiP nativo', () => {
+    const host: DocumentPipHost = { documentPictureInPicture: { requestWindow: vi.fn() } };
+    const electronUa =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) KIARA/1.0.73 Chrome/152.0.7977.149 Electron/44.7.2 Safari/537.36';
+    const chromeUa =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
+    expect(isDocumentPipSupported(host, electronUa)).toBe(false);
+    expect(isDocumentPipSupported(host, chromeUa)).toBe(true);
+  });
 });
 
 describe('pipSizeFor', () => {
