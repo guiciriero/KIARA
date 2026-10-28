@@ -477,6 +477,16 @@
   border-color: var(--kiara-accent);
 }
 
+/* O menu aberto é nativo e não herda o fundo translúcido do select: sem isto ele abre branco com texto claro */
+.qualitySelect {
+  color-scheme: dark;
+}
+
+.qualitySelect option {
+  background: var(--kiara-surface-raised);
+  color: var(--kiara-text);
+}
+
 /* ── Modal de Identificação / Nome do Viewer ────────────────── */
 .modalBackdrop {
   position: fixed;
